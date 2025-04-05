@@ -11,17 +11,28 @@ export default async function EditPage({ params }: { params: { id: string } }) {
   if (!user) redirect('/login')
 
   // 获取功能数据（添加类型断言）
+  // 添加类型定义，替换 any
+  // 修改类型定义，使其与 function-form.tsx 中的类型匹配
+  interface FunctionCardData {
+    name: string;
+    url: string;
+    sort_order: number;
+    is_public: boolean;
+    description?: string;
+    // 不需要包含 id 和 owner，因为这些是在提交时由服务器处理的
+  }
+  
+  // 在数据获取处使用类型
   const { data: func } = await supabase
     .from('functions')
     .select('*')
     .eq('id', params.id)
     .eq('owner', user.id)
-    .single() as { data: any }
-
-  if (!func) redirect('/card-management')
-
-  // 创建服务端提交动作
-  const updateFunction = async (formData: any) => {
+    .single() as { data: FunctionCardData }
+  
+  // 在更新函数中使用类型
+  // 修改更新函数
+  const updateFunction = async (formData: FunctionCardData) => {
     'use server'
     
     const supabase = await createClient()
@@ -45,8 +56,8 @@ export default async function EditPage({ params }: { params: { id: string } }) {
     <div className="p-8 max-w-3xl mx-auto">
       <h2 className="text-2xl font-bold mb-8">编辑功能卡片</h2>
       <FunctionForm 
-        initialData={func}
-        onSubmit={updateFunction} // 传递服务端动作
+        initialData={func} 
+        onSubmit={updateFunction} 
       />
     </div>
   )

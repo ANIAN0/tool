@@ -2,10 +2,13 @@
   "extends": "next/core-web-vitals",
   "rules": {
     "@typescript-eslint/no-explicit-any": "off",
-    "@typescript-eslint/no-unused-vars": "off",
-    "react-hooks/exhaustive-deps": "off",
-    "@next/next/no-img-element": "off"
+    "@typescript-eslint/no-unused-vars": ["warn", {
+      "argsIgnorePattern": "^_",
+      "varsIgnorePattern": "^_"
+    }],
+    "react-hooks/exhaustive-deps": "warn",
+    "@next/next/no-img-element": "warn"
   }
 }
 
-// 0.1.1加入
+//0.1.1加入

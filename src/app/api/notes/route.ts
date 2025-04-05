@@ -1,5 +1,7 @@
 import { createClient } from '@/lib/supabase/server'
 import { NextResponse } from 'next/server'
+// 删除未使用的导入
+// import { PostgrestError } from '@supabase/supabase-js'
 
 // 创建新笔记
 export async function POST(request: Request) {

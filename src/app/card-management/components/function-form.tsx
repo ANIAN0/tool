@@ -13,7 +13,8 @@ import {
 } from '@/components/ui/form'
 import { Input } from '@/components/ui/input'
 import { Switch } from '@/components/ui/switch'
-import { createClient } from '@/lib/supabase/client'
+// 删除未使用的导入
+// import { createClient } from '@/lib/supabase/client'
 import { useRouter } from 'next/navigation'
 import { z } from 'zod'
 import { zodResolver } from '@hookform/resolvers/zod'
@@ -33,15 +34,20 @@ const formSchema = z.object({
   is_public: z.boolean().default(true),
 })
 
+// 定义类型替代 any
+type FunctionFormData = z.infer<typeof formSchema>;
+
 export function FunctionForm({ 
   initialData,
-  onSubmit  // 接收的prop
+  onSubmit
 }: {
-  initialData?: any
-  onSubmit: (data: any) => Promise<any>
+  initialData?: FunctionFormData
+  onSubmit: (data: FunctionFormData) => Promise<{error?: string} | void>
 }) {
   const router = useRouter()
-  const supabase = createClient()
+  // 删除未使用的 supabase 变量
+  // const supabase = createClient()
+  
   // 添加提交状态
   const [isSubmitting, setIsSubmitting] = useState(false)
   

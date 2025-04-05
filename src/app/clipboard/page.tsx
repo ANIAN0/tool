@@ -6,6 +6,7 @@ import { Card, CardContent, CardFooter, CardHeader, CardTitle } from '@/componen
 import { Alert, AlertDescription } from '@/components/ui/alert'
 import Link from 'next/link'
 import { Search } from 'lucide-react'
+import Image from 'next/image' // 添加这行导入
 
 // 剪贴板项目类型
 type ClipboardItem = {
@@ -232,13 +233,14 @@ function ClipboardCard({ item }: { item: ClipboardItem }) {
         <div className="max-h-40 overflow-auto break-words">
           {item.type === 'text' && item.content}
           {item.type === 'image' && (
-            <img 
+            <Image 
               src={item.content} 
               alt="剪贴板图片" 
+              width={500}
+              height={300}
               className="max-w-full h-auto object-contain"
               onError={(e) => {
-                const target = e.target as HTMLImageElement;
-                target.src = '/placeholder-image.png'; // 可选：添加占位图
+                // 处理错误
               }}
             />
           )}

@@ -2,6 +2,15 @@ import { redirect } from 'next/navigation'
 import { createClient } from '@/lib/supabase/server'
 import { FunctionForm } from '../components/function-form'
 
+// 修改类型定义，使 description 为可选字段
+interface FunctionCardData {
+  name: string;
+  url: string;
+  sort_order: number;
+  is_public: boolean;
+  description?: string; // 添加问号使其成为可选字段
+}
+
 export default async function NewFunctionPage() {
   const supabase = await createClient()
   
@@ -10,7 +19,7 @@ export default async function NewFunctionPage() {
   if (!user) redirect('/login')
 
   // 创建服务端提交动作
-  const createFunction = async (formData: any) => {
+  const createFunction = async (formData: FunctionCardData) => {
     'use server'
     
     const supabase = await createClient()

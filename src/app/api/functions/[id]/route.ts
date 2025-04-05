@@ -6,7 +6,8 @@ export async function DELETE(
   { params }: { params: { id: string } }
 ) {
   const supabase = await createClient()
-  const { data: { user }, error } = await supabase.auth.getUser()
+  // 修复未使用的 error 变量
+  const { data: { user }, error: _error } = await supabase.auth.getUser()
 
   if (!user) {
     return NextResponse.json({ error: '未授权' }, { status: 401 })
