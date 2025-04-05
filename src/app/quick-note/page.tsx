@@ -29,6 +29,8 @@ export default function QuickNotePage() {
   // 加载笔记
   useEffect(() => {
     let channel: RealtimeChannel | null = null
+    // 保存当前的 supabase 实例引用
+    const currentSupabase = supabaseRef.current
 
     const setupSubscription = async () => {
       const { data: { user } } = await supabaseRef.current.auth.getUser()
@@ -86,7 +88,8 @@ export default function QuickNotePage() {
     // 清理函数
     return () => {
       if (channel) {
-        supabaseRef.current.removeChannel(channel)
+        // 使用保存的引用而不是 supabaseRef.current
+        currentSupabase.removeChannel(channel)
       }
     }
   }, []) // 使用空依赖数组，因为supabase实例已经通过ref稳定化
