@@ -3,9 +3,10 @@ import { createClient } from '@/lib/supabase/server'
 // 修正组件导入路径为实际位置
 import { FunctionForm } from '../../components/function-form'
 
-export default async function EditPage({ params }: { params: { id: string } }) {
+export default async function EditPage(props: { params: Promise<{ id: string }> }) {
+  const params = await props.params;
   const supabase = await createClient()
-  
+
   // 验证用户
   const { data: { user } } = await supabase.auth.getUser()
   if (!user) redirect('/login')
@@ -21,7 +22,7 @@ export default async function EditPage({ params }: { params: { id: string } }) {
     description?: string;
     // 不需要包含 id 和 owner，因为这些是在提交时由服务器处理的
   }
-  
+
   // 在数据获取处使用类型
   const { data: func } = await supabase
     .from('functions')
@@ -29,7 +30,7 @@ export default async function EditPage({ params }: { params: { id: string } }) {
     .eq('id', params.id)
     .eq('owner', user.id)
     .single() as { data: FunctionCardData }
-  
+
   // 在更新函数中使用类型
   // 修改更新函数
   const updateFunction = async (formData: FunctionCardData) => {

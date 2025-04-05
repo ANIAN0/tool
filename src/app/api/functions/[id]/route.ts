@@ -6,7 +6,7 @@ type RouteParams = Promise<{ id: string }>;
 
 export async function DELETE(
   request: Request,
-  context: { params: RouteParams } // 使用正确的类型定义
+  context: { params: Promise<RouteParams> } // 使用正确的类型定义
 ) {
   try {
     const supabase = await createClient();
