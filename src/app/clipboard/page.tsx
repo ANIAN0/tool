@@ -147,20 +147,23 @@ export default function ClipboardPage() {
 
   // 初始化效果
   useEffect(() => {
-    loadHistory()
-    checkClipboardPermission()
-  }, [])
-
-  // 焦点监听效果
-  useEffect(() => {
-    const handleFocus = () => {
-      readClipboard()
-    }
+    // 修复 useEffect 依赖项
+    useEffect(() => {
+      loadHistory()
+      checkClipboardPermission()
+    }, [checkClipboardPermission]) // 添加依赖项
     
-    window.addEventListener('focus', handleFocus)
-    return () => {
-      window.removeEventListener('focus', handleFocus)
-    }
+    // 修复另一个 useEffect
+    useEffect(() => {
+      const handleFocus = () => {
+        readClipboard()
+      }
+      
+      window.addEventListener('focus', handleFocus)
+      return () => {
+        window.removeEventListener('focus', handleFocus)
+      }
+    }, [readClipboard]) // 添加依赖项
   }, [])
 
   // 清空历史记录
@@ -239,8 +242,8 @@ function ClipboardCard({ item }: { item: ClipboardItem }) {
               width={500}
               height={300}
               className="max-w-full h-auto object-contain"
-              onError={(e) => {
-                // 处理错误
+              onError={() => {
+                // 处理错误 (删除未使用的 e 参数)
               }}
             />
           )}
