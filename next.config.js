@@ -7,7 +7,7 @@ const nextConfig = {
   images: {
     remotePatterns: [
       {
-        protocol: 'blob',
+        protocol: 'https', // 将原来的'blob'改为'https'
         hostname: '**',
       },
     ],

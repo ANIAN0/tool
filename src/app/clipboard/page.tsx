@@ -147,23 +147,20 @@ export default function ClipboardPage() {
 
   // 初始化效果
   useEffect(() => {
-    // 修复 useEffect 依赖项
-    useEffect(() => {
-      loadHistory()
-      checkClipboardPermission()
-    }, [checkClipboardPermission]) // 添加依赖项
+    loadHistory()
+    checkClipboardPermission()
+  }, [])
+
+  // 焦点监听效果
+  useEffect(() => {
+    const handleFocus = () => {
+      readClipboard()
+    }
     
-    // 修复另一个 useEffect
-    useEffect(() => {
-      const handleFocus = () => {
-        readClipboard()
-      }
-      
-      window.addEventListener('focus', handleFocus)
-      return () => {
-        window.removeEventListener('focus', handleFocus)
-      }
-    }, [readClipboard]) // 添加依赖项
+    window.addEventListener('focus', handleFocus)
+    return () => {
+      window.removeEventListener('focus', handleFocus)
+    }
   }, [])
 
   // 清空历史记录
