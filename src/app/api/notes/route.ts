@@ -1,6 +1,5 @@
 import { createClient } from '@/lib/supabase/server'
 import { NextResponse } from 'next/server'
-import { PostgrestError } from '@supabase/supabase-js'
 
 // 创建新笔记
 export async function POST(request: Request) {

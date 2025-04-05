@@ -1,6 +1,6 @@
 'use client'
 
-import { useState, useEffect } from 'react'
+import { useState, useEffect, useRef } from 'react'
 import { createClient } from '@/lib/supabase/client'
 import NoteInput from './components/note-input'
 import NoteList from './components/note-list'
@@ -24,20 +24,21 @@ export default function QuickNotePage() {
   const [editingNote, setEditingNote] = useState<Note | null>(null)
   const [isDialogOpen, setIsDialogOpen] = useState(false)
   const supabase = createClient()
+  const supabaseRef = useRef(supabase)
 
   // 加载笔记
   useEffect(() => {
     let channel: RealtimeChannel | null = null
 
     const setupSubscription = async () => {
-      const { data: { user } } = await supabase.auth.getUser()
+      const { data: { user } } = await supabaseRef.current.auth.getUser()
       if (!user) {
         redirect('/login')
         return
       }
 
       // 加载初始数据
-      const { data, error } = await supabase
+      const { data, error } = await supabaseRef.current
         .from('temporary_contents')
         .select('*')
         .eq('owner', user.id)
@@ -53,7 +54,7 @@ export default function QuickNotePage() {
       setLoading(false)
 
       // 设置实时订阅
-      channel = supabase
+      channel = supabaseRef.current
         .channel('notes_changes')
         .on(
           'postgres_changes',
@@ -64,7 +65,6 @@ export default function QuickNotePage() {
             filter: `owner=eq.${user.id}`,
           },
           (payload) => {
-            console.log('收到更新:', payload) // 用于调试
             if (payload.eventType === 'INSERT') {
               setNotes((prev) => [payload.new as Note, ...prev])
             } else if (payload.eventType === 'UPDATE') {
@@ -74,21 +74,11 @@ export default function QuickNotePage() {
                 )
               )
             } else if (payload.eventType === 'DELETE') {
-              console.log('删除事件:', payload) // 用于调试删除
-              setNotes((prev) => {
-                console.log('当前笔记:', prev) // 用于调试当前状态
-                return prev.filter((note) => {
-                  const shouldKeep = note.id !== payload.old.id
-                  console.log(`笔记 ${note.id} 保留?: ${shouldKeep}`) // 用于调试过滤过程
-                  return shouldKeep
-                })
-              })
+              setNotes((prev) => prev.filter((note) => note.id !== payload.old.id))
             }
           }
         )
-        .subscribe((status) => {
-          console.log('订阅状态:', status)
-        })
+        .subscribe()
     }
 
     setupSubscription()
@@ -96,11 +86,10 @@ export default function QuickNotePage() {
     // 清理函数
     return () => {
       if (channel) {
-        console.log('清理订阅') // 用于调试
-        supabase.removeChannel(channel)
+        supabaseRef.current.removeChannel(channel)
       }
     }
-  }, [supabase])
+  }, []) // 使用空依赖数组，因为supabase实例已经通过ref稳定化
 
   // 添加笔记
   const addNote = async (content: string) => {
@@ -114,10 +103,12 @@ export default function QuickNotePage() {
       })
 
       if (!response.ok) {
-        throw new Error('添加失败')
+        const data = await response.json()
+        throw new Error(data.error || '添加失败')
       }
     } catch (error) {
       console.error('添加笔记失败:', error)
+      alert(error instanceof Error ? error.message : '添加失败')
     }
   }
 
@@ -131,13 +122,15 @@ export default function QuickNotePage() {
       })
 
       if (!response.ok) {
-        throw new Error('更新失败')
+        const data = await response.json()
+        throw new Error(data.error || '更新失败')
       }
 
       setIsDialogOpen(false)
       setEditingNote(null)
     } catch (error) {
       console.error('更新笔记失败:', error)
+      alert(error instanceof Error ? error.message : '更新失败')
     }
   }
 
@@ -157,7 +150,6 @@ export default function QuickNotePage() {
       setNotes(prev => prev.filter(note => note.id !== id))
     } catch (error) {
       console.error('删除笔记失败:', error)
-      // 可以添加一个提示
       alert(error instanceof Error ? error.message : '删除失败')
     }
   }
