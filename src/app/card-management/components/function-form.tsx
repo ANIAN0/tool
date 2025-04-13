@@ -1,214 +1,160 @@
-'use client'
+"use client"
 
-import { useForm } from 'react-hook-form'
-import { Button } from '@/components/ui/button'
-import {
-  Form,
-  FormControl,
-  FormDescription,
-  FormField,
-  FormItem,
-  FormLabel,
-  FormMessage,
-} from '@/components/ui/form'
-import { Input } from '@/components/ui/input'
-import { Switch } from '@/components/ui/switch'
-// 删除未使用的导入
-// import { createClient } from '@/lib/supabase/client'
-import { useRouter } from 'next/navigation'
-import { z } from 'zod'
-import { zodResolver } from '@hookform/resolvers/zod'
-import { useState } from 'react'
+import { useState } from "react"
+import { Button } from "@/components/ui/button"
+import { Input } from "@/components/ui/input"
+import { Textarea } from "@/components/ui/textarea"
+import { Label } from "@/components/ui/label"
+import { Switch } from "@/components/ui/switch"
+import { AlertCircle } from "lucide-react"
+import { Alert, AlertDescription } from "@/components/ui/alert"
 
-const formSchema = z.object({
-  name: z.string().min(2),
-  description: z.string().optional(),
-  url: z.string()
-    .refine(value => {
-      // 支持完整URL或以/开头的相对路径
-      return value.startsWith('http://') || 
-             value.startsWith('https://') || 
-             value.startsWith('/')
-    }, '请输入有效的URL或以/开头的相对路径'),
-  sort_order: z.coerce.number().min(0),
-  is_public: z.boolean().default(true),
-})
+interface FunctionCardData {
+  name: string
+  url: string
+  sort_order: number
+  is_public: boolean
+  description?: string
+}
 
-// 定义类型替代 any
-type FunctionFormData = z.infer<typeof formSchema>;
+interface FunctionFormProps {
+  initialData?: FunctionCardData
+  onSubmit: (data: FunctionCardData) => Promise<{ error?: string }>
+}
 
-export function FunctionForm({ 
-  initialData,
-  onSubmit
-}: {
-  initialData?: FunctionFormData
-  onSubmit: (data: FunctionFormData) => Promise<{error?: string} | void>
-}) {
-  const router = useRouter()
-  // 删除未使用的 supabase 变量
-  // const supabase = createClient()
-  
-  // 添加提交状态
-  const [isSubmitting, setIsSubmitting] = useState(false)
-  
-  // 修改defaultValues处理
-  const form = useForm({
-    resolver: zodResolver(formSchema),
-    defaultValues: initialData ? {
-      ...initialData,
-      // 确保sort_order是有效数字，如果转换失败则默认为0
-      sort_order: isNaN(Number(initialData.sort_order)) ? 0 : Number(initialData.sort_order)
-    } : {
-      name: '',
-      description: '',
-      url: '',
+export function FunctionForm({ initialData, onSubmit }: FunctionFormProps) {
+  const [formData, setFormData] = useState<FunctionCardData>(
+    initialData || {
+      name: "",
+      url: "",
       sort_order: 0,
-      is_public: true,
+      is_public: false,
+      description: "",
     }
-  })
+  )
+  const [error, setError] = useState<string | null>(null)
+  const [isSubmitting, setIsSubmitting] = useState(false)
 
-  // 将本地提交函数重命名
-  const handleFormSubmit = async (values: z.infer<typeof formSchema>) => {
-    if (isSubmitting) return // 防止重复提交
-    
+  const handleChange = (
+    e: React.ChangeEvent<HTMLInputElement | HTMLTextAreaElement>
+  ) => {
+    const { name, value } = e.target
+    setFormData((prev) => ({
+      ...prev,
+      [name]: value,
+    }))
+  }
+
+  const handleSwitchChange = (checked: boolean) => {
+    setFormData((prev) => ({
+      ...prev,
+      is_public: checked,
+    }))
+  }
+
+  const handleNumberChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const { name, value } = e.target
+    setFormData((prev) => ({
+      ...prev,
+      [name]: parseInt(value) || 0,
+    }))
+  }
+
+  const handleSubmit = async (e: React.FormEvent) => {
+    e.preventDefault()
+    setError(null)
+    setIsSubmitting(true)
+
     try {
-      setIsSubmitting(true) // 开始提交，设置状态
-      
-      // 直接调用服务端action
-      const result = await onSubmit(values)
-      
-      // 检查是否有错误
-      if (result?.error) {
-        throw new Error(result.error)
+      const result = await onSubmit(formData)
+      if (result.error) {
+        setError(result.error)
       }
-      
-      // 成功后自动跳转（服务端action中已经包含了redirect）
-    } catch (error) {
-      console.error('提交失败:', error)
-      // 可以添加错误提示UI
+    } catch (err) {
+      setError(err instanceof Error ? err.message : "提交失败")
     } finally {
       setIsSubmitting(false)
     }
   }
 
   return (
-    <Form {...form}>
-      <form onSubmit={form.handleSubmit(handleFormSubmit)} className="space-y-6">
-        <div className="grid grid-cols-2 gap-6">
-          {/* 名称字段 */}
-          <FormField
-            control={form.control}
+    <form onSubmit={handleSubmit} className="space-y-6">
+      {error && (
+        <Alert variant="destructive">
+          <AlertCircle className="h-4 w-4" />
+          <AlertDescription>{error}</AlertDescription>
+        </Alert>
+      )}
+
+      <div className="space-y-4">
+        <div className="space-y-2">
+          <Label htmlFor="name">功能名称 *</Label>
+          <Input
+            id="name"
             name="name"
-            render={({ field }) => (
-              <FormItem>
-                <FormLabel>功能名称</FormLabel>
-                <FormControl>
-                  <Input placeholder="请输入功能名称" {...field} />
-                </FormControl>
-                <FormMessage />
-              </FormItem>
-            )}
+            value={formData.name}
+            onChange={handleChange}
+            placeholder="输入功能名称"
+            className="h-10" // 增加输入框高度
+            required
           />
-          
-          {/* 排序字段 - 修改onChange处理 */}
-          <FormField
-            control={form.control}
+        </div>
+
+        <div className="space-y-2">
+          <Label htmlFor="description">描述</Label>
+          <Textarea
+            id="description"
+            name="description"
+            value={formData.description || ""}
+            onChange={handleChange}
+            placeholder="输入功能描述"
+            className="min-h-[100px]" // 增加文本区域高度
+            rows={4}
+          />
+        </div>
+
+        <div className="space-y-2">
+          <Label htmlFor="url">跳转链接 *</Label>
+          <Input
+            id="url"
+            name="url"
+            value={formData.url}
+            onChange={handleChange}
+            placeholder="输入链接地址"
+            className="h-10" // 增加输入框高度
+            required
+          />
+        </div>
+
+        <div className="space-y-2">
+          <Label htmlFor="sort_order">排序</Label>
+          <Input
+            id="sort_order"
             name="sort_order"
-            render={({ field }) => (
-              <FormItem>
-                <FormLabel>排序序号</FormLabel>
-                <FormControl>
-                  <Input 
-                    type="number" 
-                    min="0"
-                    {...field} 
-                    // 确保输入值为有效数字
-                    onChange={e => {
-                      const value = e.target.value === '' ? 0 : parseInt(e.target.value);
-                      field.onChange(isNaN(value) ? 0 : value);
-                    }}
-                    // 确保值始终为字符串
-                    value={field.value.toString()}
-                  />
-                </FormControl>
-                <FormDescription>数字越小排列越靠前</FormDescription>
-                <FormMessage />
-              </FormItem>
-            )}
+            type="number"
+            value={formData.sort_order}
+            onChange={handleNumberChange}
+            className="h-10" // 增加输入框高度
+            min={0}
           />
+          <p className="text-sm text-muted-foreground">数字越小排序越靠前</p>
         </div>
 
-        {/* 描述字段 */}
-        <FormField
-          control={form.control}
-          name="description"
-          render={({ field }) => (
-            <FormItem>
-              <FormLabel>功能描述</FormLabel>
-              <FormControl>
-                <Input placeholder="请输入功能描述（可选）" {...field} />
-              </FormControl>
-              <FormMessage />
-            </FormItem>
-          )}
-        />
-
-        {/* URL字段 */}
-        <FormField
-          control={form.control}
-          name="url"
-          render={({ field }) => (
-            <FormItem>
-              <FormLabel>跳转链接</FormLabel>
-              <FormControl>
-                <Input placeholder="https://example.com/feature" {...field} />
-              </FormControl>
-              <FormMessage />
-            </FormItem>
-          )}
-        />
-
-        {/* 公开状态 */}
-        <FormField
-          control={form.control}
-          name="is_public"
-          render={({ field }) => (
-            <FormItem className="flex flex-row items-center justify-between rounded-lg border p-4">
-              <div className="space-y-0.5">
-                <FormLabel>公开可见</FormLabel>
-                <FormDescription>
-                  开启后所有用户可见，关闭则仅自己可见
-                </FormDescription>
-              </div>
-              <FormControl>
-                <Switch
-                  checked={field.value}
-                  onCheckedChange={field.onChange}
-                />
-              </FormControl>
-            </FormItem>
-          )}
-        />
-
-        {/* 操作按钮 */}
-        <div className="flex gap-4 justify-end">
-          <Button 
-            type="submit" 
-            size="lg" 
-            disabled={isSubmitting}
-          >
-            {isSubmitting ? '保存中...' : '保存更改'}
-          </Button>
-          <Button 
-            variant="outline" 
-            type="button"
-            disabled={isSubmitting}
-            onClick={() => router.push('/card-management')}
-          >
-            取消
-          </Button>
+        <div className="flex items-center space-x-2">
+          <Switch
+            id="is_public"
+            checked={formData.is_public}
+            onCheckedChange={handleSwitchChange}
+          />
+          <Label htmlFor="is_public">公开可见</Label>
         </div>
-      </form>
-    </Form>
+      </div>
+
+      <div className="flex justify-end gap-2">
+        <Button type="submit" disabled={isSubmitting} className="h-10"> {/* 增加按钮高度 */}
+          {isSubmitting ? "保存中..." : "保存"}
+        </Button>
+      </div>
+    </form>
   )
 }

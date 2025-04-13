@@ -1,4 +1,4 @@
-'use client'
+"use client"
 
 import { useState, useEffect, KeyboardEvent } from 'react'
 import { Note } from '../page'

@@ -1,42 +1,48 @@
-import { redirect } from 'next/navigation'
-import { createClient } from '@/lib/supabase/server'
-import { FunctionForm } from '../components/function-form'
+"use client"
 
-// 修改类型定义，使 description 为可选字段
+import { useRouter } from 'next/navigation'
+import { FunctionForm } from '../components/function-form'
+import { toast } from "sonner" // 替换为sonner的toast
+
+// 定义类型
 interface FunctionCardData {
   name: string;
   url: string;
   sort_order: number;
   is_public: boolean;
-  description?: string; // 添加问号使其成为可选字段
+  description?: string;
 }
 
-export default async function NewFunctionPage() {
-  const supabase = await createClient()
-  
-  // 验证用户
-  const { data: { user } } = await supabase.auth.getUser()
-  if (!user) redirect('/login')
+export default function NewFunctionPage() {
+  const router = useRouter()
+  // 移除useToast钩子
 
-  // 创建服务端提交动作
+  // 创建函数
   const createFunction = async (formData: FunctionCardData) => {
-    'use server'
-    
-    const supabase = await createClient()
-    const { data: { user } } = await supabase.auth.getUser()
-    
-    if (!user) return { error: '未认证用户' }
-
-    const { error } = await supabase
-      .from('functions')
-      .insert({
-        ...formData,
-        owner: user.id,
-        updated_at: new Date().toISOString()
+    try {
+      const response = await fetch('/api/functions', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify(formData),
       })
-
-    if (error) return { error: error.message }
-    redirect('/card-management')
+      
+      if (!response.ok) {
+        const errorData = await response.json()
+        return { error: errorData.error || '创建失败' }
+      }
+      
+      // 使用sonner的toast
+      toast.success('创建成功', {
+        description: '功能卡片已成功创建',
+      })
+      
+      router.push('/card-management')
+      return {}
+    } catch (err) {
+      return { error: err instanceof Error ? err.message : '未知错误' }
+    }
   }
 
   return (

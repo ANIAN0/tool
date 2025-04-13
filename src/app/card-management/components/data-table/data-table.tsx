@@ -1,14 +1,14 @@
-'use client'
+"use client"
 
-import { 
-  useReactTable,
-  getCoreRowModel,
-  getSortedRowModel,
-  type SortingState,
-  type ColumnDef,
+import { useState } from 'react'
+import {
+  ColumnDef,
   flexRender,
-} from "@tanstack/react-table"
-import { useState } from "react"
+  getCoreRowModel,
+  getPaginationRowModel,
+  useReactTable,
+} from '@tanstack/react-table'
+
 import {
   Table,
   TableBody,
@@ -16,91 +16,133 @@ import {
   TableHead,
   TableHeader,
   TableRow,
-} from "@/components/ui/table"
+} from '@/components/ui/table'
+import { Button } from '@/components/ui/button'
+import { ChevronLeft, ChevronRight, FileX } from 'lucide-react'
 
-// 确认类型定义存在
-export type FunctionItem = {
-  id: string
-  name: string
-  description?: string
-  updated_at: string
-  sort_order: number
-  url: string
-  is_public: boolean
-  owner: string
-  // 修正authUsers字段类型
-  authUsers?: Array<{
-    email: string
-  }>
-}
-
-interface DataTableProps<TData> {
-  columns: ColumnDef<TData>[]
+interface DataTableProps<TData, TValue> {
+  columns: ColumnDef<TData, TValue>[]
   data: TData[]
   currentUserId: string
+  onDelete: (id: string) => void
+  refreshData: () => void
 }
 
-// 确认组件导出声明
-export function DataTable<TData>({ 
-  columns, 
+export function DataTable<TData, TValue>({
+  columns,
   data,
-  currentUserId
-}: DataTableProps<TData>) {
-  // 添加调试日志
-  console.log("DataTable received data:", data)
-  
-  const [sorting, setSorting] = useState<SortingState>([])
+  currentUserId,
+  onDelete,
+  refreshData,
+}: DataTableProps<TData, TValue>) {
+  const [pagination, setPagination] = useState({
+    pageIndex: 0,
+    pageSize: 10,
+  })
 
   const table = useReactTable({
     data,
     columns,
-    state: { sorting },
-    onSortingChange: setSorting,
     getCoreRowModel: getCoreRowModel(),
-    getSortedRowModel: getSortedRowModel(),
+    getPaginationRowModel: getPaginationRowModel(),
+    onPaginationChange: setPagination,
+    state: {
+      pagination,
+    },
     meta: {
       currentUserId,
-      // 移除onDelete函数
-    }
+      onDelete,
+      refreshData,
+    },
   })
 
   return (
-    <div className="rounded-md border">
-      <Table>
-        <TableHeader>
-          {table.getHeaderGroups().map((headerGroup) => (
-            <TableRow key={headerGroup.id}>
-              {headerGroup.headers.map((header) => (
-                <TableHead key={header.id}>
-                  {flexRender(
-                    header.column.columnDef.header,
-                    header.getContext()
-                  )}
-                </TableHead>
+    <div className="w-full space-y-4">
+      <div className="rounded-md border">
+        <div className="relative w-full overflow-auto">
+          <Table>
+            <TableHeader>
+              {table.getHeaderGroups().map((headerGroup) => (
+                <TableRow key={headerGroup.id} className="bg-muted">
+                  {headerGroup.headers.map((header) => (
+                    <TableHead 
+                      key={header.id} 
+                      className="font-semibold text-foreground py-4 px-4 border-b border-border"
+                    >
+                      {header.isPlaceholder
+                        ? null
+                        : flexRender(
+                            header.column.columnDef.header,
+                            header.getContext()
+                          )}
+                    </TableHead>
+                  ))}
+                </TableRow>
               ))}
-            </TableRow>
-          ))}
-        </TableHeader>
-        <TableBody>
-          {table.getRowModel().rows?.length ? (
-            table.getRowModel().rows.map((row) => (
-              <TableRow key={row.id}>
-                {row.getVisibleCells().map((cell) => (
-                  <TableCell key={cell.id}>
-                    {flexRender(cell.column.columnDef.cell, cell.getContext())}
+            </TableHeader>
+            
+            <TableBody>
+              {table.getRowModel().rows?.length ? (
+                table.getRowModel().rows.map((row) => (
+                  <TableRow
+                    key={row.id}
+                    data-state={row.getIsSelected() && "selected"}
+                    className="hover:bg-muted/50 transition-colors"
+                  >
+                    {row.getVisibleCells().map((cell) => (
+                      <TableCell key={cell.id} className="py-3 px-4">
+                        {flexRender(cell.column.columnDef.cell, cell.getContext())}
+                      </TableCell>
+                    ))}
+                  </TableRow>
+                ))
+              ) : (
+                <TableRow>
+                  <TableCell colSpan={columns.length} className="h-32 text-center">
+                    <div className="flex flex-col items-center justify-center text-muted-foreground">
+                      <FileX className="h-10 w-10 mb-2" />
+                      <p>暂无数据</p>
+                      <p className="text-sm">请添加新的功能卡片</p>
+                    </div>
                   </TableCell>
-                ))}
-              </TableRow>
-            ))
-          ) : (
-            <TableRow>
-              <TableCell colSpan={columns.length} className="h-24 text-center">
-                暂无数据
-              </TableCell>
-            </TableRow>
-          )}
-        </TableBody>
-      </Table>
+                </TableRow>
+              )}
+            </TableBody>
+          </Table>
+        </div>
+      </div>
+      
+      <div className="flex items-center justify-between">
+        <div className="flex-1 text-sm text-muted-foreground">
+          共 <span className="font-medium">{table.getFilteredRowModel().rows.length}</span> 条记录
+        </div>
+        <div className="flex items-center space-x-6">
+          <Button
+            variant="outline"
+            size="sm"
+            onClick={() => table.previousPage()}
+            disabled={!table.getCanPreviousPage()}
+            className="h-8 w-8 p-0 rounded-full hover:bg-muted hover:text-primary transition-colors"
+          >
+            <span className="sr-only">上一页</span>
+            <ChevronLeft className="h-4 w-4" />
+          </Button>
+          <div className="text-sm font-medium">
+            第 <span className="text-primary">{table.getState().pagination.pageIndex + 1}</span> 页，
+            共 <span className="text-primary">{table.getPageCount()}</span> 页
+          </div>
+          <Button
+            variant="outline"
+            size="sm"
+            onClick={() => table.nextPage()}
+            disabled={!table.getCanNextPage()}
+            className="h-8 w-8 p-0 rounded-full hover:bg-muted hover:text-primary transition-colors"
+          >
+            <span className="sr-only">下一页</span>
+            <ChevronRight className="h-4 w-4" />
+          </Button>
+        </div>
+      </div>
     </div>
   )
 }

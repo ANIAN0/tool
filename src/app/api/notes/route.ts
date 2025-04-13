@@ -75,12 +75,11 @@ export async function GET(request: Request) {
 }
 
 // 更新笔记
-export async function PATCH(request: Request, props: { params: Promise<{ id: string }> }) {
-  const params = await props.params;
+export async function PATCH(request: Request, context: { params: Promise<{ id: string }> }) {
   try {
     const supabase = await createClient()
     const { data: { user } } = await supabase.auth.getUser()
-    const id = params.id
+    const { id } = await context.params
     
     if (!user) {
       return NextResponse.json({ error: '未认证' }, { status: 401 })
@@ -123,12 +122,11 @@ export async function PATCH(request: Request, props: { params: Promise<{ id: str
 }
 
 // 删除笔记
-export async function DELETE(request: Request, props: { params: Promise<{ id: string }> }) {
-  const params = await props.params;
+export async function DELETE(request: Request, context: { params: Promise<{ id: string }> }) {
   try {
     const supabase = await createClient()
     const { data: { user } } = await supabase.auth.getUser()
-    const id = params.id
+    const { id } = await context.params
     
     if (!user) {
       return NextResponse.json({ error: '未认证' }, { status: 401 })
