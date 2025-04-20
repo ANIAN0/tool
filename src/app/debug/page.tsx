@@ -8,6 +8,8 @@ import { useSupabaseUpload } from "@/hooks/use-supabase-upload"
 import { UserIcon, LayoutIcon, MousePointerIcon, UploadIcon } from "lucide-react"
 import { BookOpenIcon } from "lucide-react"
 import ExtensionGuideSection from "./components/sections/ExtensionGuideSection"
+import { LoaderIcon } from "lucide-react"
+import LoadingSection from "./components/sections/LoadingSection"
 
 // 导入布局和各个部分组件
 import DebugLayout from "./components/DebugLayout"
@@ -104,6 +106,12 @@ export default function DebugPage() {
       title: "扩展指南",
       icon: <BookOpenIcon className="h-4 w-4" />,
       content: <ExtensionGuideSection />
+    },
+    {
+      id: "loading",
+      title: "加载动画",
+      icon: <LoaderIcon className="h-4 w-4" />,
+      content: <LoadingSection />
     }
   ]
 
