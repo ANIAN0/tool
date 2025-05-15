@@ -6,6 +6,8 @@ import {
   flexRender,
   getCoreRowModel,
   getPaginationRowModel,
+  getSortedRowModel,
+  SortingState,
   useReactTable,
 } from '@tanstack/react-table'
 
@@ -18,7 +20,9 @@ import {
   TableRow,
 } from '@/components/ui/table'
 import { Button } from '@/components/ui/button'
-import { ChevronLeft, ChevronRight, FileX } from 'lucide-react'
+import { ChevronLeft, ChevronRight, FileX, ArrowUpDown } from 'lucide-react'
+import { cn } from '@/lib/utils'
+import { Skeleton } from '@/components/ui/skeleton'
 
 interface DataTableProps<TData, TValue> {
   columns: ColumnDef<TData, TValue>[]
@@ -26,6 +30,7 @@ interface DataTableProps<TData, TValue> {
   currentUserId: string
   onDelete: (id: string) => void
   refreshData: () => void
+  isLoading?: boolean
 }
 
 export function DataTable<TData, TValue>({
@@ -34,7 +39,9 @@ export function DataTable<TData, TValue>({
   currentUserId,
   onDelete,
   refreshData,
+  isLoading = false,
 }: DataTableProps<TData, TValue>) {
+  const [sorting, setSorting] = useState<SortingState>([])
   const [pagination, setPagination] = useState({
     pageIndex: 0,
     pageSize: 10,
@@ -45,8 +52,11 @@ export function DataTable<TData, TValue>({
     columns,
     getCoreRowModel: getCoreRowModel(),
     getPaginationRowModel: getPaginationRowModel(),
+    getSortedRowModel: getSortedRowModel(),
+    onSortingChange: setSorting,
     onPaginationChange: setPagination,
     state: {
+      sorting,
       pagination,
     },
     meta: {
@@ -63,26 +73,49 @@ export function DataTable<TData, TValue>({
           <Table>
             <TableHeader>
               {table.getHeaderGroups().map((headerGroup) => (
-                <TableRow key={headerGroup.id} className="bg-muted">
+                <TableRow key={headerGroup.id} className="bg-muted/50">
                   {headerGroup.headers.map((header) => (
-                    <TableHead 
-                      key={header.id} 
-                      className="font-semibold text-foreground py-4 px-4 border-b border-border"
+                    <TableHead
+                      key={header.id}
+                      className="font-semibold text-foreground py-4 px-4"
+                      style={{ width: header.getSize() }}
                     >
-                      {header.isPlaceholder
-                        ? null
-                        : flexRender(
+                      {header.isPlaceholder ? null : (
+                        <div
+                          {...{
+                            className: cn(
+                              "flex items-center gap-2",
+                              header.column.getCanSort() && "cursor-pointer select-none"
+                            ),
+                            onClick: header.column.getToggleSortingHandler(),
+                          }}
+                        >
+                          {flexRender(
                             header.column.columnDef.header,
                             header.getContext()
                           )}
+                          {header.column.getCanSort() && (
+                            <ArrowUpDown className="h-3 w-3" />
+                          )}
+                        </div>
+                      )}
                     </TableHead>
                   ))}
                 </TableRow>
               ))}
             </TableHeader>
-            
             <TableBody>
-              {table.getRowModel().rows?.length ? (
+              {isLoading ? (
+                Array.from({ length: 5 }).map((_, index) => (
+                  <TableRow key={index}>
+                    {columns.map((column, cellIndex) => (
+                      <TableCell key={cellIndex} className="py-3 px-4">
+                        <Skeleton className="h-6 w-full" />
+                      </TableCell>
+                    ))}
+                  </TableRow>
+                ))
+              ) : table.getRowModel().rows?.length ? (
                 table.getRowModel().rows.map((row) => (
                   <TableRow
                     key={row.id}
@@ -90,7 +123,11 @@ export function DataTable<TData, TValue>({
                     className="hover:bg-muted/50 transition-colors"
                   >
                     {row.getVisibleCells().map((cell) => (
-                      <TableCell key={cell.id} className="py-3 px-4">
+                      <TableCell 
+                        key={cell.id} 
+                        className="py-3 px-4"
+                        style={{ width: cell.column.getSize() }}
+                      >
                         {flexRender(cell.column.columnDef.cell, cell.getContext())}
                       </TableCell>
                     ))}
@@ -101,8 +138,8 @@ export function DataTable<TData, TValue>({
                   <TableCell colSpan={columns.length} className="h-32 text-center">
                     <div className="flex flex-col items-center justify-center text-muted-foreground">
                       <FileX className="h-10 w-10 mb-2" />
-                      <p>暂无数据</p>
-                      <p className="text-sm">请添加新的功能卡片</p>
+                      <p className="text-lg font-medium">暂无数据</p>
+                      <p className="text-sm">点击右上角的"新增功能"按钮添加新的功能卡片</p>
                     </div>
                   </TableCell>
                 </TableRow>
@@ -112,16 +149,16 @@ export function DataTable<TData, TValue>({
         </div>
       </div>
       
-      <div className="flex items-center justify-between">
-        <div className="flex-1 text-sm text-muted-foreground">
+      <div className="flex flex-col sm:flex-row items-center gap-4 sm:justify-between">
+        <div className="text-sm text-muted-foreground order-2 sm:order-1">
           共 <span className="font-medium">{table.getFilteredRowModel().rows.length}</span> 条记录
         </div>
-        <div className="flex items-center space-x-6">
+        <div className="flex items-center space-x-6 order-1 sm:order-2">
           <Button
             variant="outline"
             size="sm"
             onClick={() => table.previousPage()}
-            disabled={!table.getCanPreviousPage()}
+            disabled={!table.getCanPreviousPage() || isLoading}
             className="h-8 w-8 p-0 rounded-full hover:bg-muted hover:text-primary transition-colors"
           >
             <span className="sr-only">上一页</span>
@@ -135,7 +172,7 @@ export function DataTable<TData, TValue>({
             variant="outline"
             size="sm"
             onClick={() => table.nextPage()}
-            disabled={!table.getCanNextPage()}
+            disabled={!table.getCanNextPage() || isLoading}
             className="h-8 w-8 p-0 rounded-full hover:bg-muted hover:text-primary transition-colors"
           >
             <span className="sr-only">下一页</span>

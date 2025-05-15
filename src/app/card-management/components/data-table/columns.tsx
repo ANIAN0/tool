@@ -43,28 +43,30 @@ export const columns: ColumnDef<Function>[] = [
   {
     accessorKey: "name",
     header: "功能名称",
+    size: 180,
     cell: ({ row }) => {
       return (
-        <div className="font-medium">{row.getValue("name")}</div>
+        <div className="font-medium line-clamp-2">{row.getValue("name")}</div>
       )
     },
   },
   {
     accessorKey: "description",
     header: "描述",
+    size: 250,
     cell: ({ row }) => {
       const description = row.getValue("description") as string
       return (
         <TooltipProvider>
           <Tooltip>
             <TooltipTrigger asChild>
-              <div className="max-w-[200px] truncate text-muted-foreground">
+              <div className="max-w-[250px] line-clamp-2 text-muted-foreground">
                 {description || "-"}
               </div>
             </TooltipTrigger>
             {description && (
-              <TooltipContent>
-                <p className="max-w-xs">{description}</p>
+              <TooltipContent side="bottom" align="start" className="max-w-xs">
+                <p className="whitespace-pre-wrap">{description}</p>
               </TooltipContent>
             )}
           </Tooltip>
@@ -75,17 +77,18 @@ export const columns: ColumnDef<Function>[] = [
   {
     accessorKey: "url",
     header: "跳转链接",
+    size: 200,
     cell: ({ row }) => {
       const url = row.getValue("url") as string
       return (
         <TooltipProvider>
           <Tooltip>
             <TooltipTrigger asChild>
-              <div className="max-w-[150px] truncate text-muted-foreground">
+              <div className="max-w-[200px] truncate text-primary hover:underline cursor-pointer">
                 {url}
               </div>
             </TooltipTrigger>
-            <TooltipContent>
+            <TooltipContent side="bottom" align="start">
               <p>{url}</p>
             </TooltipContent>
           </Tooltip>
@@ -96,15 +99,16 @@ export const columns: ColumnDef<Function>[] = [
   {
     accessorKey: "is_public",
     header: "可见性",
+    size: 100,
     cell: ({ row }) => {
       const isPublic = row.getValue("is_public") as boolean
       return isPublic ? (
-        <Badge variant="outline" className="bg-green-50 text-green-700 border-green-200 flex items-center gap-1">
+        <Badge variant="outline" className="bg-green-50 text-green-700 border-green-200 flex items-center gap-1 whitespace-nowrap">
           <Globe className="h-3 w-3" />
           <span>公共</span>
         </Badge>
       ) : (
-        <Badge variant="outline" className="bg-gray-50 text-gray-700 border-gray-200 flex items-center gap-1">
+        <Badge variant="outline" className="bg-gray-50 text-gray-700 border-gray-200 flex items-center gap-1 whitespace-nowrap">
           <Lock className="h-3 w-3" />
           <span>私有</span>
         </Badge>
@@ -114,13 +118,15 @@ export const columns: ColumnDef<Function>[] = [
   {
     accessorKey: "sort_order",
     header: "排序",
+    size: 80,
     cell: ({ row }) => {
-      return <div className="text-center font-mono">{row.getValue("sort_order")}</div>
+      return <div className="text-center font-mono text-muted-foreground">{row.getValue("sort_order")}</div>
     },
   },
   {
     accessorKey: "updated_at",
     header: "更新时间",
+    size: 120,
     cell: ({ row }) => {
       const date = new Date(row.getValue("updated_at") as string)
       const formattedDate = date.toLocaleDateString('zh-CN', {
@@ -129,7 +135,7 @@ export const columns: ColumnDef<Function>[] = [
         day: '2-digit',
       })
       return (
-        <div className="flex items-center gap-1 text-muted-foreground">
+        <div className="flex items-center gap-1 text-muted-foreground whitespace-nowrap">
           <Calendar className="h-3 w-3" />
           <span>{formattedDate}</span>
         </div>
@@ -139,14 +145,15 @@ export const columns: ColumnDef<Function>[] = [
   {
     accessorKey: "owner",
     header: "创建人",
-    size: 100, // 减小创建人列的宽度
+    size: 120,
     cell: ({ row }) => {
-      return <div className="text-muted-foreground">{row.getValue("owner")}</div>
+      return <div className="text-muted-foreground truncate">{row.getValue("owner")}</div>
     },
   },
   {
     id: "actions",
     header: () => <div className="text-right">操作</div>,
+    size: 100,
     cell: ({ row, table }) => {
       const { currentUserId, onDelete, refreshData } = table.options.meta || {}
       const function_ = row.original

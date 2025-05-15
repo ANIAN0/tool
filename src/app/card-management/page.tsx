@@ -13,7 +13,7 @@ import { Plus, Loader2 } from 'lucide-react'
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
 
 export default function CardManagementPage() {
-  const [functions, setFunctions] = useState([])
+  const [functions, setFunctions] = useState<Function[]>([])
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState<string | null>(null)
   const [userId, setUserId] = useState<string | null>(null)
@@ -41,18 +41,20 @@ export default function CardManagementPage() {
       if (userResponse.ok) {
         const userData = await userResponse.json()
         setUserId(userData.id)
+        setIsAdmin(userData.is_admin || false)
         setUserEmail(userData.email)
-        setIsAdmin(userData.email?.includes('admin') || false)
       }
     } catch (err) {
       setError(err instanceof Error ? err.message : '未知错误')
-      console.error('加载失败:', err)
+      toast.error('加载失败', {
+        description: err instanceof Error ? err.message : '未知错误',
+      })
     } finally {
       setLoading(false)
     }
   }
 
-  // 删除功能
+  // 处理删除
   const handleDelete = async (id: string) => {
     try {
       const response = await fetch(`/api/functions/${id}`, {
@@ -73,7 +75,6 @@ export default function CardManagementPage() {
       toast.error('删除失败', {
         description: err instanceof Error ? err.message : '未知错误',
       })
-      console.error('删除失败:', err)
     }
   }
 
@@ -109,20 +110,6 @@ export default function CardManagementPage() {
     loadFunctions()
   }, [])
 
-  if (loading) {
-    return (
-      <div className="min-h-screen flex flex-col bg-background">
-        <Header email={userEmail || undefined} isAdmin={isAdmin} />
-        <div className="flex-1 p-8 flex items-center justify-center">
-          <div className="text-center flex flex-col items-center gap-2">
-            <Loader2 className="h-8 w-8 animate-spin text-primary" />
-            <p className="text-muted-foreground">加载中，请稍候...</p>
-          </div>
-        </div>
-      </div>
-    )
-  }
-
   if (error) {
     return (
       <div className="min-h-screen flex flex-col bg-background">
@@ -133,8 +120,11 @@ export default function CardManagementPage() {
               <CardTitle className="text-destructive">加载失败</CardTitle>
             </CardHeader>
             <CardContent>
-              <p className="mb-4">{error}</p>
-              <Button onClick={() => router.push('/protected')}>返回首页</Button>
+              <p className="mb-4 text-muted-foreground">{error}</p>
+              <div className="flex gap-4">
+                <Button onClick={() => router.push('/protected')}>返回首页</Button>
+                <Button variant="outline" onClick={() => loadFunctions()}>重试</Button>
+              </div>
             </CardContent>
           </Card>
         </div>
@@ -149,8 +139,13 @@ export default function CardManagementPage() {
       <main className="flex-1">
         <div className="max-w-[1280px] mx-auto px-4 md:px-8">
           <div className="py-4 md:py-8 space-y-4">
-            <div className="flex justify-between items-center">
-              <h1 className="text-2xl font-bold">功能管理</h1>
+            <div className="flex justify-between items-center gap-4 flex-wrap">
+              <div>
+                <h1 className="text-2xl font-bold">功能管理</h1>
+                <p className="text-sm text-muted-foreground mt-1">
+                  管理和维护功能卡片，你可以创建、编辑或删除功能卡片。
+                </p>
+              </div>
               
               <Sheet open={isSheetOpen} onOpenChange={setIsSheetOpen}>
                 <SheetTrigger asChild>
@@ -179,6 +174,7 @@ export default function CardManagementPage() {
               currentUserId={userId || ''}
               onDelete={handleDelete}
               refreshData={loadFunctions}
+              isLoading={loading}
             />
           </div>
         </div>
