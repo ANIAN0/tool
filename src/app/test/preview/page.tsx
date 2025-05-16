@@ -43,7 +43,10 @@ export default function PreviewPage() {
     
     try {
       const response = await fetch(`/api/pages/${pageId}`)
-      if (!response.ok) throw new Error('获取页面数据失败')
+      if (!response.ok) {
+        const errorData = await response.json().catch(() => ({ error: '获取页面数据失败' }))
+        throw new Error(errorData.error || '获取页面数据失败')
+      }
       
       const data = await response.json()
       setPageData(data)
@@ -61,7 +64,10 @@ export default function PreviewPage() {
       const response = await fetch(`/api/pages/${pageId}/screenshot`, {
         method: 'POST'
       })
-      if (!response.ok) throw new Error('生成截图失败')
+      if (!response.ok) {
+        const errorData = await response.json().catch(() => ({ error: '生成截图失败' }))
+        throw new Error(errorData.error || '生成截图失败')
+      }
       
       const blob = await response.blob()
       const url = window.URL.createObjectURL(blob)
