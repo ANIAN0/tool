@@ -13,9 +13,10 @@ function getAccessToken(request: Request) {
 }
 
 // 生成页面截图
-export async function POST(request: Request, context: { params: { id: string } }) {
+export async function POST(request: Request, context: { params: Promise<{ id: string }> }) {
   try {
-    console.log('Received POST request for screenshot of page:', context.params.id) // 添加日志
+    const resolvedParams = await context.params
+    console.log('Received POST request for screenshot of page:', resolvedParams.id) // 添加日志
     const accessToken = getAccessToken(request)
     if (!accessToken) {
       console.log('No access token provided') // 添加日志
@@ -60,7 +61,7 @@ export async function POST(request: Request, context: { params: { id: string } }
     }
 
     console.log('User authenticated:', user.id) // 添加日志
-    const { id } = context.params
+    const { id } = resolvedParams
     
     // 获取页面数据
     console.log('Fetching page data') // 添加日志

@@ -12,9 +12,10 @@ function getAccessToken(request: Request) {
 }
 
 // 获取单个页面
-export async function GET(request: Request, context: { params: { id: string } }) {
+export async function GET(request: Request, context: { params: Promise<{ id: string }> }) {
   try {
-    console.log('Received GET request for page:', context.params.id) // 添加日志
+    const resolvedParams = await context.params
+    console.log('Received GET request for page:', resolvedParams.id) // 添加日志
     const accessToken = getAccessToken(request)
     if (!accessToken) {
       console.log('No access token provided') // 添加日志
@@ -59,7 +60,7 @@ export async function GET(request: Request, context: { params: { id: string } })
     }
 
     console.log('User authenticated:', user.id) // 添加日志
-    const { id } = context.params
+    const { id } = resolvedParams
     
     // 查询数据库
     const { data, error: dbError } = await supabase
@@ -86,9 +87,10 @@ export async function GET(request: Request, context: { params: { id: string } })
 }
 
 // 更新页面
-export async function PATCH(request: Request, context: { params: { id: string } }) {
+export async function PATCH(request: Request, context: { params: Promise<{ id: string }> }) {
   try {
-    console.log('Received PATCH request for page:', context.params.id) // 添加日志
+    const resolvedParams = await context.params
+    console.log('Received PATCH request for page:', resolvedParams.id) // 添加日志
     const accessToken = getAccessToken(request)
     if (!accessToken) {
       console.log('No access token provided') // 添加日志
@@ -133,7 +135,7 @@ export async function PATCH(request: Request, context: { params: { id: string } 
     }
 
     console.log('User authenticated:', user.id) // 添加日志
-    const { id } = context.params
+    const { id } = resolvedParams
     
     // 解析请求体
     const { title, content } = await request.json()
@@ -170,9 +172,10 @@ export async function PATCH(request: Request, context: { params: { id: string } 
 }
 
 // 删除页面
-export async function DELETE(request: Request, context: { params: { id: string } }) {
+export async function DELETE(request: Request, context: { params: Promise<{ id: string }> }) {
   try {
-    console.log('Received DELETE request for page:', context.params.id) // 添加日志
+    const resolvedParams = await context.params
+    console.log('Received DELETE request for page:', resolvedParams.id) // 添加日志
     const accessToken = getAccessToken(request)
     if (!accessToken) {
       console.log('No access token provided') // 添加日志
@@ -217,7 +220,7 @@ export async function DELETE(request: Request, context: { params: { id: string }
     }
 
     console.log('User authenticated:', user.id) // 添加日志
-    const { id } = context.params
+    const { id } = resolvedParams
     
     // 删除数据库记录
     const { error: dbError } = await supabase
