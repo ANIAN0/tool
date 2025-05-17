@@ -20,7 +20,7 @@ export default function PageView({ params }: { params: Promise<{ id: string }> }
   useEffect(() => {
     const fetchPageData = async () => {
       try {
-        const response = await fetch(`/api/pages/${resolvedParams.id}`)
+        const response = await fetch(`/api/external/pages/public/${resolvedParams.id}`)
         if (!response.ok) throw new Error('获取页面数据失败')
         
         const data = await response.json()

@@ -42,7 +42,7 @@ export default function PreviewPage() {
     setError('')
     
     try {
-      const response = await fetch(`/api/pages/${pageId}`)
+      const response = await fetch(`/api/external/pages/public/${pageId}`)
       if (!response.ok) {
         const errorData = await response.json().catch(() => ({ error: '获取页面数据失败' }))
         throw new Error(errorData.error || '获取页面数据失败')
@@ -61,7 +61,7 @@ export default function PreviewPage() {
     if (!pageId) return
     
     try {
-      const response = await fetch(`/api/pages/${pageId}/screenshot`, {
+      const response = await fetch(`/api/external/pages/${pageId}/screenshot`, {
         method: 'POST'
       })
       if (!response.ok) {

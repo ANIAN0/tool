@@ -1,5 +1,5 @@
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
-import { Code } from "@/app/debug/components/code"
+import { Code } from "@/app/devpages/debug/components/code"
 
 export default function LayoutSection() {
   return (

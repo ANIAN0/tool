@@ -8,7 +8,7 @@ import { toast } from "sonner"
 import { Loader2 } from 'lucide-react'
 import { Label } from '@/components/ui/label'
 import { Input } from '@/components/ui/input'
-import { createBrowserClient } from '@supabase/ssr'
+import { Textarea } from '@/components/ui/textarea'
 
 export default function TestPage() {
   const [loading, setLoading] = useState(false)
@@ -16,82 +16,14 @@ export default function TestPage() {
   const [isAdmin, setIsAdmin] = useState(false)
   const [result, setResult] = useState<any>(null)
   const [pageId, setPageId] = useState('')
-  const [accessToken, setAccessToken] = useState('')
-  const supabase = createBrowserClient(
-    process.env.NEXT_PUBLIC_SUPABASE_URL!,
-    process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!
-  )
+  const [title, setTitle] = useState('')
+  const [content, setContent] = useState('')
 
-  // 获取当前用户的access token
-  const handleGetAccessToken = async () => {
-    try {
-      setLoading(true)
-      const { data: { session }, error } = await supabase.auth.getSession()
-      
-      if (error) {
-        throw new Error(error.message)
-      }
-
-      if (!session) {
-        throw new Error('未登录')
-      }
-
-      const token = session.access_token
-      setAccessToken(token)
-      setResult({ session })
-      toast.success('获取成功')
-    } catch (err) {
-      toast.error('获取失败', {
-        description: err instanceof Error ? err.message : '未知错误',
-      })
-    } finally {
-      setLoading(false)
-    }
-  }
-
-  // 复制access token到剪贴板
-  const handleCopyToken = () => {
-    if (accessToken) {
-      navigator.clipboard.writeText(accessToken)
-      toast.success('已复制到剪贴板')
-    }
-  }
-
-  // 删除页面
-  const handleDeletePage = async () => {
-    if (!pageId) {
-      toast.error('请输入页面ID')
-      return
-    }
-
-    try {
-      setLoading(true)
-      const response = await fetch(`/api/pages/${pageId}`, {
-        method: 'DELETE',
-      })
-      
-      if (!response.ok) {
-        const errorData = await response.json()
-        throw new Error(errorData.error || '删除失败')
-      }
-      
-      const data = await response.json()
-      setResult(data)
-      toast.success('删除成功')
-    } catch (err) {
-      toast.error('删除失败', {
-        description: err instanceof Error ? err.message : '未知错误',
-      })
-    } finally {
-      setLoading(false)
-    }
-  }
-
-  // 获取静态页面列表
+  // 获取公共页面列表
   const handleGetPages = async () => {
     try {
       setLoading(true)
-      const response = await fetch('/api/pages')
+      const response = await fetch('/api/external/pages/public')
       
       if (!response.ok) {
         const errorData = await response.json()
@@ -110,50 +42,23 @@ export default function TestPage() {
     }
   }
 
-  // 获取外部API页面列表
-  const handleGetExternalPages = async () => {
-    if (!accessToken) {
-      toast.error('请先获取Access Token')
+  // 创建新的公共页面
+  const handleCreatePage = async () => {
+    if (!title.trim() || !content.trim()) {
+      toast.error('请填写标题和内容')
       return
     }
 
     try {
       setLoading(true)
-      const response = await fetch('/api/external/pages', {
-        headers: {
-          'Authorization': `Bearer ${accessToken}`
-        }
-      })
-      
-      if (!response.ok) {
-        const errorData = await response.json()
-        throw new Error(errorData.error || '获取失败')
-      }
-      
-      const data = await response.json()
-      setResult(data)
-      toast.success('获取成功')
-    } catch (err) {
-      toast.error('获取失败', {
-        description: err instanceof Error ? err.message : '未知错误',
-      })
-    } finally {
-      setLoading(false)
-    }
-  }
-
-  // 创建新的静态页面
-  const handleCreatePage = async () => {
-    try {
-      setLoading(true)
-      const response = await fetch('/api/pages', {
+      const response = await fetch('/api/external/pages/public', {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
         },
         body: JSON.stringify({
-          title: '测试页面',
-          content: '<h1>测试内容</h1>',
+          title,
+          content,
         }),
       })
       
@@ -164,6 +69,8 @@ export default function TestPage() {
       
       const data = await response.json()
       setResult(data)
+      setTitle('')
+      setContent('')
       toast.success('创建成功')
     } catch (err) {
       toast.error('创建失败', {
@@ -183,7 +90,7 @@ export default function TestPage() {
 
     try {
       setLoading(true)
-      const response = await fetch(`/api/pages/${pageId}`)
+      const response = await fetch(`/api/external/pages/public/${pageId}`)
       
       if (!response.ok) {
         const errorData = await response.json()
@@ -202,8 +109,8 @@ export default function TestPage() {
     }
   }
 
-  // 生成页面截图
-  const handleGenerateScreenshot = async () => {
+  // 删除页面
+  const handleDeletePage = async () => {
     if (!pageId) {
       toast.error('请输入页面ID')
       return
@@ -211,30 +118,64 @@ export default function TestPage() {
 
     try {
       setLoading(true)
-      const response = await fetch(`/api/pages/${pageId}/screenshot`, {
-        method: 'POST',
+      const response = await fetch('/api/external/pages/public', {
+        method: 'DELETE',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({ id: pageId }),
       })
       
       if (!response.ok) {
         const errorData = await response.json()
-        throw new Error(errorData.error || '生成失败')
+        throw new Error(errorData.error || '删除失败')
       }
       
-      const blob = await response.blob()
-      const url = window.URL.createObjectURL(blob)
+      const data = await response.json()
+      setResult(data)
+      setPageId('')
+      toast.success('删除成功')
+    } catch (err) {
+      toast.error('删除失败', {
+        description: err instanceof Error ? err.message : '未知错误',
+      })
+    } finally {
+      setLoading(false)
+    }
+  }
+
+  // 获取页面截图
+  const handleScreenshot = async () => {
+    if (!pageId) {
+      toast.error('请输入页面ID')
+      return
+    }
+
+    try {
+      setLoading(true)
+      const response = await fetch(`/api/external/pages/public/${pageId}/screenshot`)
       
-      // 创建一个临时链接来下载截图
+      if (!response.ok) {
+        const errorData = await response.json()
+        throw new Error(errorData.error || '获取截图失败')
+      }
+      
+      // 创建Blob对象
+      const blob = await response.blob()
+      // 创建下载链接
+      const url = window.URL.createObjectURL(blob)
       const a = document.createElement('a')
       a.href = url
-      a.download = `page-${pageId}-screenshot.png`
+      a.download = `page-${pageId}.jpg`
       document.body.appendChild(a)
       a.click()
-      document.body.removeChild(a)
+      // 清理
       window.URL.revokeObjectURL(url)
+      document.body.removeChild(a)
       
       toast.success('截图已下载')
     } catch (err) {
-      toast.error('生成失败', {
+      toast.error('获取截图失败', {
         description: err instanceof Error ? err.message : '未知错误',
       })
     } finally {
@@ -252,62 +193,68 @@ export default function TestPage() {
             <div>
               <h1 className="text-2xl font-bold">测试页面</h1>
               <p className="text-sm text-muted-foreground mt-1">
-                测试静态页面相关的API功能。
+                测试公共页面相关的API功能。
               </p>
             </div>
 
-            <div className="mb-6">
-              <Label htmlFor="pageId">页面ID</Label>
-              <div className="flex gap-4">
-                <Input
-                  id="pageId"
-                  value={pageId}
-                  onChange={(e) => setPageId(e.target.value)}
-                  placeholder="输入页面ID"
-                  className="max-w-xs"
-                />
-              </div>
-            </div>
-
-            <div className="mb-6">
-              <Label htmlFor="accessToken">Access Token</Label>
-              <div className="flex gap-4">
-                <Input
-                  id="accessToken"
-                  value={accessToken}
-                  readOnly
-                  placeholder="获取access token后显示"
-                  className="max-w-lg font-mono text-sm"
-                />
+            <Card>
+              <CardHeader>
+                <CardTitle>创建新页面</CardTitle>
+              </CardHeader>
+              <CardContent className="space-y-4">
+                <div className="space-y-2">
+                  <Label htmlFor="title">标题</Label>
+                  <Input
+                    id="title"
+                    value={title}
+                    onChange={(e) => setTitle(e.target.value)}
+                    placeholder="输入页面标题"
+                  />
+                </div>
+                <div className="space-y-2">
+                  <Label htmlFor="content">内容</Label>
+                  <Textarea
+                    id="content"
+                    value={content}
+                    onChange={(e) => setContent(e.target.value)}
+                    placeholder="输入页面内容（支持HTML）"
+                    rows={6}
+                  />
+                </div>
                 <Button
-                  onClick={handleCopyToken}
-                  disabled={!accessToken}
-                  variant="outline"
-                >
-                  复制
-                </Button>
-                <Button
-                  onClick={handleGetAccessToken}
+                  onClick={handleCreatePage}
                   disabled={loading}
-                  variant="outline"
                 >
                   {loading ? (
                     <>
                       <Loader2 className="mr-2 h-4 w-4 animate-spin" />
-                      获取中
+                      创建中
                     </>
                   ) : (
-                    '获取Token'
+                    '创建页面'
                   )}
                 </Button>
-              </div>
-            </div>
-            
+              </CardContent>
+            </Card>
+
             <Card>
               <CardHeader>
-                <CardTitle>API测试</CardTitle>
+                <CardTitle>查询和删除页面</CardTitle>
               </CardHeader>
               <CardContent className="space-y-4">
+                <div className="space-y-2">
+                  <Label htmlFor="pageId">页面ID</Label>
+                  <div className="flex gap-4">
+                    <Input
+                      id="pageId"
+                      value={pageId}
+                      onChange={(e) => setPageId(e.target.value)}
+                      placeholder="输入页面ID"
+                      className="max-w-xs"
+                    />
+                  </div>
+                </div>
+
                 <div className="flex flex-wrap gap-4">
                   <Button
                     onClick={handleGetPages}
@@ -320,36 +267,6 @@ export default function TestPage() {
                       </>
                     ) : (
                       '获取页面列表'
-                    )}
-                  </Button>
-                  
-                  <Button
-                    onClick={handleGetExternalPages}
-                    disabled={loading || !accessToken}
-                    variant="outline"
-                  >
-                    {loading ? (
-                      <>
-                        <Loader2 className="mr-2 h-4 w-4 animate-spin" />
-                        加载中
-                      </>
-                    ) : (
-                      '获取外部API页面列表'
-                    )}
-                  </Button>
-                  
-                  <Button
-                    onClick={handleCreatePage}
-                    disabled={loading}
-                    variant="outline"
-                  >
-                    {loading ? (
-                      <>
-                        <Loader2 className="mr-2 h-4 w-4 animate-spin" />
-                        处理中
-                      </>
-                    ) : (
-                      '创建新页面'
                     )}
                   </Button>
                   
@@ -369,6 +286,21 @@ export default function TestPage() {
                   </Button>
                   
                   <Button
+                    onClick={handleScreenshot}
+                    disabled={loading || !pageId}
+                    variant="outline"
+                  >
+                    {loading ? (
+                      <>
+                        <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+                        获取截图中
+                      </>
+                    ) : (
+                      '获取页面截图'
+                    )}
+                  </Button>
+                  
+                  <Button
                     onClick={handleDeletePage}
                     disabled={loading || !pageId}
                     variant="outline"
@@ -380,21 +312,6 @@ export default function TestPage() {
                       </>
                     ) : (
                       '删除页面'
-                    )}
-                  </Button>
-
-                  <Button
-                    onClick={handleGenerateScreenshot}
-                    disabled={loading || !pageId}
-                    variant="outline"
-                  >
-                    {loading ? (
-                      <>
-                        <Loader2 className="mr-2 h-4 w-4 animate-spin" />
-                        生成中
-                      </>
-                    ) : (
-                      '生成页面截图'
                     )}
                   </Button>
                 </div>

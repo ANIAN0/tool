@@ -10,7 +10,7 @@ import { Button } from "@/components/ui/button"
 import { Grid, List } from "lucide-react"
 import Header from "@/components/header"
 import { Dropzone, DropzoneContent, DropzoneEmptyState } from "@/components/dropzone"
-import FileListSection from "../file-share/components/FileListSection"
+import FileListSection from "./components/FileListSection"
 
 export default function FileSharePageV2() {
   // 定义状态

@@ -1,7 +1,7 @@
 "use client"
 
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
-import { Code } from "@/app/debug/components/code"
+import { Code } from "@/app/devpages/debug/components/code"
 import TextLoading from "@/components/TextLoading"
 import ImageLoading from "@/components/ImageLoading"
 

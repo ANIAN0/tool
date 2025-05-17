@@ -1,7 +1,7 @@
 import { redirect } from 'next/navigation'
 import { createClient } from '@/lib/supabase/server'
 import Header from '@/components/header'
-import { FeatureCard } from '@/app/protected/components/feature-card'
+import { FeatureCard } from '@/app/publicpages/protected/components/feature-card'
 
 export default async function ProtectedPage() {
   const supabase = await createClient()
