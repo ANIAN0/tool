@@ -1,49 +1,87 @@
 'use client';
 
+import { useState } from 'react';
 import Link from 'next/link';
 import type { ToolModule } from '@/lib/types';
+import { Globe, Lock, FileText, ArrowRight } from 'lucide-react';
+import { cn } from '@/lib/utils';
 
 interface ToolCardProps {
   tool: ToolModule;
 }
 
 export function ToolCard({ tool }: ToolCardProps) {
+  const [isHovered, setIsHovered] = useState(false);
+  
+  const Icon = tool.type === 'private-tools' ? Lock : Globe;
+
   return (
-    <div className="group border rounded-lg p-4 hover:shadow-lg transition-all bg-white">
-      <Link href={`/${tool.type}/${tool.id}`} className="block">
-        <div className="flex items-start justify-between">
-          <div className="flex-1">
-            <h3 className="font-semibold text-lg text-gray-800 group-hover:text-blue-600 transition-colors">
-              {tool.name}
-            </h3>
-            <p className="text-sm text-gray-600 mt-2 min-h-[40px]">
-              {tool.description}
-            </p>
-            <div className="flex gap-2 mt-3 flex-wrap">
-              {tool.tags.map(tag => (
-                <span
-                  key={tag}
-                  className="text-xs bg-gray-100 text-gray-700 px-2 py-1 rounded-full"
-                >
-                  {tag}
-                </span>
-              ))}
-            </div>
+    <div
+      className={cn(
+        "group relative rounded-lg border transition-all duration-200",
+        isHovered 
+          ? "border-foreground/20 bg-muted/50" 
+          : "border-border bg-card hover:border-foreground/10"
+      )}
+      onMouseEnter={() => setIsHovered(true)}
+      onMouseLeave={() => setIsHovered(false)}
+    >
+      <Link href={`/${tool.type}/${tool.id}`} className="block p-4">
+        <div className="flex items-start justify-between mb-3">
+          <h3 className={cn(
+            "font-medium text-base transition-colors",
+            isHovered ? "text-foreground" : "text-foreground/90"
+          )}>
+            {tool.name}
+          </h3>
+          <Icon 
+            className={cn(
+              "w-4 h-4 flex-shrink-0 ml-2 transition-colors",
+              isHovered ? "text-foreground/60" : "text-muted-foreground"
+            )} 
+            strokeWidth={2} 
+          />
+        </div>
+        
+        <p className="text-xs text-muted-foreground leading-relaxed min-h-[32px] mb-3">
+          {tool.description}
+        </p>
+        
+        {tool.tags && tool.tags.length > 0 && (
+          <div className="flex gap-1.5 flex-wrap mb-3">
+            {tool.tags.slice(0, 3).map(tag => (
+              <span
+                key={tag}
+                className="text-[10px] bg-muted text-muted-foreground px-2 py-0.5 rounded"
+              >
+                {tag}
+              </span>
+            ))}
           </div>
-          <div className="ml-4 text-2xl">
-            {tool.icon || (tool.type === 'private-tools' ? '🔒' : '🌐')}
-          </div>
+        )}
+
+        <div className="flex items-center justify-end">
+          <ArrowRight 
+            className={cn(
+              "w-3.5 h-3.5 transition-all duration-200",
+              isHovered 
+                ? "text-foreground/60 translate-x-0.5" 
+                : "text-muted-foreground/40"
+            )} 
+            strokeWidth={2}
+          />
         </div>
       </Link>
+
       {tool.docs.enabled && (
-        <div className="mt-3 pt-3 border-t">
+        <div className="border-t px-4 py-2.5">
           <Link
             href={`/docs/api/${tool.id}`}
-            className="text-sm text-blue-600 hover:text-blue-700 flex items-center gap-1"
+            className="flex items-center gap-1.5 text-xs text-muted-foreground hover:text-foreground transition-colors"
             onClick={(e) => e.stopPropagation()}
           >
-            <span>📄</span>
-            <span>查看API文档</span>
+            <FileText className="w-3 h-3" strokeWidth={2} />
+            <span>API 文档</span>
           </Link>
         </div>
       )}
