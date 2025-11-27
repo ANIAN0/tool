@@ -75,11 +75,20 @@ export async function merge(request: NextRequest) {
             });
             
             if (!response.ok) {
+              // 特别处理404错误，提供更详细的错误信息
+              if (response.status === 404) {
+                throw new Error(`文件不存在或已过期 (HTTP 404: Not Found)`);
+              }
               throw new Error(`HTTP ${response.status}: ${response.statusText}`);
             }
             
+            const contentType = response.headers.get('content-type');
+            if (!contentType || !contentType.startsWith('image/')) {
+              throw new Error(`URL不是有效的图片文件 (Content-Type: ${contentType || 'unknown'})`);
+            }
+            
             const arrayBuffer = await response.arrayBuffer();
-            console.log(`成功下载图片: ${url}, 大小: ${arrayBuffer.byteLength} bytes`);
+            console.log(`成功下载图片: ${url}, 大小: ${arrayBuffer.byteLength} bytes, 类型: ${contentType}`);
             return Buffer.from(arrayBuffer);
           } catch (error) {
             console.error(`下载图片失败 (${url}):`, error);
@@ -154,11 +163,20 @@ export async function merge(request: NextRequest) {
             });
             
             if (!response.ok) {
+              // 特别处理404错误，提供更详细的错误信息
+              if (response.status === 404) {
+                throw new Error(`文件不存在或已过期 (HTTP 404: Not Found)`);
+              }
               throw new Error(`HTTP ${response.status}: ${response.statusText}`);
             }
             
+            const contentType = response.headers.get('content-type');
+            if (!contentType || !contentType.startsWith('image/')) {
+              throw new Error(`URL不是有效的图片文件 (Content-Type: ${contentType || 'unknown'})`);
+            }
+            
             const arrayBuffer = await response.arrayBuffer();
-            console.log(`成功下载图片: ${url}, 大小: ${arrayBuffer.byteLength} bytes`);
+            console.log(`成功下载图片: ${url}, 大小: ${arrayBuffer.byteLength} bytes, 类型: ${contentType}`);
             return Buffer.from(arrayBuffer);
           } catch (error) {
             console.error(`下载图片失败 (${url}):`, error);
@@ -193,24 +211,41 @@ export async function merge(request: NextRequest) {
       };
 
       const UPLOAD_DIR = getUploadDir();
+      console.log(`使用上传目录: ${UPLOAD_DIR}`);
       
       // 确保上传目录存在
       try {
         await stat(UPLOAD_DIR);
-      } catch {
-        await mkdir(UPLOAD_DIR, { recursive: true });
+        console.log(`上传目录已存在: ${UPLOAD_DIR}`);
+      } catch (statError) {
+        console.log(`上传目录不存在，尝试创建: ${UPLOAD_DIR}`);
+        try {
+          await mkdir(UPLOAD_DIR, { recursive: true });
+          console.log(`成功创建上传目录: ${UPLOAD_DIR}`);
+        } catch (mkdirError) {
+          console.error(`创建上传目录失败 (${UPLOAD_DIR}):`, mkdirError);
+          throw new Error(`无法创建上传目录: ${mkdirError instanceof Error ? mkdirError.message : '未知错误'}`);
+        }
       }
       
       // 生成文件名
       const fileId = randomUUID();
       const fileName = `${fileId}-merged-image.png`;
       const filePath = join(UPLOAD_DIR, fileName);
+      console.log(`生成文件信息 - fileId: ${fileId}, fileName: ${fileName}, filePath: ${filePath}`);
       
       // 保存图片到文件系统
-      await writeFile(filePath, mergedImage);
+      try {
+        await writeFile(filePath, mergedImage);
+        console.log(`成功保存图片文件: ${filePath}, 大小: ${mergedImage.length} bytes`);
+      } catch (writeError) {
+        console.error(`保存图片文件失败 (${filePath}):`, writeError);
+        throw new Error(`无法保存图片文件: ${writeError instanceof Error ? writeError.message : '未知错误'}`);
+      }
       
       // 生成访问URL
       const url = `/api/tools/file-share?op=download&fileId=${fileId}`;
+      console.log(`生成访问URL: ${url}`);
       
       // 将文件信息添加到文件分享工具的数据库中
       const fileInfo = {
@@ -225,7 +260,13 @@ export async function merge(request: NextRequest) {
       };
       
       // 保存到文件数据库
-      await saveFileToDatabase(fileInfo);
+      try {
+        await saveFileToDatabase(fileInfo);
+        console.log(`成功保存文件信息到数据库: ${fileId}`);
+      } catch (dbError) {
+        console.error(`保存文件信息到数据库失败:`, dbError);
+        throw new Error(`无法保存文件信息: ${dbError instanceof Error ? dbError.message : '未知错误'}`);
+      }
       
       return Response.json({
         message: '图片拼接成功',

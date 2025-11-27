@@ -1,5 +1,20 @@
 // 文件数据库 - 用于在不同工具间共享文件信息
-export const fileDatabase: Record<string, any> = {};
+// 在Vercel环境中使用全局对象来保持数据持久性
+const getGlobalFileDatabase = () => {
+  if (typeof global !== 'undefined' && (global as any).fileDatabase) {
+    return (global as any).fileDatabase as Record<string, any>;
+  }
+  
+  if (typeof global !== 'undefined') {
+    (global as any).fileDatabase = {};
+    return (global as any).fileDatabase;
+  }
+  
+  // 开发环境回退到模块级变量
+  return {};
+};
+
+export const fileDatabase: Record<string, any> = getGlobalFileDatabase();
 
 // 保存文件信息到数据库
 export async function saveFileToDatabase(fileInfo: any) {

@@ -157,26 +157,36 @@ export async function download(request: NextRequest, context?: { params: Promise
     fileId = p.fileId || fileId;
   }
   
+  console.log(`处理文件下载请求 - fileId: ${fileId}`);
+  
   try {
     // 检查文件ID是否存在
     if (!fileId) {
+      console.log('缺少文件ID参数');
       return Response.json({ error: '缺少文件ID参数' }, { status: 400 });
     }
     
     // 从数据库查找文件
     const file = await getFileFromDatabase(fileId);
+    console.log(`从数据库查找文件 - fileId: ${fileId}, found: ${!!file}`);
     if (!file) {
+      console.log(`文件不存在 - fileId: ${fileId}`);
       return Response.json({ error: '文件不存在' }, { status: 404 });
     }
     
     // 检查文件是否过期
-    if (new Date() > new Date(file.expiresAt)) {
+    const now = new Date();
+    const expiresAt = new Date(file.expiresAt);
+    console.log(`检查文件过期时间 - now: ${now.toISOString()}, expiresAt: ${expiresAt.toISOString()}`);
+    if (now > expiresAt) {
+      console.log(`文件已过期 - fileId: ${fileId}`);
       // 删除过期文件
       await deleteFileFromDatabase(fileId);
       
       // 删除物理文件
       try {
         await unlink(file.path);
+        console.log(`成功删除过期文件: ${file.path}`);
       } catch (error) {
         console.error(`删除过期文件失败: ${file.path}`, error);
       }
@@ -185,9 +195,11 @@ export async function download(request: NextRequest, context?: { params: Promise
     }
     
     // 读取并返回文件
+    console.log(`读取文件内容: ${file.path}`);
     const fileBuffer = await readFile(file.path);
     const inline = request.nextUrl.searchParams.get('inline') === '1';
     const body = new Uint8Array(fileBuffer);
+    console.log(`成功读取文件内容，大小: ${body.length} bytes`);
     return new Response(body, {
       headers: {
         'Content-Type': file.type,

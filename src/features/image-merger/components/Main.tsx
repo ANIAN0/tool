@@ -78,7 +78,15 @@ export default function Main() {
       });
 
       if (!response.ok) {
-        throw new Error('拼接失败');
+        // 尝试获取详细的错误信息
+        let errorMessage = '拼接失败';
+        try {
+          const errorData = await response.json();
+          errorMessage = errorData.message || errorData.error || `HTTP ${response.status}: ${response.statusText}`;
+        } catch (e) {
+          // 如果无法解析JSON，使用默认错误信息
+        }
+        throw new Error(errorMessage);
       }
 
       if (returnType === 'url') {
@@ -91,9 +99,9 @@ export default function Main() {
         const url = URL.createObjectURL(blob);
         setResultImage(url);
       }
-    } catch (error) {
+    } catch (error: any) {
       console.error('拼接失败:', error);
-      alert('图片拼接失败，请重试');
+      alert(`图片拼接失败: ${error.message || '未知错误'}`);
     } finally {
       setLoading(false);
     }
