@@ -113,24 +113,27 @@ export default function Main() {
     setIsLoading(true);
     
     try {
-      const response = await fetch('http://124.156.205.61:5678/webhook/82a78108-5dbf-47e5-bf41-222ac0b408e3', {
-        method: 'GET',
+      // 使用相对路径避免混合内容问题
+      const response = await fetch('/api/auth', {
+        method: 'POST',
         headers: {
-          'password': password
-        }
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({ password }),
       });
       
       if (response.ok) {
-        const result = await response.text();
-        if (result === '通过') {
+        const result = await response.json();
+        if (result.authenticated) {
           localStorage.setItem('file-share-token', 'authenticated');
           setIsLoggedIn(true);
           showModal('success', '登录成功', '欢迎使用文件分享工具');
         } else {
-          showModal('error', '认证失败', result || '用户名或密码错误');
+          showModal('error', '认证失败', result.message || '用户名或密码错误');
         }
       } else {
-        showModal('error', '认证失败', '网络错误');
+        const errorResult = await response.json().catch(() => ({}));
+        showModal('error', '认证失败', errorResult.message || '网络错误');
       }
     } catch (error: any) {
       showModal('error', '认证失败', error.message || '请求异常');
