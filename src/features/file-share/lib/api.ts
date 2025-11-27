@@ -2,6 +2,7 @@ import { NextRequest } from 'next/server';
 import { writeFile, mkdir, stat, unlink } from 'fs/promises';
 import { join } from 'path';
 import { randomUUID } from 'crypto';
+import { saveFileToDatabase, getFileFromDatabase, deleteFileFromDatabase, getAllValidFiles, fileDatabase } from './database';
 
 type UploadedFile = {
   id: string;
@@ -14,7 +15,6 @@ type UploadedFile = {
   uploadedAt: string;
 };
 
-const uploadedFiles: UploadedFile[] = [];
 const UPLOAD_DIR = join(process.cwd(), 'uploads');
 
 // 确保上传目录存在
@@ -29,29 +29,30 @@ async function ensureUploadDir() {
 // 清理过期文件的函数
 async function cleanupExpiredFiles() {
   const now = new Date();
-  const expiredFiles: number[] = [];
+  const expiredFiles: string[] = [];
   
   // 找出所有过期的文件
-  for (let i = 0; i < uploadedFiles.length; i++) {
-    if (now > new Date(uploadedFiles[i].expiresAt)) {
-      expiredFiles.push(i);
+  for (const fileId in fileDatabase) {
+    const file = fileDatabase[fileId];
+    if (now > new Date(file.expiresAt)) {
+      expiredFiles.push(fileId);
     }
   }
   
-  // 从后往前删除，避免索引变化问题
-  for (let i = expiredFiles.length - 1; i >= 0; i--) {
-    const index = expiredFiles[i];
-    const file = uploadedFiles[index];
-    
-    // 删除物理文件
-    try {
-      await unlink(file.path);
-    } catch (error) {
-      console.error(`删除过期文件失败: ${file.path}`, error);
+  // 删除过期文件
+  for (const fileId of expiredFiles) {
+    const file = fileDatabase[fileId];
+    if (file) {
+      // 删除物理文件
+      try {
+        await unlink(file.path);
+      } catch (error) {
+        console.error(`删除过期文件失败: ${file.path}`, error);
+      }
+      
+      // 从数据库中移除
+      await deleteFileFromDatabase(fileId);
     }
-    
-    // 从数组中移除
-    uploadedFiles.splice(index, 1);
   }
   
   if (expiredFiles.length > 0) {
@@ -59,7 +60,8 @@ async function cleanupExpiredFiles() {
   }
   
   // 输出当前文件数量统计
-  console.log(`[${new Date().toISOString()}] 当前活跃文件数量: ${uploadedFiles.length}`);
+  const validFiles = await getAllValidFiles();
+  console.log(`[${new Date().toISOString()}] 当前活跃文件数量: ${validFiles.length}`);
 }
 
 // 启动时立即执行一次清理
@@ -121,7 +123,8 @@ export async function upload(request: NextRequest) {
           uploadedAt: new Date().toISOString()
         };
 
-        uploadedFiles.push(fileInfo);
+        // 保存文件信息到数据库
+        await saveFileToDatabase(fileInfo);
         files.push(fileInfo);
       }
     }
@@ -154,8 +157,8 @@ export async function download(request: NextRequest, context?: { params: Promise
       return Response.json({ error: '缺少文件ID参数' }, { status: 400 });
     }
     
-    // 查找文件
-    const file = uploadedFiles.find(f => f.id === fileId);
+    // 从数据库查找文件
+    const file = await getFileFromDatabase(fileId);
     if (!file) {
       return Response.json({ error: '文件不存在' }, { status: 404 });
     }
@@ -163,17 +166,15 @@ export async function download(request: NextRequest, context?: { params: Promise
     // 检查文件是否过期
     if (new Date() > new Date(file.expiresAt)) {
       // 删除过期文件
-      const fileIndex = uploadedFiles.findIndex(f => f.id === fileId);
-      if (fileIndex > -1) {
-        // 删除物理文件
-        try {
-          await unlink(file.path);
-        } catch (error) {
-          console.error(`删除过期文件失败: ${file.path}`, error);
-        }
-        
-        uploadedFiles.splice(fileIndex, 1);
+      await deleteFileFromDatabase(fileId);
+      
+      // 删除物理文件
+      try {
+        await unlink(file.path);
+      } catch (error) {
+        console.error(`删除过期文件失败: ${file.path}`, error);
       }
+      
       return Response.json({ error: '文件已过期' }, { status: 410 });
     }
     
@@ -207,16 +208,14 @@ export async function deleteFile(request: NextRequest, context?: { params: Promi
       return Response.json({ error: '缺少文件ID参数' }, { status: 400 });
     }
     
-    // 查找文件
-    const fileIndex = uploadedFiles.findIndex(f => f.id === fileId);
-    if (fileIndex === -1) {
+    // 从数据库查找文件
+    const file = await getFileFromDatabase(fileId);
+    if (!file) {
       return Response.json({ error: '文件不存在' }, { status: 404 });
     }
-    
-    const file = uploadedFiles[fileIndex];
 
-    // 删除文件记录
-    uploadedFiles.splice(fileIndex, 1);
+    // 从数据库删除文件记录
+    await deleteFileFromDatabase(fileId);
     
     // 删除物理文件
     try {
@@ -239,9 +238,8 @@ export async function deleteFile(request: NextRequest, context?: { params: Promi
 // 获取文件列表
 export async function list(_request: NextRequest) {
   try {
-    // 过滤掉过期文件
-    const now = new Date();
-    const validFiles = uploadedFiles.filter(file => now <= new Date(file.expiresAt));
+    // 获取所有有效文件
+    const validFiles = await getAllValidFiles();
     
     return Response.json({ 
       message: '获取文件列表成功',

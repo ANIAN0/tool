@@ -40,8 +40,8 @@ export default function FileShareApiDoc({ tool }: { tool: any }) {
             </div>
             <div className="space-y-2">
               <p className="text-sm font-medium text-muted-foreground">认证方式</p>
-              <Badge variant="default" className="bg-blue-600">
-                Password Header
+              <Badge variant="default" className="bg-green-600">
+                无需认证
               </Badge>
             </div>
           </div>
@@ -96,13 +96,12 @@ export default function FileShareApiDoc({ tool }: { tool: any }) {
               <p className="text-sm font-medium text-foreground">cURL 示例</p>
               <div className="bg-slate-950 rounded-lg p-4 overflow-x-auto">
                 <pre className="text-sm text-slate-50"><code>{`# 上传单个文件
-curl -X POST '${apiUrl}/upload' \\
-  -H 'password: your_password' \\
-  -F 'file0=@/path/to/image.jpg' \\
+curl -X POST '${apiUrl}?op=upload' \\
+  -F 'file0=@/path/to/image.jpg' \
   --output response.json
 
 # 上传多个文件
-curl -X POST '${apiUrl}/upload' \\
+curl -X POST '${apiUrl}?op=upload' \\
   -H 'password: your_password' \\
   -F 'file0=@/path/to/image.jpg' \\
   -F 'file1=@/path/to/video.mp4' \\
@@ -120,11 +119,9 @@ const formData = new FormData();
 formData.append('file0', file1);
 formData.append('file1', file2);
 
-const response = await fetch('${apiUrl}/upload', {
+const response = await fetch('${apiUrl}?op=upload', {
   method: 'POST',
-  headers: {
-    'password': 'your_password'
-  },
+
   body: formData,
 });
 
@@ -153,7 +150,8 @@ console.log('上传成功:', result.files);`}</code></pre>
       "name": "example.jpg",
       "type": "image/jpeg",
       "size": 102400,
-      "url": "/api/tools/file-share/download/550e8400-e29b-41d4-a716-446655440000",
+      "url": "/api/tools/file-share?op=download&fileId=550e8400-e29b-41d4-a716-446655440000",
+      "path": "/uploads/550e8400-e29b-41d4-a716-446655440000-example.jpg",
       "expiresAt": "2025-11-27T10:30:00.000Z",
       "uploadedAt": "2025-11-26T10:30:00.000Z"
     }
@@ -169,12 +167,7 @@ console.log('上传成功:', result.files);`}</code></pre>
                 <p className="text-sm font-semibold text-foreground">错误响应</p>
               </div>
               <div className="bg-slate-950 rounded-lg p-4 overflow-x-auto">
-                <pre className="text-sm text-slate-50"><code>{`// 401 Unauthorized - 认证失败
-{
-  "error": "未授权访问"
-}
-
-// 500 Internal Server Error - 上传失败
+                <pre className="text-sm text-slate-50"><code>{`// 500 Internal Server Error - 上传失败
 {
   "error": "文件上传失败"
 }`}</code></pre>
@@ -231,7 +224,7 @@ console.log('上传成功:', result.files);`}</code></pre>
             <div className="space-y-2">
               <p className="text-sm font-medium text-foreground">cURL 示例</p>
               <div className="bg-slate-950 rounded-lg p-4 overflow-x-auto">
-                <pre className="text-sm text-slate-50"><code>{`curl -X GET '${apiUrl}/download/550e8400-e29b-41d4-a716-446655440000' \\
+                <pre className="text-sm text-slate-50"><code>{`curl -X GET '${apiUrl}?op=download&fileId=550e8400-e29b-41d4-a716-446655440000' \\
   -H 'password: your_password' \\
   --output downloaded-file.jpg`}</code></pre>
               </div>
@@ -340,7 +333,7 @@ console.log('上传成功:', result.files);`}</code></pre>
             <div className="space-y-2">
               <p className="text-sm font-medium text-foreground">cURL 示例</p>
               <div className="bg-slate-950 rounded-lg p-4 overflow-x-auto">
-                <pre className="text-sm text-slate-50"><code>{`curl -X DELETE '${apiUrl}/delete/550e8400-e29b-41d4-a716-446655440000' \\
+                <pre className="text-sm text-slate-50"><code>{`curl -X DELETE '${apiUrl}?op=deleteFile&fileId=550e8400-e29b-41d4-a716-446655440000' \\
   -H 'password: your_password'`}</code></pre>
               </div>
             </div>
@@ -404,7 +397,7 @@ console.log('上传成功:', result.files);`}</code></pre>
             <div className="space-y-2">
               <p className="text-sm font-medium text-foreground">cURL 示例</p>
               <div className="bg-slate-950 rounded-lg p-4 overflow-x-auto">
-                <pre className="text-sm text-slate-50"><code>{`curl -X GET '${apiUrl}/list' \\
+                <pre className="text-sm text-slate-50"><code>{`curl -X GET '${apiUrl}?op=list' \\
   -H 'password: your_password'`}</code></pre>
               </div>
             </div>
@@ -429,7 +422,8 @@ console.log('上传成功:', result.files);`}</code></pre>
       "name": "example.jpg",
       "type": "image/jpeg",
       "size": 102400,
-      "url": "/api/tools/file-share/download/550e8400-e29b-41d4-a716-446655440000",
+      "url": "/api/tools/file-share?op=download&fileId=550e8400-e29b-41d4-a716-446655440000",
+      "path": "/uploads/550e8400-e29b-41d4-a716-446655440000-example.jpg",
       "expiresAt": "2025-11-27T10:30:00.000Z",
       "uploadedAt": "2025-11-26T10:30:00.000Z"
     }
@@ -445,12 +439,7 @@ console.log('上传成功:', result.files);`}</code></pre>
                 <p className="text-sm font-semibold text-foreground">错误响应</p>
               </div>
               <div className="bg-slate-950 rounded-lg p-4 overflow-x-auto">
-                <pre className="text-sm text-slate-50"><code>{`// 401 Unauthorized - 认证失败
-{
-  "error": "未授权访问"
-}
-
-// 500 Internal Server Error
+                <pre className="text-sm text-slate-50"><code>{`// 500 Internal Server Error
 {
   "error": "获取文件列表失败"
 }`}</code></pre>
@@ -476,19 +465,7 @@ console.log('上传成功:', result.files);`}</code></pre>
               <ul className="text-sm text-muted-foreground space-y-2">
                 <li className="flex items-start gap-2">
                   <span className="text-primary mt-0.5">•</span>
-                  <span>所有接口都需要密码认证</span>
-                </li>
-                <li className="flex items-start gap-2">
-                  <span className="text-primary mt-0.5">•</span>
-                  <span>认证地址：http://124.156.205.61:5678/webhook/82a78108-5dbf-47e5-bf41-222ac0b408e3</span>
-                </li>
-                <li className="flex items-start gap-2">
-                  <span className="text-primary mt-0.5">•</span>
-                  <span>请求头中包含 password 字段</span>
-                </li>
-                <li className="flex items-start gap-2">
-                  <span className="text-primary mt-0.5">•</span>
-                  <span>认证成功返回文本：通过</span>
+                  <span>本工具无需认证即可访问</span>
                 </li>
               </ul>
             </div>
@@ -518,10 +495,6 @@ console.log('上传成功:', result.files);`}</code></pre>
             <div>
               <h4 className="text-sm font-semibold text-foreground mb-2">安全说明</h4>
               <ul className="text-sm text-muted-foreground space-y-2">
-                <li className="flex items-start gap-2">
-                  <span className="text-primary mt-0.5">•</span>
-                  <span>所有接口均需认证后访问</span>
-                </li>
                 <li className="flex items-start gap-2">
                   <span className="text-primary mt-0.5">•</span>
                   <span>文件ID为UUID格式，难以猜测</span>

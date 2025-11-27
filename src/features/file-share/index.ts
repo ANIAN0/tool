@@ -1,5 +1,6 @@
 import type { ToolModule } from '@/lib/types';
 import MainComponent from './components/Main';
+import ApiDocComponent from './components/ApiDoc';
 
 export const metadata: ToolModule = {
   id: 'file-share',
@@ -13,3 +14,4 @@ export const metadata: ToolModule = {
 };
 
 export default MainComponent;
+export const ApiDoc = ApiDocComponent;

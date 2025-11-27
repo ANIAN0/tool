@@ -1,11 +1,16 @@
 import { NextRequest } from 'next/server';
 import sharp from 'sharp';
+import { writeFile, mkdir, stat } from 'fs/promises';
+import { join } from 'path';
+import { randomUUID } from 'crypto';
+import { saveFileToDatabase } from '@/features/file-share/lib/database';
 
 // 图片拼接API
 export async function merge(request: NextRequest) {
   try {
     const contentType = request.headers.get('content-type') || '';
     let imageBuffers: Buffer[] = [];
+    let returnType: 'file' | 'url' = 'file'; // 默认返回文件
 
     // 方式1: FormData 上传（支持多图片）
     if (contentType.includes('multipart/form-data')) {
@@ -19,6 +24,9 @@ export async function merge(request: NextRequest) {
           imageFiles.push(value);
         } else if (key.startsWith('imageUrl') && typeof value === 'string') {
           imageUrlParams.push(value);
+        } else if (key === 'returnType' && typeof value === 'string') {
+          // 获取返回类型参数
+          returnType = value as 'file' | 'url';
         }
       }
 
@@ -91,6 +99,7 @@ export async function merge(request: NextRequest) {
       const body = await request.json();
       const images = body.images || [];
       const imageUrls = body.imageUrls || [];
+      returnType = body.returnType || 'file'; // 获取返回类型参数
       
       if ((!Array.isArray(images) || images.length === 0) && (!Array.isArray(imageUrls) || imageUrls.length === 0)) {
         return Response.json(
@@ -155,16 +164,67 @@ export async function merge(request: NextRequest) {
     const mergedImage = await mergeImagesOnServer(imageBuffers);
     const processingTime = Date.now() - startTime;
     
-    return new Response(new Uint8Array(mergedImage), {
-      headers: {
-        'Content-Type': 'image/png',
-        'Content-Disposition': `attachment; filename="merged-${Date.now()}.png"`,
-        'X-Image-Count': imageBuffers.length.toString(),
-        'X-Processing-Time': `${processingTime}ms`,
-        'Access-Control-Allow-Origin': '*', // 允许跨域调用
-        'Access-Control-Expose-Headers': 'X-Image-Count, X-Processing-Time',
-      },
-    });
+    // 如果需要返回URL，则将图片保存到文件分享目录并返回URL
+    if (returnType === 'url') {
+      // 确保上传目录存在
+      const UPLOAD_DIR = join(process.cwd(), 'uploads');
+      try {
+        await stat(UPLOAD_DIR);
+      } catch {
+        await mkdir(UPLOAD_DIR, { recursive: true });
+      }
+      
+      // 生成文件名
+      const fileId = randomUUID();
+      const fileName = `${fileId}-merged-image.png`;
+      const filePath = join(UPLOAD_DIR, fileName);
+      
+      // 保存图片到文件系统
+      await writeFile(filePath, mergedImage);
+      
+      // 生成访问URL
+      const url = `/api/tools/file-share?op=download&fileId=${fileId}`;
+      
+      // 将文件信息添加到文件分享工具的数据库中
+      const fileInfo = {
+        id: fileId,
+        name: fileName,
+        type: 'image/png',
+        size: mergedImage.length,
+        url: url,
+        path: filePath,
+        expiresAt: new Date(Date.now() + 24 * 60 * 60 * 1000).toISOString(),
+        uploadedAt: new Date().toISOString()
+      };
+      
+      // 保存到文件数据库
+      await saveFileToDatabase(fileInfo);
+      
+      return Response.json({
+        message: '图片拼接成功',
+        url: url,
+        fileId: fileId
+      }, {
+        headers: {
+          'X-Image-Count': imageBuffers.length.toString(),
+          'X-Processing-Time': `${processingTime}ms`,
+          'Access-Control-Allow-Origin': '*',
+          'Access-Control-Expose-Headers': 'X-Image-Count, X-Processing-Time',
+        },
+      });
+    } else {
+      // 返回文件格式
+      return new Response(new Uint8Array(mergedImage), {
+        headers: {
+          'Content-Type': 'image/png',
+          'Content-Disposition': `attachment; filename="merged-${Date.now()}.png"`,
+          'X-Image-Count': imageBuffers.length.toString(),
+          'X-Processing-Time': `${processingTime}ms`,
+          'Access-Control-Allow-Origin': '*', // 允许跨域调用
+          'Access-Control-Expose-Headers': 'X-Image-Count, X-Processing-Time',
+        },
+      });
+    }
   } catch (error) {
     console.error('图片拼接失败:', error);
     const errorMessage = error instanceof Error ? error.message : '未知错误';

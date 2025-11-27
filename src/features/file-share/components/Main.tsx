@@ -19,7 +19,8 @@ import {
   RefreshCw,
   CheckCircle,
   XCircle,
-  Info
+  Info,
+  Copy
 } from 'lucide-react';
 import { useRouter } from 'next/navigation';
 
@@ -228,6 +229,32 @@ export default function Main() {
       window.open(u.toString(), '_blank');
     } catch (error: any) {
       showModal('error', '预览异常', error.message || '操作失败');
+    }
+  }, []);
+
+  // 复制文件URL到剪贴板
+  const handleCopyUrl = useCallback(async (url: string) => {
+    try {
+      // 创建完整的URL
+      const fullUrl = new URL(url, window.location.origin).toString();
+      
+      // 使用Clipboard API复制URL
+      await navigator.clipboard.writeText(fullUrl);
+      showModal('success', '复制成功', '文件URL已复制到剪贴板');
+    } catch (error: any) {
+      // 降级方案：使用传统的textarea方法
+      try {
+        const textarea = document.createElement('textarea');
+        const fullUrl = new URL(url, window.location.origin).toString();
+        textarea.value = fullUrl;
+        document.body.appendChild(textarea);
+        textarea.select();
+        document.execCommand('copy');
+        document.body.removeChild(textarea);
+        showModal('success', '复制成功', '文件URL已复制到剪贴板');
+      } catch (fallbackError) {
+        showModal('error', '复制失败', '无法复制URL到剪贴板');
+      }
     }
   }, []);
 
@@ -474,6 +501,15 @@ export default function Main() {
                         >
                           <Download className="w-4 h-4 mr-1" />
                           下载
+                        </Button>
+                        <Button 
+                          size="sm" 
+                          variant="outline" 
+                          className="flex-1"
+                          onClick={() => handleCopyUrl(file.url)}
+                        >
+                          <Copy className="w-4 h-4 mr-1" />
+                          复制
                         </Button>
                         <Button 
                           size="sm" 

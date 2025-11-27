@@ -77,7 +77,7 @@ export default function ImageMergerApiDoc({ tool }: { tool: any }) {
                       <Badge variant="destructive" className="text-xs">是</Badge>
                     </td>
                     <td className="px-4 py-3 text-sm text-muted-foreground">
-      操作类型，固定值: <code className="bg-muted px-1.5 py-0.5 rounded text-xs">merge</code>
+                        操作类型，固定值: <code className="bg-muted px-1.5 py-0.5 rounded text-xs">merge</code>
                     </td>
                   </tr>
                   <tr className="hover:bg-muted/30 transition-colors">
@@ -98,6 +98,16 @@ export default function ImageMergerApiDoc({ tool }: { tool: any }) {
                     </td>
                     <td className="px-4 py-3 text-sm text-muted-foreground">
                       网络图片URL，支持 JPG、PNG、WebP 等格式，最多 20 张
+                    </td>
+                  </tr>
+                  <tr className="hover:bg-muted/30 transition-colors">
+                    <td className="px-4 py-3 text-sm font-mono text-foreground">returnType</td>
+                    <td className="px-4 py-3 text-sm text-muted-foreground">string</td>
+                    <td className="px-4 py-3">
+                      <Badge variant="secondary" className="text-xs">可选</Badge>
+                    </td>
+                    <td className="px-4 py-3 text-sm text-muted-foreground">
+                      返回类型: <code className="bg-muted px-1.5 py-0.5 rounded text-xs">file</code> (默认) 或 <code className="bg-muted px-1.5 py-0.5 rounded text-xs">url</code>
                     </td>
                   </tr>
                 </tbody>
@@ -160,6 +170,16 @@ export default function ImageMergerApiDoc({ tool }: { tool: any }) {
                     </td>
                     <td className="px-4 py-3 text-sm text-muted-foreground">
                       图片URL数组，支持 JPG、PNG、WebP 等格式
+                    </td>
+                  </tr>
+                  <tr className="hover:bg-muted/30 transition-colors">
+                    <td className="px-4 py-3 text-sm font-mono text-foreground">returnType</td>
+                    <td className="px-4 py-3 text-sm text-muted-foreground">string</td>
+                    <td className="px-4 py-3">
+                      <Badge variant="secondary" className="text-xs">可选</Badge>
+                    </td>
+                    <td className="px-4 py-3 text-sm text-muted-foreground">
+                      返回类型: <code className="bg-muted px-1.5 py-0.5 rounded text-xs">file</code> (默认) 或 <code className="bg-muted px-1.5 py-0.5 rounded text-xs">url</code>
                     </td>
                   </tr>
                 </tbody>
@@ -293,11 +313,11 @@ function fileToBase64(file) {
           <div className="space-y-4">
             <h3 className="text-lg font-semibold text-foreground">响应说明</h3>
             
-            {/* 成功响应 */}
+            {/* 成功响应 - 文件类型 */}
             <div className="space-y-3">
               <div className="flex items-center gap-2">
                 <CheckCircle2 className="w-5 h-5 text-green-600" strokeWidth={2} />
-                <p className="text-sm font-semibold text-foreground">成功响应 (200)</p>
+                <p className="text-sm font-semibold text-foreground">成功响应 (200) - 文件类型</p>
               </div>
               <div className="rounded-lg border bg-muted/30 p-4">
                 <ul className="text-sm text-muted-foreground space-y-2">
@@ -320,6 +340,41 @@ function fileToBase64(file) {
                   <li className="flex items-start gap-2">
                     <span className="text-primary mt-0.5">•</span>
                     <span>响应头包含 <code className="bg-background px-1.5 py-0.5 rounded text-xs">X-Image-Count</code> (图片数量) 和 <code className="bg-background px-1.5 py-0.5 rounded text-xs">X-Processing-Time</code> (处理耗时)</span>
+                  </li>
+                </ul>
+              </div>
+            </div>
+            
+            {/* 成功响应 - URL类型 */}
+            <div className="space-y-3">
+              <div className="flex items-center gap-2">
+                <CheckCircle2 className="w-5 h-5 text-green-600" strokeWidth={2} />
+                <p className="text-sm font-semibold text-foreground">成功响应 (200) - URL类型</p>
+              </div>
+              <div className="bg-slate-950 rounded-lg p-4 overflow-x-auto">
+                <pre className="text-sm text-slate-50"><code>{`{
+  "message": "图片拼接成功",
+  "url": "https://your-domain.com/api/tools/file-share?op=download&fileId=550e8400-e29b-41d4-a716-446655440000",
+  "fileId": "550e8400-e29b-41d4-a716-446655440000"
+}`}</code></pre>
+              </div>
+              <div className="rounded-lg border bg-muted/30 p-4">
+                <ul className="text-sm text-muted-foreground space-y-2">
+                  <li className="flex items-start gap-2">
+                    <span className="text-primary mt-0.5">•</span>
+                    <span>Content-Type: <code className="bg-background px-1.5 py-0.5 rounded text-xs">application/json</code></span>
+                  </li>
+                  <li className="flex items-start gap-2">
+                    <span className="text-primary mt-0.5">•</span>
+                    <span>返回包含图片访问URL的JSON对象</span>
+                  </li>
+                  <li className="flex items-start gap-2">
+                    <span className="text-primary mt-0.5">•</span>
+                    <span>URL可通过文件分享工具访问，24小时后自动过期</span>
+                  </li>
+                  <li className="flex items-start gap-2">
+                    <span className="text-primary mt-0.5">•</span>
+                    <span>响应头同样包含 <code className="bg-background px-1.5 py-0.5 rounded text-xs">X-Image-Count</code> 和 <code className="bg-background px-1.5 py-0.5 rounded text-xs">X-Processing-Time</code></span>
                   </li>
                 </ul>
               </div>
@@ -449,6 +504,10 @@ function fileToBase64(file) {
                 <li className="flex items-start gap-2">
                   <span className="text-primary mt-0.5">•</span>
                   <span>支持网络图片URL，可与本地文件混合使用</span>
+                </li>
+                <li className="flex items-start gap-2">
+                  <span className="text-primary mt-0.5">•</span>
+                  <span>支持返回类型选择：默认返回图片文件，可选择返回访问URL</span>
                 </li>
               </ul>
             </div>

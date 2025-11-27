@@ -14,7 +14,9 @@ import {
   Loader2,
   Images,
   FileImage,
-  Info
+  Info,
+  Copy,
+  Link
 } from 'lucide-react';
 
 export default function Main() {
@@ -22,6 +24,8 @@ export default function Main() {
   const [previews, setPreviews] = useState<string[]>([]);
   const [loading, setLoading] = useState(false);
   const [resultImage, setResultImage] = useState<string>('');
+  const [resultUrl, setResultUrl] = useState<string>('');
+  const [returnType, setReturnType] = useState<'file' | 'url'>('file'); // 添加返回类型状态
 
   const handleImageUpload = useCallback((e: React.ChangeEvent<HTMLInputElement>) => {
     const files = Array.from(e.target.files || []);
@@ -46,6 +50,7 @@ export default function Main() {
     setImages([]);
     setPreviews([]);
     setResultImage('');
+    setResultUrl('');
   }, []);
 
   const handleMergeImages = useCallback(async () => {
@@ -56,12 +61,16 @@ export default function Main() {
 
     setLoading(true);
     setResultImage('');
+    setResultUrl('');
 
     try {
       const formData = new FormData();
       images.forEach((image, index) => {
         formData.append(`image${index}`, image);
       });
+      
+      // 添加返回类型参数
+      formData.append('returnType', returnType);
 
       const response = await fetch('/api/tools/image-merger?op=merge', {
         method: 'POST',
@@ -72,16 +81,23 @@ export default function Main() {
         throw new Error('拼接失败');
       }
 
-      const blob = await response.blob();
-      const url = URL.createObjectURL(blob);
-      setResultImage(url);
+      if (returnType === 'url') {
+        // 返回URL格式
+        const result = await response.json();
+        setResultUrl(result.url);
+      } else {
+        // 返回文件格式
+        const blob = await response.blob();
+        const url = URL.createObjectURL(blob);
+        setResultImage(url);
+      }
     } catch (error) {
       console.error('拼接失败:', error);
       alert('图片拼接失败，请重试');
     } finally {
       setLoading(false);
     }
-  }, [images]);
+  }, [images, returnType]);
 
   const handleDownload = useCallback(() => {
     if (!resultImage) return;
@@ -91,6 +107,25 @@ export default function Main() {
     link.download = `merged-${Date.now()}.png`;
     link.click();
   }, [resultImage]);
+
+  // 复制URL到剪贴板
+  const handleCopyUrl = useCallback(async () => {
+    if (!resultUrl) return;
+    
+    try {
+      await navigator.clipboard.writeText(resultUrl);
+      alert('URL已复制到剪贴板');
+    } catch (error) {
+      // 降级方案
+      const textarea = document.createElement('textarea');
+      textarea.value = resultUrl;
+      document.body.appendChild(textarea);
+      textarea.select();
+      document.execCommand('copy');
+      document.body.removeChild(textarea);
+      alert('URL已复制到剪贴板');
+    }
+  }, [resultUrl]);
 
   const handleMoveUp = useCallback((index: number) => {
     if (index === 0) return;
@@ -243,6 +278,27 @@ export default function Main() {
                 </div>
               )}
 
+              {/* 添加返回类型选择 */}
+              <div className="flex items-center gap-4 pt-2">
+                <span className="text-sm font-medium text-foreground">返回类型:</span>
+                <div className="flex gap-2">
+                  <Button
+                    variant={returnType === 'file' ? 'default' : 'outline'}
+                    size="sm"
+                    onClick={() => setReturnType('file')}
+                  >
+                    文件
+                  </Button>
+                  <Button
+                    variant={returnType === 'url' ? 'default' : 'outline'}
+                    size="sm"
+                    onClick={() => setReturnType('url')}
+                  >
+                    URL
+                  </Button>
+                </div>
+              </div>
+
               <Button
                 onClick={handleMergeImages}
                 disabled={images.length === 0 || loading}
@@ -272,7 +328,7 @@ export default function Main() {
                 拼接结果
               </CardTitle>
               <CardDescription>
-                {resultImage ? '拼接完成，可以下载保存' : '等待上传图片并开始拼接'}
+                {resultImage || resultUrl ? '拼接完成' : '等待上传图片并开始拼接'}
               </CardDescription>
             </CardHeader>
             <CardContent>
@@ -299,6 +355,27 @@ export default function Main() {
                       <Download className="w-4 h-4" />
                       下载图片
                     </Button>
+                  </div>
+                ) : resultUrl ? (
+                  <div className="w-full space-y-4">
+                    <div className="p-4 bg-muted rounded-lg">
+                      <p className="text-sm font-medium text-foreground mb-2">拼接完成，图片URL:</p>
+                      <div className="flex items-center gap-2">
+                        <code className="flex-1 text-xs bg-background p-2 rounded border break-all">
+                          {resultUrl}
+                        </code>
+                        <Button
+                          onClick={handleCopyUrl}
+                          size="sm"
+                          variant="outline"
+                        >
+                          <Copy className="w-4 h-4" />
+                        </Button>
+                      </div>
+                    </div>
+                    <p className="text-xs text-muted-foreground">
+                      您可以将此URL用于其他工具或分享给他人
+                    </p>
                   </div>
                 ) : (
                   <div className="text-center">
@@ -340,7 +417,11 @@ export default function Main() {
               </li>
               <li className="flex items-start gap-2">
                 <span className="text-primary mt-0.5">•</span>
-                <span>点击"下载图片"按钮即可保存拼接结果</span>
+                <span>可选择返回文件或URL，URL可以用于其他工具</span>
+              </li>
+              <li className="flex items-start gap-2">
+                <span className="text-primary mt-0.5">•</span>
+                <span>返回URL时，图片将保存在文件分享工具中，24小时后自动过期</span>
               </li>
             </ul>
           </CardContent>
