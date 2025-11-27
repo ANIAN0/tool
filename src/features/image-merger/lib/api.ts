@@ -66,13 +66,23 @@ export async function merge(request: NextRequest) {
           try {
             // 验证URL格式
             new URL(url);
-            const response = await fetch(url);
+            
+            // 添加User-Agent头部以避免某些服务器拒绝请求
+            const response = await fetch(url, {
+              headers: {
+                'User-Agent': 'Mozilla/5.0 (compatible; ImageMerger/1.0; +https://your-domain.com)'
+              }
+            });
+            
             if (!response.ok) {
               throw new Error(`HTTP ${response.status}: ${response.statusText}`);
             }
+            
             const arrayBuffer = await response.arrayBuffer();
+            console.log(`成功下载图片: ${url}, 大小: ${arrayBuffer.byteLength} bytes`);
             return Buffer.from(arrayBuffer);
           } catch (error) {
+            console.error(`下载图片失败 (${url}):`, error);
             throw new Error(`下载图片失败 (${url}): ${error instanceof Error ? error.message : '未知错误'}`);
           }
         })
@@ -135,13 +145,23 @@ export async function merge(request: NextRequest) {
           try {
             // 验证URL格式
             new URL(url);
-            const response = await fetch(url);
+            
+            // 添加User-Agent头部以避免某些服务器拒绝请求
+            const response = await fetch(url, {
+              headers: {
+                'User-Agent': 'Mozilla/5.0 (compatible; ImageMerger/1.0; +https://your-domain.com)'
+              }
+            });
+            
             if (!response.ok) {
               throw new Error(`HTTP ${response.status}: ${response.statusText}`);
             }
+            
             const arrayBuffer = await response.arrayBuffer();
+            console.log(`成功下载图片: ${url}, 大小: ${arrayBuffer.byteLength} bytes`);
             return Buffer.from(arrayBuffer);
           } catch (error) {
+            console.error(`下载图片失败 (${url}):`, error);
             throw new Error(`下载图片失败 (${url}): ${error instanceof Error ? error.message : '未知错误'}`);
           }
         })
@@ -166,8 +186,15 @@ export async function merge(request: NextRequest) {
     
     // 如果需要返回URL，则将图片保存到文件分享目录并返回URL
     if (returnType === 'url') {
+      // 使用临时目录而不是固定的uploads目录
+      const getUploadDir = () => {
+        // 在Vercel环境中使用tmp目录，在本地环境中使用uploads目录
+        return process.env.VERCEL ? '/tmp' : join(process.cwd(), 'uploads');
+      };
+
+      const UPLOAD_DIR = getUploadDir();
+      
       // 确保上传目录存在
-      const UPLOAD_DIR = join(process.cwd(), 'uploads');
       try {
         await stat(UPLOAD_DIR);
       } catch {
