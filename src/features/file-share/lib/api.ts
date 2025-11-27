@@ -15,7 +15,13 @@ type UploadedFile = {
   uploadedAt: string;
 };
 
-const UPLOAD_DIR = join(process.cwd(), 'uploads');
+// 使用临时目录而不是固定的uploads目录
+const getUploadDir = () => {
+  // 在Vercel环境中使用tmp目录，在本地环境中使用uploads目录
+  return process.env.VERCEL ? '/tmp' : join(process.cwd(), 'uploads');
+};
+
+const UPLOAD_DIR = getUploadDir();
 
 // 确保上传目录存在
 async function ensureUploadDir() {
