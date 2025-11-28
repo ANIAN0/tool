@@ -1,5 +1,12 @@
 {
   "$schema": "https://openapi.vercel.sh/vercel.json",
   "framework": "nextjs",
-  "buildCommand": "next build"
+  "buildCommand": "next build",
+  "functions": {
+    "src/app/api/tools/**/*": {
+      "maxDuration": 60,
+      "memory": 1024,
+      "bodySizeLimit": "50mb"
+    }
+  }
 }

@@ -207,12 +207,22 @@ export async function merge(request: NextRequest) {
       // 创建FormData对象并添加拼接后的图片
       const formData = new FormData();
       const uint8Array = new Uint8Array(mergedImage);
-      const blob = new Blob([uint8Array], { type: 'image/png' });
-      formData.append('file0', blob, 'merged-image.png');
+      const blob = new Blob([uint8Array], { type: 'image/jpeg' }); // 更改为JPEG
+      formData.append('file0', blob, 'merged-image.jpg'); // 更改为.jpg扩展名
 
       try {
         // 直接调用文件上传工具的接口
-        const uploadResponse = await fetch('/api/tools/file-share?op=upload', {
+        // 在服务器环境中需要构造完整的URL
+        const baseUrl = process.env.VERCEL_URL 
+          ? `https://${process.env.VERCEL_URL}`
+          : process.env.NODE_ENV === 'production'
+          ? 'https://tool-xi-dun.vercel.app'  // 使用实际的生产环境域名
+          : 'http://localhost:3000';
+          
+        const uploadUrl = `${baseUrl}/api/tools/file-share?op=upload`;
+        console.log(`调用文件上传接口: ${uploadUrl}`);
+        
+        const uploadResponse = await fetch(uploadUrl, {
           method: 'POST',
           body: formData,
         });
@@ -251,8 +261,8 @@ export async function merge(request: NextRequest) {
       // 返回文件格式
       return new Response(new Uint8Array(mergedImage), {
         headers: {
-          'Content-Type': 'image/png',
-          'Content-Disposition': `attachment; filename="merged-${Date.now()}.png"`,
+          'Content-Type': 'image/jpeg', // 更改为JPEG
+          'Content-Disposition': `attachment; filename="merged-${Date.now()}.jpg"`, // 更改为.jpg扩展名
           'X-Image-Count': imageBuffers.length.toString(),
           'X-Processing-Time': `${processingTime}ms`,
           'Access-Control-Allow-Origin': '*', // 允许跨域调用
@@ -312,7 +322,7 @@ async function mergeImagesOnServer(imageBuffers: Buffer[], targetWidth = 800): P
       return {
         buffer: await image
           .resize(TARGET_WIDTH, newHeight)
-          .png()
+          .png({ quality: 80 }) // 降低PNG质量以减小文件大小
           .toBuffer(),
         height: newHeight,
       };
@@ -345,5 +355,6 @@ async function mergeImagesOnServer(imageBuffers: Buffer[], targetWidth = 800): P
     currentY += height;
   }
 
-  return canvas.composite(compositeImages).png().toBuffer();
+  // 使用JPEG格式以进一步减小文件大小
+  return canvas.composite(compositeImages).jpeg({ quality: 80 }).toBuffer();
 }
