@@ -303,7 +303,7 @@ export async function options() {
 }
 
 // 服务器端图片拼接逻辑
-async function mergeImagesOnServer(imageBuffers: Buffer[], targetWidth = 800): Promise<Buffer> {
+async function mergeImagesOnServer(imageBuffers: Buffer[], targetWidth = 600): Promise<Buffer> {
   const TARGET_WIDTH = targetWidth;
 
   // 处理所有图片，缩放到目标宽度
@@ -322,7 +322,7 @@ async function mergeImagesOnServer(imageBuffers: Buffer[], targetWidth = 800): P
       return {
         buffer: await image
           .resize(TARGET_WIDTH, newHeight)
-          .png({ quality: 80 }) // 降低PNG质量以减小文件大小
+          .jpeg({ quality: 70 }) // 降低JPEG质量以减小文件大小
           .toBuffer(),
         height: newHeight,
       };
@@ -355,6 +355,6 @@ async function mergeImagesOnServer(imageBuffers: Buffer[], targetWidth = 800): P
     currentY += height;
   }
 
-  // 使用JPEG格式以进一步减小文件大小
-  return canvas.composite(compositeImages).jpeg({ quality: 80 }).toBuffer();
+  // 使用JPEG格式并进一步降低质量以减小文件大小
+  return canvas.composite(compositeImages).jpeg({ quality: 70 }).toBuffer();
 }
