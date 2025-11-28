@@ -206,7 +206,8 @@ export async function merge(request: NextRequest) {
     if (returnType === 'url') {
       // 创建FormData对象并添加拼接后的图片
       const formData = new FormData();
-      const blob = new Blob([mergedImage], { type: 'image/png' });
+      const uint8Array = new Uint8Array(mergedImage);
+      const blob = new Blob([uint8Array], { type: 'image/png' });
       formData.append('file0', blob, 'merged-image.png');
 
       try {
