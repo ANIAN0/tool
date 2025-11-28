@@ -204,82 +204,48 @@ export async function merge(request: NextRequest) {
     
     // 如果需要返回URL，则将图片保存到文件分享目录并返回URL
     if (returnType === 'url') {
-      // 使用临时目录而不是固定的uploads目录
-      const getUploadDir = () => {
-        // 在Vercel环境中使用tmp目录，在本地环境中使用uploads目录
-        return process.env.VERCEL ? '/tmp' : join(process.cwd(), 'uploads');
-      };
+      // 创建FormData对象并添加拼接后的图片
+      const formData = new FormData();
+      const blob = new Blob([mergedImage], { type: 'image/png' });
+      formData.append('file0', blob, 'merged-image.png');
 
-      const UPLOAD_DIR = getUploadDir();
-      console.log(`使用上传目录: ${UPLOAD_DIR}`);
-      
-      // 确保上传目录存在
       try {
-        await stat(UPLOAD_DIR);
-        console.log(`上传目录已存在: ${UPLOAD_DIR}`);
-      } catch (statError) {
-        console.log(`上传目录不存在，尝试创建: ${UPLOAD_DIR}`);
-        try {
-          await mkdir(UPLOAD_DIR, { recursive: true });
-          console.log(`成功创建上传目录: ${UPLOAD_DIR}`);
-        } catch (mkdirError) {
-          console.error(`创建上传目录失败 (${UPLOAD_DIR}):`, mkdirError);
-          throw new Error(`无法创建上传目录: ${mkdirError instanceof Error ? mkdirError.message : '未知错误'}`);
+        // 直接调用文件上传工具的接口
+        const uploadResponse = await fetch('/api/tools/file-share?op=upload', {
+          method: 'POST',
+          body: formData,
+        });
+
+        if (!uploadResponse.ok) {
+          const errorText = await uploadResponse.text();
+          throw new Error(`文件上传失败: ${uploadResponse.status} - ${errorText}`);
         }
+
+        const uploadResult = await uploadResponse.json();
+        console.log('文件上传成功:', uploadResult);
+
+        if (!uploadResult.files || uploadResult.files.length === 0) {
+          throw new Error('文件上传接口未返回有效的文件信息');
+        }
+
+        const uploadedFile = uploadResult.files[0];
+        
+        return Response.json({
+          message: '图片拼接成功',
+          url: uploadedFile.url,
+          fileId: uploadedFile.id
+        }, {
+          headers: {
+            'X-Image-Count': imageBuffers.length.toString(),
+            'X-Processing-Time': `${processingTime}ms`,
+            'Access-Control-Allow-Origin': '*',
+            'Access-Control-Expose-Headers': 'X-Image-Count, X-Processing-Time',
+          },
+        });
+      } catch (uploadError) {
+        console.error('调用文件上传接口失败:', uploadError);
+        throw new Error(`调用文件上传接口失败: ${uploadError instanceof Error ? uploadError.message : '未知错误'}`);
       }
-      
-      // 生成文件名
-      const fileId = randomUUID();
-      const fileName = `${fileId}-merged-image.png`;
-      const filePath = join(UPLOAD_DIR, fileName);
-      console.log(`生成文件信息 - fileId: ${fileId}, fileName: ${fileName}, filePath: ${filePath}`);
-      
-      // 保存图片到文件系统
-      try {
-        await writeFile(filePath, mergedImage);
-        console.log(`成功保存图片文件: ${filePath}, 大小: ${mergedImage.length} bytes`);
-      } catch (writeError) {
-        console.error(`保存图片文件失败 (${filePath}):`, writeError);
-        throw new Error(`无法保存图片文件: ${writeError instanceof Error ? writeError.message : '未知错误'}`);
-      }
-      
-      // 生成访问URL
-      const url = `/api/tools/file-share?op=download&fileId=${fileId}`;
-      console.log(`生成访问URL: ${url}`);
-      
-      // 将文件信息添加到文件分享工具的数据库中
-      const fileInfo = {
-        id: fileId,
-        name: fileName,
-        type: 'image/png',
-        size: mergedImage.length,
-        url: url,
-        path: filePath,
-        expiresAt: new Date(Date.now() + 24 * 60 * 60 * 1000).toISOString(),
-        uploadedAt: new Date().toISOString()
-      };
-      
-      // 保存到文件数据库
-      try {
-        await saveFileToDatabase(fileInfo);
-        console.log(`成功保存文件信息到数据库: ${fileId}`);
-      } catch (dbError) {
-        console.error(`保存文件信息到数据库失败:`, dbError);
-        throw new Error(`无法保存文件信息: ${dbError instanceof Error ? dbError.message : '未知错误'}`);
-      }
-      
-      return Response.json({
-        message: '图片拼接成功',
-        url: url,
-        fileId: fileId
-      }, {
-        headers: {
-          'X-Image-Count': imageBuffers.length.toString(),
-          'X-Processing-Time': `${processingTime}ms`,
-          'Access-Control-Allow-Origin': '*',
-          'Access-Control-Expose-Headers': 'X-Image-Count, X-Processing-Time',
-        },
-      });
     } else {
       // 返回文件格式
       return new Response(new Uint8Array(mergedImage), {
