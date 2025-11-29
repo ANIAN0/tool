@@ -55,7 +55,7 @@ export default function FileShareApiDoc({ tool }: { tool: any }) {
             <Upload className="w-5 h-5 text-primary" strokeWidth={2} />
             上传文件
           </CardTitle>
-          <CardDescription>上传一个或多个文件，生成临时访问链接</CardDescription>
+          <CardDescription>上传一个或多个文件，支持不同的接收上传方式、自动压缩图片</CardDescription>
         </CardHeader>
         <CardContent className="space-y-6">
           {/* 请求参数 */}
@@ -82,8 +82,56 @@ export default function FileShareApiDoc({ tool }: { tool: any }) {
                       文件对象，支持图片、视频、音频等格式
                     </td>
                   </tr>
+                  <tr className="hover:bg-muted/30 transition-colors">
+                    <td className="px-4 py-3 text-sm font-mono text-foreground">Authorization</td>
+                    <td className="px-4 py-3 text-sm text-muted-foreground">Header</td>
+                    <td className="px-4 py-3">
+                      <Badge variant="secondary" className="text-xs">可选</Badge>
+                    </td>
+                    <td className="px-4 py-3 text-sm text-muted-foreground">
+                      Bearer token，认证用户提供可延长文件保留时间（匿名用户可选）
+                    </td>
+                  </tr>
                 </tbody>
               </table>
+            </div>
+          </div>
+
+          {/* 文件过期说明 */}
+          <div className="space-y-3">
+            <h3 className="text-lg font-semibold text-foreground">文件过期说明</h3>
+            <div className="rounded-lg border bg-muted/30 p-4">
+              <ul className="text-sm text-muted-foreground space-y-2">
+                <li className="flex items-start gap-2">
+                  <span className="text-primary mt-0.5">•</span>
+                  <span><strong>认证用户</strong>：文件不需过期（永久保存）</span>
+                </li>
+                <li className="flex items-start gap-2">
+                  <span className="text-primary mt-0.5">•</span>
+                  <span><strong>匿名用户</strong>：24小时后自动删除</span>
+                </li>
+              </ul>
+            </div>
+          </div>
+
+          {/* 图片压缩说明 */}
+          <div className="space-y-3">
+            <h3 className="text-lg font-semibold text-foreground">图片压缩说明</h3>
+            <div className="rounded-lg border bg-muted/30 p-4">
+              <ul className="text-sm text-muted-foreground space-y-2">
+                <li className="flex items-start gap-2">
+                  <span className="text-primary mt-0.5">•</span>
+                  <span>上传的图片大于 1MB 时，会自动压缩到 2000x2000 以内</span>
+                </li>
+                <li className="flex items-start gap-2">
+                  <span className="text-primary mt-0.5">•</span>
+                  <span>压缩质量设置为 70，帮助减少存储空间</span>
+                </li>
+                <li className="flex items-start gap-2">
+                  <span className="text-primary mt-0.5">•</span>
+                  <span>如果压缩失败，会使用原文件上传</span>
+                </li>
+              </ul>
             </div>
           </div>
 
@@ -95,17 +143,16 @@ export default function FileShareApiDoc({ tool }: { tool: any }) {
             <div className="space-y-2">
               <p className="text-sm font-medium text-foreground">cURL 示例</p>
               <div className="bg-slate-950 rounded-lg p-4 overflow-x-auto">
-                <pre className="text-sm text-slate-50"><code>{`# 上传单个文件
+                <pre className="text-sm text-slate-50"><code>{`# 上传单个文件（匿名）
 curl -X POST '${apiUrl}?op=upload' \\
-  -F 'file0=@/path/to/image.jpg' \
+  -F 'file0=@/path/to/image.jpg' \\
   --output response.json
 
-# 上传多个文件
+# 上传多个文件（认证用户）
 curl -X POST '${apiUrl}?op=upload' \\
-  -H 'password: your_password' \\
+  -H 'Authorization: Bearer your_jwt_token' \\
   -F 'file0=@/path/to/image.jpg' \\
   -F 'file1=@/path/to/video.mp4' \\
-  -F 'file2=@/path/to/audio.mp3' \\
   --output response.json`}</code></pre>
               </div>
             </div>
@@ -121,7 +168,9 @@ formData.append('file1', file2);
 
 const response = await fetch('${apiUrl}?op=upload', {
   method: 'POST',
-
+  headers: {
+    'Authorization': 'Bearer your_token' // 可选
+  },
   body: formData,
 });
 
@@ -150,13 +199,25 @@ console.log('上传成功:', result.files);`}</code></pre>
       "name": "example.jpg",
       "type": "image/jpeg",
       "size": 102400,
-      "url": "/api/tools/file-share?op=download&fileId=550e8400-e29b-41d4-a716-446655440000",
-      "path": "/uploads/550e8400-e29b-41d4-a716-446655440000-example.jpg",
+      "url": "https://your-domain.com/api/tools/file-share?op=download&fileId=550e8400-e29b-41d4-a716-446655440000",
+      "path": "uploads/550e8400-e29b-41d4-a716-446655440000-example.jpg",
       "expiresAt": "2025-11-27T10:30:00.000Z",
       "uploadedAt": "2025-11-26T10:30:00.000Z"
     }
   ]
 }`}</code></pre>
+              </div>
+              <div className="rounded-lg border bg-muted/30 p-4">
+                <ul className="text-sm text-muted-foreground space-y-2">
+                  <li className="flex items-start gap-2">
+                    <span className="text-primary mt-0.5">•</span>
+                    <span>返回的 URL 包含完整域名，可直接使用</span>
+                  </li>
+                  <li className="flex items-start gap-2">
+                    <span className="text-primary mt-0.5">•</span>
+                    <span>图片文件大于 1MB 时会被压缩，size 字段反映实际大小</span>
+                  </li>
+                </ul>
               </div>
             </div>
             
@@ -167,9 +228,15 @@ console.log('上传成功:', result.files);`}</code></pre>
                 <p className="text-sm font-semibold text-foreground">错误响应</p>
               </div>
               <div className="bg-slate-950 rounded-lg p-4 overflow-x-auto">
-                <pre className="text-sm text-slate-50"><code>{`// 500 Internal Server Error - 上传失败
+                <pre className="text-sm text-slate-50"><code>{`// 400 Bad Request - 文件上传失败
 {
-  "error": "文件上传失败"
+  "error": "文件 example.jpg 大小超过限制（100MB）"
+}
+
+// 500 Internal Server Error - RLS 错误
+{
+  "error": "文件上传失败",
+  "message": "new row violates row-level security policy"
 }`}</code></pre>
               </div>
             </div>
@@ -245,15 +312,19 @@ console.log('上传成功:', result.files);`}</code></pre>
                 <ul className="text-sm text-muted-foreground space-y-2">
                   <li className="flex items-start gap-2">
                     <span className="text-primary mt-0.5">•</span>
-                    <span>返回文件二进制数据</span>
+                    <span>返回的 URL 包含完整域名，可直接使用</span>
                   </li>
                   <li className="flex items-start gap-2">
                     <span className="text-primary mt-0.5">•</span>
-                    <span>Content-Type 根据文件类型自动设置</span>
+                    <span>Content-Type 根据文件类上自动设置</span>
                   </li>
                   <li className="flex items-start gap-2">
                     <span className="text-primary mt-0.5">•</span>
                     <span>Content-Disposition 包含原始文件名</span>
+                  </li>
+                  <li className="flex items-start gap-2">
+                    <span className="text-primary mt-0.5">•</span>
+                    <span>图片文件大于 1MB 时会压缩处理</span>
                   </li>
                 </ul>
               </div>

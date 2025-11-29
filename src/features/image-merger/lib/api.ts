@@ -207,18 +207,12 @@ export async function merge(request: NextRequest) {
       // 创建FormData对象并添加拼接后的图片
       const formData = new FormData();
       const uint8Array = new Uint8Array(mergedImage);
-      const blob = new Blob([uint8Array], { type: 'image/jpeg' }); // 更改为JPEG
-      formData.append('file0', blob, 'merged-image.jpg'); // 更改为.jpg扩展名
+      const blob = new Blob([uint8Array], { type: 'image/jpeg' });
+      formData.append('file0', blob, 'merged-image.jpg');
 
       try {
-        // 直接调用文件上传工具的接口
-        // 在服务器环境中需要构造完整的URL
-        const baseUrl = process.env.VERCEL_URL 
-          ? `https://${process.env.VERCEL_URL}`
-          : process.env.NODE_ENV === 'production'
-          ? 'https://tool-xi-dun.vercel.app'  // 使用实际的生产环境域名
-          : 'http://localhost:3000';
-          
+        // 使用完整 URL 调用文件上传接口
+        const baseUrl = process.env.NEXT_PUBLIC_APP_URL || 'http://localhost:3000';
         const uploadUrl = `${baseUrl}/api/tools/file-share?op=upload`;
         console.log(`调用文件上传接口: ${uploadUrl}`);
         
@@ -229,6 +223,7 @@ export async function merge(request: NextRequest) {
 
         if (!uploadResponse.ok) {
           const errorText = await uploadResponse.text();
+          console.error(`文件上传响应异常: ${uploadResponse.status}`);
           throw new Error(`文件上传失败: ${uploadResponse.status} - ${errorText}`);
         }
 
@@ -241,9 +236,16 @@ export async function merge(request: NextRequest) {
 
         const uploadedFile = uploadResult.files[0];
         
+        // 确保 URL 包含完整域名
+        let fileUrl = uploadedFile.url;
+        if (!fileUrl.startsWith('http')) {
+          const baseUrl = process.env.NEXT_PUBLIC_APP_URL || 'http://localhost:3000';
+          fileUrl = `${baseUrl}${fileUrl}`;
+        }
+        
         return Response.json({
           message: '图片拼接成功',
-          url: uploadedFile.url,
+          url: fileUrl,
           fileId: uploadedFile.id
         }, {
           headers: {

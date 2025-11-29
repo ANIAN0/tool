@@ -1,5 +1,9 @@
 {
   "$schema": "https://openapi.vercel.sh/vercel.json",
   "framework": "nextjs",
-  "buildCommand": "next build"
+  "buildCommand": "next build",
+  "crons": [{
+    "path": "/api/cron/cleanup-expired-files",
+    "schedule": "0 */6 * * *"
+  }]
 }

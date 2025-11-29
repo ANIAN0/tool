@@ -52,7 +52,7 @@ export default function ImageMergerApiDoc({ tool }: { tool: any }) {
             <FileCode className="w-5 h-5 text-primary" strokeWidth={2} />
             拼接图片
           </CardTitle>
-          <CardDescription>支持四种上传方式：FormData、二进制数据、Base64 JSON、图片URL</CardDescription>
+          <CardDescription>支持四种上传方式：FormData、二进制数据、Base64 JSON、图片URL。自动调用文件上传接口保存拼接结果。</CardDescription>
         </CardHeader>
         <CardContent className="space-y-6">
           {/* 请求参数 - FormData 方式 */}
@@ -187,6 +187,35 @@ export default function ImageMergerApiDoc({ tool }: { tool: any }) {
             </div>
           </div>
 
+          {/* 图片处理说明 */}
+          <div className="space-y-3">
+            <h3 className="text-lg font-semibold text-foreground">图片处理说明</h3>
+            <div className="rounded-lg border bg-muted/30 p-4">
+              <ul className="text-sm text-muted-foreground space-y-2">
+                <li className="flex items-start gap-2">
+                  <span className="text-primary mt-0.5">•</span>
+                  <span>所有图片宽度统一缩放至 600px，高度按比例计算</span>
+                </li>
+                <li className="flex items-start gap-2">
+                  <span className="text-primary mt-0.5">•</span>
+                  <span>图片按参数顺序从上到下拼接</span>
+                </li>
+                <li className="flex items-start gap-2">
+                  <span className="text-primary mt-0.5">•</span>
+                  <span>输出格式为 JPEG，质量设为 70</span>
+                </li>
+                <li className="flex items-start gap-2">
+                  <span className="text-primary mt-0.5">•</span>
+                  <span>最多支持上传 20 张图片</span>
+                </li>
+                <li className="flex items-start gap-2">
+                  <span className="text-primary mt-0.5">•</span>
+                  <span>支持跨域调用 (CORS enabled)</span>
+                </li>
+              </ul>
+            </div>
+          </div>
+
           {/* 请求示例 */}
           <div className="space-y-3">
             <h3 className="text-lg font-semibold text-foreground">请求示例</h3>
@@ -220,7 +249,7 @@ const url = URL.createObjectURL(blob);`}</code></pre>
 
             {/* JSON URL 示例 */}
             <div className="space-y-2">
-              <p className="text-sm font-medium text-foreground">JSON + URL 方式</p>
+              <p className="text-sm font-medium text-foreground">JSON + URL 方式 (returnType=url)</p>
               <div className="bg-slate-950 rounded-lg p-4 overflow-x-auto">
                 <pre className="text-sm text-slate-50"><code>{`# cURL 示例
 curl -X POST '${apiUrl}?op=merge' \\
@@ -228,24 +257,18 @@ curl -X POST '${apiUrl}?op=merge' \\
   -d '{
     "imageUrls": [
       "https://example.com/image1.jpg",
-      "https://example.com/image2.png",
-      "https://example.com/image3.webp"
-    ]
+      "https://example.com/image2.png"
+    ],
+    "returnType": "url"
   }' \\
-  --output merged.png
+  --output response.json
 
-# JavaScript fetch 示例
-const response = await fetch('${apiUrl}?op=merge', {
-  method: 'POST',
-  headers: { 'Content-Type': 'application/json' },
-  body: JSON.stringify({
-    imageUrls: [
-      'https://example.com/image1.jpg',
-      'https://example.com/image2.png',
-      'https://example.com/image3.webp'
-    ]
-  }),
-});`}</code></pre>
+# 响应示例
+{
+  "message": "图片拼接成功",
+  "url": "https://your-domain.com/api/tools/file-share?op=download&fileId=550e8400-e29b-41d4-a716-446655440000",
+  "fileId": "550e8400-e29b-41d4-a716-446655440000"
+}`}</code></pre>
               </div>
             </div>
 
@@ -349,7 +372,7 @@ function fileToBase64(file) {
             <div className="space-y-3">
               <div className="flex items-center gap-2">
                 <CheckCircle2 className="w-5 h-5 text-green-600" strokeWidth={2} />
-                <p className="text-sm font-semibold text-foreground">成功响应 (200) - URL类型</p>
+                <p className="text-sm font-semibold text-foreground">成功响应 (200) - URL类型 (returnType=url)</p>
               </div>
               <div className="bg-slate-950 rounded-lg p-4 overflow-x-auto">
                 <pre className="text-sm text-slate-50"><code>{`{
@@ -366,11 +389,15 @@ function fileToBase64(file) {
                   </li>
                   <li className="flex items-start gap-2">
                     <span className="text-primary mt-0.5">•</span>
-                    <span>返回包含图片访问URL的JSON对象</span>
+                    <span>返回包含完整域名的图片访问 URL</span>
                   </li>
                   <li className="flex items-start gap-2">
                     <span className="text-primary mt-0.5">•</span>
-                    <span>URL可通过文件分享工具访问，24小时后自动过期</span>
+                    <span>URL 对应的文件已通过文件分享工具保存</span>
+                  </li>
+                  <li className="flex items-start gap-2">
+                    <span className="text-primary mt-0.5">•</span>
+                    <span>如果上传者是匿名用户，文件 24 小时后自动删除</span>
                   </li>
                   <li className="flex items-start gap-2">
                     <span className="text-primary mt-0.5">•</span>
