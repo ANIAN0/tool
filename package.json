@@ -10,6 +10,7 @@
   },
   "dependencies": {
     "@ai-sdk/devtools": "^0.0.15",
+    "@ai-sdk/react": "^3.0.99",
     "@libsql/client": "^0.17.0",
     "@openrouter/ai-sdk-provider": "^2.2.3",
     "@radix-ui/react-use-controllable-state": "^1.2.2",
