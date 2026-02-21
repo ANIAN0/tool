@@ -58,8 +58,7 @@ export default function ChatPage() {
   const [isLoadingConversations, setIsLoadingConversations] = useState(false);
   // 当前选中的对话ID
   const [currentConversationId, setCurrentConversationId] = useState<string | null>(null);
-  // 消息加载状态
-  const [isLoadingMessages, setIsLoadingMessages] = useState(false);
+
   // 当前选中的模型ID
   const [selectedModelId, setSelectedModelId] = useState<string>(DEFAULT_MODEL_ID);
 
@@ -131,7 +130,6 @@ export default function ChatPage() {
     }
 
     const fetchMessages = async () => {
-      setIsLoadingMessages(true);
       try {
         const response = await fetch(`/api/conversations/${currentConversationId}`, {
           headers: {
@@ -151,8 +149,6 @@ export default function ChatPage() {
       } catch (error) {
         console.error("获取消息失败:", error);
         setMessages([]);
-      } finally {
-        setIsLoadingMessages(false);
       }
     };
 
@@ -322,30 +318,34 @@ export default function ChatPage() {
       {/* 右侧对话区 */}
       <main className="flex min-w-0 flex-1 flex-col h-full">
         {/* 对话区头部 */}
-        <header className="flex h-14 shrink-0 items-center border-b border-border px-4">
-          <button
-            className="mr-2 rounded-md p-2 hover:bg-muted md:hidden"
-            onClick={() => setSidebarOpen(true)}
-          >
-            <svg
-              className="size-5"
-              fill="none"
-              stroke="currentColor"
-              viewBox="0 0 24 24"
+        <header className="flex h-16 shrink-0 items-center justify-between border-b border-border px-6">
+          <div className="flex items-center gap-4">
+            <button
+              className="flex items-center justify-center w-10 h-10 rounded-md hover:bg-accent md:hidden"
+              onClick={() => setSidebarOpen(true)}
             >
-              <path
-                d="M4 6h16M4 12h16M4 18h16"
-                strokeLinecap="round"
-                strokeLinejoin="round"
-                strokeWidth={2}
-              />
-            </svg>
-          </button>
-
-          <div className="flex-1">
-            <h1 className="font-medium text-sm">
-              {currentConversation?.title || "AI 对话助手"}
-            </h1>
+              <svg
+                className="w-5 h-5"
+                fill="none"
+                stroke="currentColor"
+                viewBox="0 0 24 24"
+              >
+                <path
+                  d="M4 6h16M4 12h16M4 18h16"
+                  strokeLinecap="round"
+                  strokeLinejoin="round"
+                  strokeWidth={2}
+                />
+              </svg>
+            </button>
+            <div className="flex-1">
+              <h1 className="text-lg font-semibold text-foreground">
+                {currentConversation?.title || "AI 对话助手"}
+              </h1>
+              <p className="text-xs text-muted-foreground">
+                {currentConversation ? "继续对话..." : "开始新对话"}
+              </p>
+            </div>
           </div>
 
           <ModelSelector
@@ -354,14 +354,14 @@ export default function ChatPage() {
           />
         </header>
 
-        {/* 消息显示区域 - 需要外层容器限制高度并显示滚动条 */}
+        {/* 消息显示区域 */}
         <div className="flex-1 overflow-hidden">
           <Conversation className="h-full">
-            {messages.length > 0 ? (
-              <ConversationContent>
-                {messages.map((message) => (
+            <ConversationContent className="px-6 py-6">
+              {messages.length > 0 ? (
+                messages.map((message) => (
                   <Message from={message.role} key={message.id}>
-                    <MessageContent>
+                    <MessageContent className="max-w-3xl">
                       {message.parts.map((part, index) => {
                         if (part.type === "text") {
                           return <MessageResponse key={index}>{part.text}</MessageResponse>;
@@ -370,26 +370,29 @@ export default function ChatPage() {
                       })}
                     </MessageContent>
                   </Message>
-                ))}
-              </ConversationContent>
-            ) : (
-              <ConversationEmptyState
-                description="选择一个对话或创建新对话开始聊天"
-                icon={<MessageSquareIcon className="size-10" />}
-                title="开始对话"
-              />
-            )}
+                ))
+              ) : (
+                <ConversationEmptyState
+                  description="选择一个对话或创建新对话开始聊天"
+                  icon={<MessageSquareIcon className="w-10 h-10" />}
+                  title="开始对话"
+                  className="mt-16"
+                />
+              )}
+            </ConversationContent>
             <ConversationScrollButton />
           </Conversation>
         </div>
 
         {/* 消息输入区域 */}
-        <PromptSection
-          onSubmit={handleSubmit}
-          onStop={stop}
-          status={isGenerating ? "streaming" : "ready"}
-          placeholder="输入消息，按 Enter 发送..."
-        />
+        <div className="px-6 py-6">
+          <PromptSection
+            onSubmit={handleSubmit}
+            onStop={stop}
+            status={isGenerating ? "streaming" : "ready"}
+            placeholder="输入消息，按 Enter 发送..."
+          />
+        </div>
       </main>
     </div>
   );

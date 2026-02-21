@@ -51,46 +51,46 @@ export function Sidebar({
   return (
     <div className="flex h-full flex-col">
       {/* 侧边栏头部 */}
-      <div className="flex shrink-0 items-center justify-between border-b border-border p-4">
-        <h2 className="font-semibold text-sm">对话列表</h2>
+      <div className="flex shrink-0 h-16 items-center justify-between border-b border-border px-4">
+        <h2 className="font-semibold text-sm text-foreground">对话列表</h2>
         {/* 移动端关闭按钮 */}
         {onClose && (
           <Button
             className="md:hidden"
             onClick={onClose}
-            size="icon-xs"
+            size="icon-sm"
             variant="ghost"
           >
-            <PanelLeftClose className="size-4" />
+            <PanelLeftClose className="w-4 h-4" />
           </Button>
         )}
       </div>
 
       {/* 新建对话按钮 */}
-      <div className="shrink-0 p-2">
+      <div className="shrink-0 px-4 py-3">
         <Button
-          className="w-full justify-start gap-2"
+          className="w-full justify-center gap-2"
           onClick={onNewChat}
           variant="outline"
         >
-          <MessageSquarePlus className="size-4" />
+          <MessageSquarePlus className="w-4 h-4" />
           <span>新建对话</span>
         </Button>
       </div>
 
       {/* 对话列表区域 */}
-      <ScrollArea className="flex-1">
-        <div className="space-y-1 p-2">
+      <ScrollArea className="flex-1 px-3 py-2">
+        <div className="space-y-1">
           {/* 加载中状态 */}
           {isLoading && (
-            <div className="p-4 text-center text-muted-foreground text-sm">
+            <div className="p-6 text-center text-muted-foreground text-sm">
               加载中...
             </div>
           )}
 
           {/* 空状态 */}
           {!isLoading && conversations.length === 0 && (
-            <div className="p-4 text-center text-muted-foreground text-sm">
+            <div className="p-6 text-center text-muted-foreground text-sm">
               暂无对话记录
               <br />
               点击上方按钮开始新对话

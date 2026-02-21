@@ -101,10 +101,8 @@ export function SidebarItem({
     }
   }, [isEditing]);
 
-  // 同步标题变化
-  useEffect(() => {
-    setEditTitle(conversation.title || "");
-  }, [conversation.title]);
+  // 初始化时设置标题，避免在render期间调用setState
+  // 标题变化通过handleStartEdit和handleCancelEdit处理
 
   // 处理开始编辑
   const handleStartEdit = () => {
@@ -149,7 +147,7 @@ export function SidebarItem({
     <>
       <div
         className={cn(
-          "group relative flex items-center gap-1 rounded-md px-3 py-2 text-sm transition-colors",
+          "group relative flex items-center gap-3 rounded-md px-4 py-3 text-sm transition-colors",
           "hover:bg-accent hover:text-accent-foreground",
           "focus-visible:bg-accent focus-visible:text-accent-foreground focus-visible:outline-none",
           isSelected && "bg-accent text-accent-foreground"
@@ -172,9 +170,9 @@ export function SidebarItem({
 
         {/* 编辑模式 */}
         {isEditing && (
-          <div className="flex flex-1 items-center gap-1">
+          <div className="flex flex-1 items-center gap-2">
             <Input
-              className="h-7 text-sm"
+              className="h-8 text-sm"
               onBlur={handleSaveEdit}
               onChange={(e) => setEditTitle(e.target.value)}
               onKeyDown={handleKeyDown}
@@ -185,7 +183,7 @@ export function SidebarItem({
             <Button
               className="shrink-0"
               onClick={handleCancelEdit}
-              size="icon-xs"
+              size="icon-sm"
               variant="ghost"
             >
               ✕
@@ -203,16 +201,16 @@ export function SidebarItem({
                   "focus:opacity-100",
                   isSelected && "opacity-100"
                 )}
-                size="icon-xs"
+                size="icon-sm"
                 variant="ghost"
               >
-                <MoreHorizontal className="size-4" />
+                <MoreHorizontal className="w-4 h-4" />
               </Button>
             </DropdownMenuTrigger>
             <DropdownMenuContent align="end" side="right">
               {/* 重命名选项 */}
               <DropdownMenuItem onClick={handleStartEdit}>
-                <Pencil className="size-4" />
+                <Pencil className="w-4 h-4 mr-2" />
                 <span>重命名</span>
               </DropdownMenuItem>
               {/* 删除选项 */}
@@ -220,7 +218,7 @@ export function SidebarItem({
                 onClick={() => setShowDeleteDialog(true)}
                 variant="destructive"
               >
-                <Trash2 className="size-4" />
+                <Trash2 className="w-4 h-4 mr-2" />
                 <span>删除</span>
               </DropdownMenuItem>
             </DropdownMenuContent>
