@@ -6,20 +6,32 @@
  * 包含对话状态管理
  */
 
-import { ChatArea } from "@/components/chat/chat-area";
+import {
+  Conversation,
+  ConversationContent,
+  ConversationEmptyState,
+  ConversationScrollButton,
+} from "@/components/ai-elements/conversation";
+import {
+  Message,
+  MessageContent,
+  MessageResponse,
+} from "@/components/ai-elements/message";
 import { ModelSelector, DEFAULT_MODEL_ID } from "@/components/chat/model-selector";
 import { PromptSection } from "@/components/chat/prompt-section";
 import { Sidebar } from "@/components/chat/sidebar";
 import { getAnonId } from "@/lib/anon-id";
-import type { Conversation, Message } from "@/lib/db/schema";
+import type { Conversation as ConversationType, Message as DBMessage } from "@/lib/db/schema";
 import { useChat } from "@ai-sdk/react";
-import { DefaultChatTransport, type UIMessage } from "ai";
+import { DefaultChatTransport } from "ai";
+import type { UIMessage } from "ai";
+import { MessageSquareIcon } from "lucide-react";
 import { useCallback, useEffect, useMemo, useState } from "react";
 
 /**
  * 将数据库消息转换为UIMessage格式
  */
-function dbMessageToUIMessage(msg: Message): UIMessage {
+function dbMessageToUIMessage(msg: DBMessage): UIMessage {
   return {
     id: msg.id,
     role: msg.role,
@@ -41,7 +53,7 @@ export default function ChatPage() {
   // 移动端侧边栏显示状态
   const [sidebarOpen, setSidebarOpen] = useState(false);
   // 对话列表
-  const [conversations, setConversations] = useState<Conversation[]>([]);
+  const [conversations, setConversations] = useState<ConversationType[]>([]);
   // 对话列表加载状态
   const [isLoadingConversations, setIsLoadingConversations] = useState(false);
   // 当前选中的对话ID
@@ -149,9 +161,13 @@ export default function ChatPage() {
 
   // 刷新对话列表（发送消息后调用）
   // 直接使用 getAnonId() 获取用户ID，避免依赖 state
+  // 修复多轮对话问题：如果是新对话，刷新后自动选中新创建的对话
   const refreshConversations = useCallback(async () => {
     const id = getAnonId();
     if (!id) return;
+
+    // 记录刷新前是否没有选中的对话（即新对话状态）
+    const wasNewChat = !currentConversationId;
 
     try {
       const response = await fetch("/api/conversations", {
@@ -162,12 +178,22 @@ export default function ChatPage() {
 
       if (response.ok) {
         const data = await response.json();
-        setConversations(data.conversations || []);
+        const newConversations = data.conversations || [];
+        setConversations(newConversations);
+
+        // 如果之前是新对话状态，自动选中最新创建的对话
+        // 这样后续的消息都会在这个对话中，不会创建新对话记录
+        if (wasNewChat && newConversations.length > 0) {
+          // 按时间倒序排列，第一个是最新的
+          const latestConversation = newConversations[0];
+          setCurrentConversationId(latestConversation.id);
+        }
       }
     } catch (error) {
       console.error("刷新对话列表失败:", error);
     }
-  }, []);
+    // 依赖 currentConversationId 以便正确检测新对话状态
+  }, [currentConversationId]);
 
   // 新建对话（功能点19：方案2 - 延迟创建）
   const handleNewChat = () => {
@@ -263,7 +289,7 @@ export default function ChatPage() {
   const isGenerating = status === "submitted" || status === "streaming";
 
   return (
-    <div className="flex h-full">
+    <div className="flex h-screen">
       {/* 左侧边栏 */}
       <aside
         className={`
@@ -294,7 +320,7 @@ export default function ChatPage() {
       )}
 
       {/* 右侧对话区 */}
-      <main className="flex min-w-0 flex-1 flex-col">
+      <main className="flex min-w-0 flex-1 flex-col h-full">
         {/* 对话区头部 */}
         <header className="flex h-14 shrink-0 items-center border-b border-border px-4">
           <button
@@ -328,12 +354,34 @@ export default function ChatPage() {
           />
         </header>
 
-        {/* 消息显示区域 */}
-        <ChatArea
-          isLoading={isLoadingMessages}
-          loadingText="正在加载对话..."
-          messages={messages}
-        />
+        {/* 消息显示区域 - 需要外层容器限制高度并显示滚动条 */}
+        <div className="flex-1 overflow-hidden">
+          <Conversation className="h-full">
+            {messages.length > 0 ? (
+              <ConversationContent>
+                {messages.map((message) => (
+                  <Message from={message.role} key={message.id}>
+                    <MessageContent>
+                      {message.parts.map((part, index) => {
+                        if (part.type === "text") {
+                          return <MessageResponse key={index}>{part.text}</MessageResponse>;
+                        }
+                        return null;
+                      })}
+                    </MessageContent>
+                  </Message>
+                ))}
+              </ConversationContent>
+            ) : (
+              <ConversationEmptyState
+                description="选择一个对话或创建新对话开始聊天"
+                icon={<MessageSquareIcon className="size-10" />}
+                title="开始对话"
+              />
+            )}
+            <ConversationScrollButton />
+          </Conversation>
+        </div>
 
         {/* 消息输入区域 */}
         <PromptSection

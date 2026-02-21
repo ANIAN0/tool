@@ -134,6 +134,7 @@ export async function POST(req: Request) {
     // 调用 OpenRouter API 进行流式响应
     const result = streamText({
       model: wrappedModel,
+      system: process.env.SYSTEM_PROMPT,
       messages: modelMessages,
       onFinish: async ({ text, finishReason }) => {
         // AI 回复完成后存储消息
