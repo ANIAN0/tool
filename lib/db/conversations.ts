@@ -108,12 +108,6 @@ export async function updateConversation(
 ): Promise<Conversation | null> {
   const db = getDb();
 
-  // 先检查对话是否存在
-  const existing = await getConversation(id);
-  if (!existing) {
-    return null;
-  }
-
   const now = Date.now();
   const updates: string[] = ["updated_at = ?"];
   const args: (string | number | null)[] = [now];
@@ -131,17 +125,19 @@ export async function updateConversation(
 
   args.push(id);
 
-  await db.execute({
+  // 直接执行更新，通过受影响行数判断是否存在
+  const result = await db.execute({
     sql: `UPDATE conversations SET ${updates.join(", ")} WHERE id = ?`,
     args,
   });
 
-  // 返回更新后的对话
-  return {
-    ...existing,
-    ...data,
-    updated_at: now,
-  };
+  // 检查是否有行被更新
+  if (result.rowsAffected === 0) {
+    return null;
+  }
+
+  // 返回更新后的对话（重新查询以获取完整数据）
+  return getConversation(id);
 }
 
 /**
@@ -152,19 +148,13 @@ export async function updateConversation(
 export async function deleteConversation(id: string): Promise<boolean> {
   const db = getDb();
 
-  // 先检查对话是否存在
-  const existing = await getConversation(id);
-  if (!existing) {
-    return false;
-  }
-
-  // 删除对话（messages会级联删除）
-  await db.execute({
+  // 直接删除，通过受影响行数判断是否成功
+  const result = await db.execute({
     sql: `DELETE FROM conversations WHERE id = ?`,
     args: [id],
   });
 
-  return true;
+  return result.rowsAffected > 0;
 }
 
 /**

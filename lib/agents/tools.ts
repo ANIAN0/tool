@@ -6,21 +6,12 @@
 import { createBashTool } from 'bash-tool';
 import { tavilySearch } from '@tavily/ai-sdk';
 import { createMCPClient, type MCPClient } from '@ai-sdk/mcp';
-import type { Tool } from '@ai-sdk/provider-utils';
 import type { ToolSet } from 'ai';
 
 /**
  * 工具类型
  */
 export type ToolType = 'bash' | 'tavily' | 'mcp';
-
-/**
- * Agent工具配置接口
- */
-export interface AgentTools {
-  // 启用的工具列表
-  tools: ToolType[];
-}
 
 /**
  * 创建bash工具
@@ -146,38 +137,4 @@ export async function createToolsByTypes(toolTypes: ToolType[]): Promise<ToolsCr
       }
     },
   };
-}
-
-/**
- * 预定义的Agent工具配置
- */
-export const AGENT_TOOLS_CONFIG: Record<string, AgentTools> = {
-  // 正式Agent：仅启用bash工具
-  production: {
-    tools: ['bash'],
-  },
-  // 开发Agent：启用所有工具
-  development: {
-    tools: ['bash', 'tavily', 'mcp'],
-  },
-};
-
-/**
- * 获取Agent的工具配置
- */
-export function getAgentToolsConfig(agentId: string): AgentTools {
-  return AGENT_TOOLS_CONFIG[agentId] || AGENT_TOOLS_CONFIG.production;
-}
-
-/**
- * 获取Agent的工具列表描述
- */
-export function getAgentToolsDescription(agentId: string): string[] {
-  const config = getAgentToolsConfig(agentId);
-  const descriptions: Record<ToolType, string> = {
-    bash: 'bash命令执行',
-    tavily: '网络搜索',
-    mcp: 'LangChain文档查询',
-  };
-  return config.tools.map((tool) => descriptions[tool]);
 }

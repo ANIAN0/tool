@@ -120,6 +120,9 @@ function buildPartsFromSteps<TOOLS extends ToolSet>(steps: StepResult<TOOLS>[]):
  * 流式响应（使用 toUIMessageStreamResponse）
  */
 export async function POST(req: Request) {
+  // 清理函数引用（在创建 agent 后赋值）
+  let cleanup: (() => Promise<void>) | null = null;
+  
   try {
     // 解析请求体
     const body = await req.json();
@@ -155,48 +158,49 @@ export async function POST(req: Request) {
     const wrappedModel = wrapModelWithDevTools(chatModel);
 
     // 确定对话ID和Agent ID
-    let currentConversationId = conversationId;
+    const currentConversationId = conversationId;
     let currentAgentId = agentId;
 
-    // 如果有对话ID，获取对话信息并设置对应的Agent
+    // 检查对话是否存在
     if (currentConversationId) {
       const conversation = await getConversation(currentConversationId);
-      if (!conversation) {
-        return new Response(
-          JSON.stringify({ error: "对话不存在" }),
-          { status: 404, headers: { "Content-Type": "application/json" } }
-        );
-      }
-      if (conversation.user_id !== userId) {
-        return new Response(
-          JSON.stringify({ error: "无权访问此对话" }),
-          { status: 403, headers: { "Content-Type": "application/json" } }
-        );
-      }
-      // 如果有对话ID，始终使用对话关联的agentId
-      currentAgentId = conversation.agent_id;
-    } else {
-      // 如果没有对话ID，创建新对话
-      currentConversationId = nanoid();
       
-      // 从第一条用户消息生成对话标题
-      const firstUserMessage = messages.find((m) => m.role === "user");
-      const title = firstUserMessage
-        ? extractTitle(
-            firstUserMessage.parts
-              .filter((p) => p.type === "text")
-              .map((p) => (p as { type: "text"; text: string }).text)
-              .join("")
-          )
-        : "新对话";
+      if (conversation) {
+        // 对话已存在，验证权限并使用已有对话
+        if (conversation.user_id !== userId) {
+          return new Response(
+            JSON.stringify({ error: "无权访问此对话" }),
+            { status: 403, headers: { "Content-Type": "application/json" } }
+          );
+        }
+        // 使用对话关联的agentId
+        currentAgentId = conversation.agent_id;
+      } else {
+        // 对话不存在（新对话），使用前端传来的ID创建对话
+        const firstUserMessage = messages.find((m) => m.role === "user");
+        const title = firstUserMessage
+          ? extractTitle(
+              firstUserMessage.parts
+                .filter((p) => p.type === "text")
+                .map((p) => (p as { type: "text"; text: string }).text)
+                .join("")
+            )
+          : "新对话";
 
-      await createConversation({
-        id: currentConversationId,
-        userId,
-        title,
-        model: modelName,
-        agentId: currentAgentId || DEFAULT_AGENT_ID,
-      });
+        await createConversation({
+          id: currentConversationId,
+          userId,
+          title,
+          model: modelName,
+          agentId: currentAgentId || DEFAULT_AGENT_ID,
+        });
+      }
+    } else {
+      // 没有对话ID（不应该发生），返回错误
+      return new Response(
+        JSON.stringify({ error: "对话ID不能为空" }),
+        { status: 400, headers: { "Content-Type": "application/json" } }
+      );
     }
 
     // 存储用户消息（只存储最后一条，因为前面的消息已经在历史记录中）
@@ -226,46 +230,56 @@ export async function POST(req: Request) {
     });
 
     // 创建 Agent 实例（使用 ToolLoopAgent）
-    const { agent, cleanup } = await createAgent(
+    const agentResult = await createAgent(
       currentAgentId || DEFAULT_AGENT_ID,
       wrappedModel
     );
+    cleanup = agentResult.cleanup;
 
     // 使用 Agent 的 stream 方法进行流式响应
-    const result = await agent.stream({
+    const result = await agentResult.agent.stream({
       messages: modelMessages,
       onFinish: async ({ text, finishReason, steps }) => {
         // Agent 完成后存储消息
         if (finishReason !== "error") {
-          // 构建完整的消息结构
-          const messageId = nanoid();
-          
-          // 从steps构建parts
-          const parts = steps.length > 0 ? buildPartsFromSteps(steps) : [{ type: "text" as const, text }];
-          
-          // 构建完整的UIMessage
-          const fullMessage: UIMessage = {
-            id: messageId,
-            role: "assistant",
-            parts,
-          };
-          
-          // 保存完整消息为JSON
-          await createMessage({
-            id: messageId,
-            conversationId: currentConversationId!,
-            role: "assistant",
-            content: JSON.stringify(fullMessage),
-          });
+          try {
+            // 构建完整的消息结构
+            const messageId = nanoid();
+            
+            // 从steps构建parts
+            const parts = steps.length > 0 ? buildPartsFromSteps(steps) : [{ type: "text" as const, text }];
+            
+            // 构建完整的UIMessage
+            const fullMessage: UIMessage = {
+              id: messageId,
+              role: "assistant",
+              parts,
+            };
+            
+            // 保存完整消息为JSON
+            await createMessage({
+              id: messageId,
+              conversationId: currentConversationId!,
+              role: "assistant",
+              content: JSON.stringify(fullMessage),
+            });
 
-          // 更新对话时间戳
-          await touchConversation(currentConversationId!);
-          
-          console.log(`Agent completed in ${steps.length} steps`);
+            // 更新对话时间戳
+            await touchConversation(currentConversationId!);
+          } catch (saveError) {
+            console.error("保存消息失败:", saveError);
+          }
         }
         
-        // 清理资源（关闭MCP客户端等）
-        await cleanup();
+        // 在 onFinish 中清理资源（MCP 客户端等）
+        // 此时流式响应已完成，可以安全关闭连接
+        if (cleanup) {
+          try {
+            await cleanup();
+          } catch (cleanupError) {
+            console.error("清理资源失败:", cleanupError);
+          }
+        }
       },
     });
 
@@ -278,6 +292,15 @@ export async function POST(req: Request) {
     });
   } catch (error) {
     console.error("聊天 API 错误:", error);
+    
+    // 发生错误时也需要清理资源（如果已创建 agent）
+    if (cleanup) {
+      try {
+        await cleanup();
+      } catch (cleanupError) {
+        console.error("清理资源失败:", cleanupError);
+      }
+    }
     
     return new Response(
       JSON.stringify({ error: "服务器内部错误" }),

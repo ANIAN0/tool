@@ -8,7 +8,6 @@
  */
 
 import { Button } from "@/components/ui/button";
-import { ScrollArea } from "@/components/ui/scroll-area";
 import { SidebarItem } from "./sidebar-item";
 import type { Conversation } from "@/lib/db/schema";
 import { MessageSquarePlus, PanelLeftClose } from "lucide-react";
@@ -78,8 +77,8 @@ export function Sidebar({
         </Button>
       </div>
 
-      {/* 对话列表区域 */}
-      <ScrollArea className="flex-1 px-3 py-2">
+      {/* 对话列表区域 - 使用原生滚动替代 ScrollArea，避免 display:table 导致内容撑开 */}
+      <div className="flex-1 overflow-y-auto overflow-x-hidden px-3 py-2">
         <div className="space-y-1">
           {/* 加载中状态 */}
           {isLoading && (
@@ -110,7 +109,7 @@ export function Sidebar({
               />
             ))}
         </div>
-      </ScrollArea>
+      </div>
     </div>
   );
 }

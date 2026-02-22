@@ -88,12 +88,3 @@ export function getAgentList(): Array<{
     description,
   }));
 }
-
-/**
- * 检查Agent ID是否有效
- * @param agentId - Agent唯一标识
- * @returns 是否为有效的Agent ID
- */
-export function isValidAgentId(agentId: string): boolean {
-  return AGENTS.some((a) => a.id === agentId);
-}

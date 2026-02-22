@@ -6,7 +6,7 @@
 import { ToolLoopAgent, stepCountIs } from 'ai';
 import type { LanguageModel } from 'ai';
 import { getAgentConfig } from './config';
-import { createToolsByTypes, type ToolsCreateResult } from './tools';
+import { createToolsByTypes } from './tools';
 
 /**
  * Agent创建结果
@@ -51,4 +51,4 @@ export async function createAgent(
 
 // 导出类型和配置
 export { getAgentConfig, getAgentList, DEFAULT_AGENT_ID, AGENTS, type AgentConfig } from './config';
-export { createToolsByTypes, getAgentToolsDescription, type ToolType, type ToolsCreateResult } from './tools';
+export { createToolsByTypes, type ToolType, type ToolsCreateResult } from './tools';

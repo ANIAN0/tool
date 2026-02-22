@@ -147,7 +147,8 @@ export function SidebarItem({
     <>
       <div
         className={cn(
-          "group relative flex items-center gap-3 rounded-md px-4 py-3 text-sm transition-colors",
+          // 添加 overflow-hidden 确保 truncate 生效，防止内容溢出将菜单按钮挤出容器
+          "group relative flex items-center gap-3 overflow-hidden rounded-md px-4 py-3 text-sm transition-colors",
           "hover:bg-accent hover:text-accent-foreground",
           "focus-visible:bg-accent focus-visible:text-accent-foreground focus-visible:outline-none",
           isSelected && "bg-accent text-accent-foreground"
