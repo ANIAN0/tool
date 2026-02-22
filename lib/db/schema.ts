@@ -5,6 +5,7 @@
 
 /**
  * conversations表 - 存储对话信息
+ * agent_id: 关联的Agent ID，默认为 'production'
  */
 export const CREATE_CONVERSATIONS_TABLE = `
 CREATE TABLE IF NOT EXISTS conversations (
@@ -12,13 +13,25 @@ CREATE TABLE IF NOT EXISTS conversations (
   user_id TEXT NOT NULL,
   title TEXT,
   model TEXT,
+  agent_id TEXT DEFAULT 'production',
   created_at INTEGER NOT NULL,
   updated_at INTEGER NOT NULL
 );
 `;
 
 /**
+ * 迁移SQL：为现有conversations表添加agent_id字段
+ * 用于数据库升级
+ */
+export const MIGRATION_ADD_AGENT_ID = `
+ALTER TABLE conversations ADD COLUMN agent_id TEXT DEFAULT 'production';
+`;
+
+/**
  * messages表 - 存储消息记录
+ * content字段存储完整消息内容：
+ * - 纯文本消息：直接存储文本字符串
+ * - 包含工具调用的消息：存储UIMessage的JSON字符串（包含parts数组）
  */
 export const CREATE_MESSAGES_TABLE = `
 CREATE TABLE IF NOT EXISTS messages (
@@ -62,12 +75,17 @@ export interface Conversation {
   user_id: string;
   title: string | null;
   model: string | null;
+  // 关联的Agent ID，默认为 'production'
+  agent_id: string;
   created_at: number;
   updated_at: number;
 }
 
 /**
  * Message类型定义
+ * content字段可以是：
+ * - 纯文本字符串（历史数据兼容）
+ * - JSON字符串，包含完整的UIMessage结构
  */
 export interface Message {
   id: string;
@@ -78,6 +96,24 @@ export interface Message {
 }
 
 /**
+ * 消息Part类型定义（与AI SDK UIMessage.parts兼容）
+ */
+export type MessagePart = 
+  | { type: "text"; text: string }
+  | { type: `tool-${string}`; toolCallId: string; input: unknown; output: unknown; state: string; errorText?: string }
+  | { type: "dynamic-tool"; toolName: string; toolCallId: string; input: unknown; output: unknown; state: string; errorText?: string }
+  | { type: "step-start" };
+
+/**
+ * 完整消息结构（与AI SDK UIMessage兼容）
+ */
+export interface FullMessage {
+  id: string;
+  role: "user" | "assistant";
+  parts: MessagePart[];
+}
+
+/**
  * 创建对话的参数类型
  */
 export interface CreateConversationParams {
@@ -85,6 +121,8 @@ export interface CreateConversationParams {
   userId: string;
   title?: string;
   model?: string;
+  // Agent ID，默认为 'production'
+  agentId?: string;
 }
 
 /**

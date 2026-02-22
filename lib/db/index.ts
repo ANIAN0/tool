@@ -1,5 +1,5 @@
 import { getDb } from "./client";
-import { INIT_SQL } from "./schema";
+import { INIT_SQL, MIGRATION_ADD_AGENT_ID } from "./schema";
 
 /**
  * 初始化数据库表结构
@@ -11,6 +11,27 @@ export async function initDatabase(): Promise<void> {
   // 执行所有初始化SQL语句
   for (const sql of INIT_SQL) {
     await db.execute(sql);
+  }
+}
+
+/**
+ * 执行数据库迁移
+ * 为现有数据库添加新字段
+ */
+export async function migrateDatabase(): Promise<void> {
+  const db = getDb();
+
+  try {
+    // 尝试添加 agent_id 字段（如果已存在会报错，忽略即可）
+    await db.execute(MIGRATION_ADD_AGENT_ID);
+    console.log("数据库迁移成功：已添加 agent_id 字段");
+  } catch (error) {
+    // 如果字段已存在，忽略错误
+    if (String(error).includes("duplicate column")) {
+      console.log("agent_id 字段已存在，跳过迁移");
+    } else {
+      console.error("数据库迁移失败:", error);
+    }
   }
 }
 

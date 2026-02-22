@@ -1,6 +1,20 @@
 "use client";
 
 /**
+ * 检查是否是工具调用的 part
+ */
+function isToolPart(part: { type: string }): part is ToolPart {
+  return part.type.startsWith("tool-") || part.type === "dynamic-tool";
+}
+
+/**
+ * 检查是否是步骤开始的 part
+ */
+function isStepStartPart(part: { type: string }): boolean {
+  return part.type === "step-start";
+}
+
+/**
  * 对话页面主体
  * 左右分栏布局：左侧历史列表 + 右侧对话区
  * 包含对话状态管理
@@ -17,7 +31,16 @@ import {
   MessageContent,
   MessageResponse,
 } from "@/components/ai-elements/message";
+import {
+  Tool,
+  ToolContent,
+  ToolHeader,
+  ToolInput,
+  ToolOutput,
+  type ToolPart,
+} from "@/components/ai-elements/tool";
 import { ModelSelector, DEFAULT_MODEL_ID } from "@/components/chat/model-selector";
+import { AgentSelector } from "@/components/chat/agent-selector";
 import { PromptSection } from "@/components/chat/prompt-section";
 import { Sidebar } from "@/components/chat/sidebar";
 import { getAnonId } from "@/lib/anon-id";
@@ -26,12 +49,28 @@ import { useChat } from "@ai-sdk/react";
 import { DefaultChatTransport } from "ai";
 import type { UIMessage } from "ai";
 import { MessageSquareIcon } from "lucide-react";
-import { useCallback, useEffect, useMemo, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
+import { DEFAULT_AGENT_ID } from "@/lib/agents/config";
 
 /**
  * 将数据库消息转换为UIMessage格式
+ * 支持两种格式：
+ * 1. JSON格式：包含完整的parts数组（新格式）
+ * 2. 纯文本格式：只有文本内容（历史数据兼容）
  */
 function dbMessageToUIMessage(msg: DBMessage): UIMessage {
+  // 尝试解析content为JSON
+  try {
+    const parsed = JSON.parse(msg.content);
+    // 检查是否是完整消息格式（包含id和parts）
+    if (parsed && typeof parsed === "object" && "id" in parsed && "role" in parsed && "parts" in parsed && Array.isArray(parsed.parts)) {
+      return parsed as UIMessage;
+    }
+  } catch {
+    // 解析失败，说明是纯文本格式
+  }
+  
+  // 纯文本格式（历史数据兼容）
   return {
     id: msg.id,
     role: msg.role,
@@ -61,9 +100,20 @@ export default function ChatPage() {
 
   // 当前选中的模型ID
   const [selectedModelId, setSelectedModelId] = useState<string>(DEFAULT_MODEL_ID);
+  // 当前选中的Agent ID
+  const [selectedAgentId, setSelectedAgentId] = useState<string>(DEFAULT_AGENT_ID);
+
+  // 使用ref存储最新的agentId，确保每次请求都使用最新值
+  const agentIdRef = useRef<string>(selectedAgentId);
+
+  // 当selectedAgentId变化时更新ref
+  useEffect(() => {
+    agentIdRef.current = selectedAgentId;
+    console.log('Agent ID已更新:', selectedAgentId);
+  }, [selectedAgentId]);
 
   // 使用 useMemo 创建 transport，确保 headers 和 body 是最新的
-  // 注意：headers 函数在每次请求时调用，直接读取最新状态
+  // 注意：headers 函数在每次请求时调用，直接读取最新值
   const transport = useMemo(() => {
     return new DefaultChatTransport({
       api: "/api/chat",
@@ -72,12 +122,17 @@ export default function ChatPage() {
       headers: () => ({
         "X-User-Id": getAnonId() || "",
       }),
-      body: () => ({
-        conversationId: currentConversationId,
-        model: selectedModelId,
-      }),
+      body: () => {
+        const currentAgentId = agentIdRef.current;
+        console.log('发送请求时的Agent ID:', currentAgentId);
+        return {
+          conversationId: currentConversationId,
+          model: selectedModelId,
+          agentId: currentAgentId,
+        };
+      },
     });
-  }, [currentConversationId, selectedModelId]);
+  }, [currentConversationId, selectedModelId, agentIdRef.current]);
 
   // 使用 useChat hook 管理聊天状态
   const {
@@ -142,6 +197,11 @@ export default function ChatPage() {
           // 将数据库消息转换为UIMessage格式
           const uiMessages = (data.messages || []).map(dbMessageToUIMessage);
           setMessages(uiMessages);
+          
+          // 更新选中的Agent ID到该对话关联的Agent
+          if (data.conversation?.agent_id) {
+            setSelectedAgentId(data.conversation.agent_id);
+          }
         } else {
           console.error("获取消息失败");
           setMessages([]);
@@ -348,10 +408,17 @@ export default function ChatPage() {
             </div>
           </div>
 
-          <ModelSelector
-            onChange={setSelectedModelId}
-            value={selectedModelId}
-          />
+          <div className="flex items-center gap-2">
+            <AgentSelector
+              onChange={setSelectedAgentId}
+              value={selectedAgentId}
+              disabled={!!currentConversationId}
+            />
+            <ModelSelector
+              onChange={setSelectedModelId}
+              value={selectedModelId}
+            />
+          </div>
         </header>
 
         {/* 消息显示区域 */}
@@ -363,8 +430,51 @@ export default function ChatPage() {
                   <Message from={message.role} key={message.id}>
                     <MessageContent className="max-w-3xl">
                       {message.parts.map((part, index) => {
+                        // 文本内容
                         if (part.type === "text") {
                           return <MessageResponse key={index}>{part.text}</MessageResponse>;
+                        }
+                        // 工具调用
+                        if (isToolPart(part)) {
+                          const toolPart = part as ToolPart;
+                          // 完成的工具默认展开
+                          const defaultOpen = toolPart.state === "output-available" || toolPart.state === "output-error";
+                          
+                          // 动态工具需要传递 toolName
+                          const isDynamicTool = toolPart.type === "dynamic-tool";
+                          const dynamicPart = toolPart as { toolName?: string };
+                          
+                          return (
+                            <Tool key={index} defaultOpen={defaultOpen}>
+                              {isDynamicTool ? (
+                                <ToolHeader
+                                  type="dynamic-tool"
+                                  state={toolPart.state}
+                                  toolName={dynamicPart.toolName || "unknown"}
+                                />
+                              ) : (
+                                <ToolHeader
+                                  type={toolPart.type as `tool-${string}`}
+                                  state={toolPart.state}
+                                />
+                              )}
+                              <ToolContent>
+                                <ToolInput input={toolPart.input} />
+                                <ToolOutput
+                                  output={toolPart.output}
+                                  errorText={toolPart.errorText}
+                                />
+                              </ToolContent>
+                            </Tool>
+                          );
+                        }
+                        // 步骤分隔线（可选显示）
+                        if (isStepStartPart(part)) {
+                          return (
+                            <div key={index} className="flex items-center gap-2 my-2">
+                              <div className="flex-1 h-px bg-border" />
+                            </div>
+                          );
                         }
                         return null;
                       })}

@@ -1,5 +1,6 @@
 import { getDb } from "./client";
 import type { Conversation, CreateConversationParams } from "./schema";
+import { DEFAULT_AGENT_ID } from "../agents/config";
 
 /**
  * 将数据库行转换为Conversation类型
@@ -10,6 +11,8 @@ function rowToConversation(row: Record<string, unknown>): Conversation {
     user_id: row.user_id as string,
     title: row.title as string | null,
     model: row.model as string | null,
+    // agent_id 默认为 'production'
+    agent_id: (row.agent_id as string) || DEFAULT_AGENT_ID,
     created_at: row.created_at as number,
     updated_at: row.updated_at as number,
   };
@@ -25,16 +28,19 @@ export async function createConversation(
 ): Promise<Conversation> {
   const db = getDb();
   const now = Date.now();
+  // 获取 agentId，默认为正式Agent
+  const agentId = params.agentId || DEFAULT_AGENT_ID;
 
   // 插入对话记录
   await db.execute({
-    sql: `INSERT INTO conversations (id, user_id, title, model, created_at, updated_at)
-          VALUES (?, ?, ?, ?, ?, ?)`,
+    sql: `INSERT INTO conversations (id, user_id, title, model, agent_id, created_at, updated_at)
+          VALUES (?, ?, ?, ?, ?, ?, ?)`,
     args: [
       params.id,
       params.userId,
       params.title ?? null,
       params.model ?? null,
+      agentId,
       now,
       now,
     ],
@@ -46,6 +52,7 @@ export async function createConversation(
     user_id: params.userId,
     title: params.title ?? null,
     model: params.model ?? null,
+    agent_id: agentId,
     created_at: now,
     updated_at: now,
   };
