@@ -3,7 +3,6 @@
  * 管理不同Agent的工具
  */
 
-import { createBashTool } from 'bash-tool';
 import { tavilySearch } from '@tavily/ai-sdk';
 import { createMCPClient, type MCPClient } from '@ai-sdk/mcp';
 import type { ToolSet } from 'ai';
@@ -11,17 +10,7 @@ import type { ToolSet } from 'ai';
 /**
  * 工具类型
  */
-export type ToolType = 'bash' | 'tavily' | 'mcp';
-
-/**
- * 创建bash工具
- */
-export async function createBashTools() {
-  const { tools } = await createBashTool({
-    files: {},
-  });
-  return tools;
-}
+export type ToolType = 'tavily' | 'mcp';
 
 /**
  * 创建Tavily搜索工具
@@ -87,16 +76,6 @@ export interface ToolsCreateResult {
 export async function createToolsByTypes(toolTypes: ToolType[]): Promise<ToolsCreateResult> {
   const tools: ToolSet = {};
   const cleanupCallbacks: Array<() => Promise<void>> = [];
-
-  // 创建bash工具
-  if (toolTypes.includes('bash')) {
-    try {
-      const bashTools = await createBashTools();
-      Object.assign(tools, bashTools);
-    } catch (error) {
-      console.error('创建bash工具失败:', error);
-    }
-  }
 
   // 创建tavily工具
   if (toolTypes.includes('tavily')) {

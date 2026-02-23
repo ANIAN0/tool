@@ -13,6 +13,8 @@ function rowToConversation(row: Record<string, unknown>): Conversation {
     model: row.model as string | null,
     // agent_id 默认为 'production'
     agent_id: (row.agent_id as string) || DEFAULT_AGENT_ID,
+    // is_private 默认为 false
+    is_private: Boolean(row.is_private),
     created_at: row.created_at as number,
     updated_at: row.updated_at as number,
   };
@@ -30,17 +32,20 @@ export async function createConversation(
   const now = Date.now();
   // 获取 agentId，默认为正式Agent
   const agentId = params.agentId || DEFAULT_AGENT_ID;
+  // 获取 isPrivate，默认为 false
+  const isPrivate = params.isPrivate ? 1 : 0;
 
   // 插入对话记录
   await db.execute({
-    sql: `INSERT INTO conversations (id, user_id, title, model, agent_id, created_at, updated_at)
-          VALUES (?, ?, ?, ?, ?, ?, ?)`,
+    sql: `INSERT INTO conversations (id, user_id, title, model, agent_id, is_private, created_at, updated_at)
+          VALUES (?, ?, ?, ?, ?, ?, ?, ?)`,
     args: [
       params.id,
       params.userId,
       params.title ?? null,
       params.model ?? null,
       agentId,
+      isPrivate,
       now,
       now,
     ],
@@ -53,6 +58,7 @@ export async function createConversation(
     title: params.title ?? null,
     model: params.model ?? null,
     agent_id: agentId,
+    is_private: Boolean(isPrivate),
     created_at: now,
     updated_at: now,
   };

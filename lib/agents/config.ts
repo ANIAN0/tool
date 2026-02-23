@@ -17,7 +17,11 @@ export interface AgentConfig {
   // 系统提示词
   systemPrompt: string;
   // 工具类型列表（可选，默认根据agentId自动匹配）
-  tools?: Array<'bash' | 'tavily' | 'mcp'>;
+  tools?: Array<'tavily' | 'mcp'>;
+  // 是否需要登录才能使用（默认false）
+  isPrivate?: boolean;
+  // 是否启用记忆功能（默认false）
+  enableMemory?: boolean;
 }
 
 /**
@@ -36,7 +40,11 @@ export const AGENTS: AgentConfig[] = [
 2. 如果用户询问代码相关的问题，请提供清晰、可运行的代码示例
 3. 对于复杂问题，分步骤给出解答
 4. 如果不确定答案，请诚实告知`,
-    tools: ['bash'],
+    tools: [],
+    // 正式Agent：公开，无需登录
+    isPrivate: false,
+    // 不启用记忆
+    enableMemory: false,
   },
   {
     id: "development",
@@ -49,7 +57,11 @@ export const AGENTS: AgentConfig[] = [
 2. 可以更自由地探索和尝试不同的回答方式
 3. 如果发现问题，请详细描述
 4. 每次回复前，先简要说明你的思考过程`,
-    tools: ['bash', 'tavily', 'mcp'],
+    tools: ['tavily', 'mcp'],
+    // 开发Agent：私有，需要登录
+    isPrivate: true,
+    // 启用记忆功能
+    enableMemory: true,
   },
 ];
 
@@ -81,10 +93,12 @@ export function getAgentList(): Array<{
   id: string;
   name: string;
   description: string;
+  isPrivate: boolean;
 }> {
-  return AGENTS.map(({ id, name, description }) => ({
+  return AGENTS.map(({ id, name, description, isPrivate }) => ({
     id,
     name,
     description,
+    isPrivate: isPrivate ?? false,
   }));
 }

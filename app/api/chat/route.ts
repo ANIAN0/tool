@@ -12,7 +12,10 @@ import {
 } from "@/lib/db";
 import { nanoid } from "nanoid";
 import { wrapModelWithDevTools } from "@/lib/ai";
-import { createAgent, DEFAULT_AGENT_ID } from "@/lib/agents";
+import { createAgent, DEFAULT_AGENT_ID, getAgentConfig } from "@/lib/agents";
+import { isRegisteredUser } from "@/lib/auth/middleware";
+import { retrieveMemories, memoryWorkflow } from "@/lib/memory";
+import { buildSystemPromptWithMemory } from "@/lib/memory/prompt-builder";
 
 // 创建 OpenRouter provider 实例
 const openrouter = createOpenRouter({
@@ -203,6 +206,48 @@ export async function POST(req: Request) {
       );
     }
 
+    // 检查私有Agent的访问权限
+    const agentConfig = getAgentConfig(currentAgentId || DEFAULT_AGENT_ID);
+    if (agentConfig.isPrivate) {
+      // 私有Agent需要验证用户是否已登录（非匿名用户）
+      const isRegistered = await isRegisteredUser(userId);
+      if (!isRegistered) {
+        return new Response(
+          JSON.stringify({ error: "访问私有Agent需要登录" }),
+          { status: 401, headers: { "Content-Type": "application/json" } }
+        );
+      }
+    }
+
+    // 如果Agent启用了记忆功能，检索记忆并注入到系统提示词
+    let systemPrompt = agentConfig.systemPrompt;
+    if (agentConfig.enableMemory) {
+      try {
+        console.log('[Memory] 检索记忆...');
+        const memories = await retrieveMemories({
+          query: messages.map(m => m.parts.map(p => 'text' in p ? p.text : '').join('')).join(' '),
+          userId,
+          agentId: currentAgentId || DEFAULT_AGENT_ID,
+          limit: 5,
+        });
+        
+        if (memories.userGlobal.length > 0 || memories.agentGlobal.length > 0 || memories.interaction.length > 0) {
+          console.log('[Memory] 找到记忆:', { 
+            userGlobal: memories.userGlobal.length, 
+            agentGlobal: memories.agentGlobal.length, 
+            interaction: memories.interaction.length 
+          });
+          systemPrompt = buildSystemPromptWithMemory({
+            basePrompt: agentConfig.systemPrompt,
+            memories,
+          });
+        }
+      } catch (error) {
+        console.error('[Memory] 检索记忆失败:', error);
+        // 记忆检索失败不影响聊天，继续使用基础提示词
+      }
+    }
+
     // 存储用户消息（只存储最后一条，因为前面的消息已经在历史记录中）
     const lastMessage = messages[messages.length - 1];
     if (lastMessage.role === "user") {
@@ -232,7 +277,8 @@ export async function POST(req: Request) {
     // 创建 Agent 实例（使用 ToolLoopAgent）
     const agentResult = await createAgent(
       currentAgentId || DEFAULT_AGENT_ID,
-      wrappedModel
+      wrappedModel,
+      systemPrompt,
     );
     cleanup = agentResult.cleanup;
 
@@ -266,6 +312,28 @@ export async function POST(req: Request) {
 
             // 更新对话时间戳
             await touchConversation(currentConversationId!);
+
+            // 如果Agent启用了记忆功能，异步触发记忆提取工作流
+            // 不阻塞聊天响应，错误不会影响用户
+            if (agentConfig.enableMemory) {
+              // 获取用户消息内容（用于记忆提取）
+              const userMessageText = lastMessage.parts
+                .filter((p) => p.type === "text")
+                .map((p) => (p as { type: "text"; text: string }).text)
+                .join("");
+              
+              // 异步触发记忆提取（不等待结果）
+              void memoryWorkflow({
+                userMessage: userMessageText,
+                assistantMessage: text,
+                userId,
+                agentId: currentAgentId || DEFAULT_AGENT_ID,
+              }).then((result) => {
+                console.log('[Memory] 记忆提取结果:', result.status, result.reason);
+              }).catch((err) => {
+                console.error('[Memory] 记忆提取失败:', err);
+              });
+            }
           } catch (saveError) {
             console.error("保存消息失败:", saveError);
           }

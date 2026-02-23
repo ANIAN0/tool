@@ -4,8 +4,24 @@
  */
 
 /**
+ * users表 - 存储用户信息
+ * is_anonymous: 是否匿名用户（0:认证用户, 1:匿名用户）
+ */
+export const CREATE_USERS_TABLE = `
+CREATE TABLE IF NOT EXISTS users (
+  id TEXT PRIMARY KEY,
+  username TEXT UNIQUE,
+  password_hash TEXT,
+  is_anonymous INTEGER DEFAULT 1,
+  created_at INTEGER NOT NULL,
+  updated_at INTEGER NOT NULL
+);
+`;
+
+/**
  * conversations表 - 存储对话信息
  * agent_id: 关联的Agent ID，默认为 'production'
+ * is_private: 是否私有对话（0:公开, 1:私有）
  */
 export const CREATE_CONVERSATIONS_TABLE = `
 CREATE TABLE IF NOT EXISTS conversations (
@@ -14,6 +30,7 @@ CREATE TABLE IF NOT EXISTS conversations (
   title TEXT,
   model TEXT,
   agent_id TEXT DEFAULT 'production',
+  is_private INTEGER DEFAULT 0,
   created_at INTEGER NOT NULL,
   updated_at INTEGER NOT NULL
 );
@@ -25,6 +42,13 @@ CREATE TABLE IF NOT EXISTS conversations (
  */
 export const MIGRATION_ADD_AGENT_ID = `
 ALTER TABLE conversations ADD COLUMN agent_id TEXT DEFAULT 'production';
+`;
+
+/**
+ * 迁移SQL：为现有conversations表添加is_private字段
+ */
+export const MIGRATION_ADD_IS_PRIVATE = `
+ALTER TABLE conversations ADD COLUMN is_private INTEGER DEFAULT 0;
 `;
 
 /**
@@ -68,6 +92,19 @@ export const INIT_SQL = [
 ];
 
 /**
+ * User类型定义
+ * is_anonymous: 是否匿名用户
+ */
+export interface User {
+  id: string;
+  username: string | null;
+  password_hash: string | null;
+  is_anonymous: boolean;
+  created_at: number;
+  updated_at: number;
+}
+
+/**
  * Conversation类型定义
  */
 export interface Conversation {
@@ -77,6 +114,8 @@ export interface Conversation {
   model: string | null;
   // 关联的Agent ID，默认为 'production'
   agent_id: string;
+  // 是否私有对话
+  is_private: boolean;
   created_at: number;
   updated_at: number;
 }
@@ -123,6 +162,18 @@ export interface CreateConversationParams {
   model?: string;
   // Agent ID，默认为 'production'
   agentId?: string;
+  // 是否私有对话，默认为 false
+  isPrivate?: boolean;
+}
+
+/**
+ * 创建用户的参数类型
+ */
+export interface CreateUserParams {
+  id: string;
+  username?: string;
+  passwordHash?: string;
+  isAnonymous?: boolean;
 }
 
 /**

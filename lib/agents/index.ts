@@ -22,11 +22,13 @@ export interface AgentCreateResult {
  * 
  * @param agentId - Agent唯一标识
  * @param model - 语言模型实例
+ * @param customSystemPrompt - 可选的自定义系统提示词（用于注入记忆等）
  * @returns Agent实例和清理函数
  */
 export async function createAgent(
   agentId: string,
   model: LanguageModel,
+  customSystemPrompt?: string,
 ): Promise<AgentCreateResult> {
   // 获取Agent配置
   const config = getAgentConfig(agentId);
@@ -34,12 +36,15 @@ export async function createAgent(
   // 创建工具集合（包含清理函数）
   const { tools, cleanup } = await createToolsByTypes(config.tools || []);
   
+  // 使用自定义系统提示词或默认配置
+  const systemPrompt = customSystemPrompt || config.systemPrompt;
+  
   // 创建ToolLoopAgent实例
   const agent = new ToolLoopAgent({
     // 语言模型
     model,
     // 系统提示词（instructions）
-    instructions: config.systemPrompt,
+    instructions: systemPrompt,
     // 工具集合
     tools: Object.keys(tools).length > 0 ? tools : undefined,
     // 停止条件：最多执行10步

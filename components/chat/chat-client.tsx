@@ -29,6 +29,7 @@ import { ModelSelector, DEFAULT_MODEL_ID } from "@/components/chat/model-selecto
 import { AgentSelector } from "@/components/chat/agent-selector";
 import { PromptSection } from "@/components/chat/prompt-section";
 import { Sidebar } from "@/components/chat/sidebar";
+import { UserMenu } from "@/components/auth/user-menu";
 import { getAnonId } from "@/lib/anon-id";
 import type { Conversation as ConversationType, Message as DBMessage } from "@/lib/db/schema";
 import { useChat } from "@ai-sdk/react";
@@ -37,7 +38,7 @@ import type { UIMessage } from "ai";
 import { MessageSquareIcon } from "lucide-react";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { useRouter } from "next/navigation";
-import { DEFAULT_AGENT_ID } from "@/lib/agents/config";
+import { DEFAULT_AGENT_ID, getAgentConfig } from "@/lib/agents/config";
 
 /**
  * 检查是否是工具调用的 part
@@ -391,6 +392,8 @@ export function ChatClient({ id }: ChatClientProps) {
               onChange={setSelectedModelId}
               value={selectedModelId}
             />
+            {/* 用户菜单 */}
+            <UserMenu />
           </div>
         </header>
 

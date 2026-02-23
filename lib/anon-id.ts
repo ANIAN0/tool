@@ -62,6 +62,19 @@ export function regenerateAnonId(): string | null {
 }
 
 /**
+ * 设置匿名用户ID
+ * 用于登录/注册后更新用户ID
+ * 
+ * @param id - 要设置的用户ID
+ */
+export function setAnonId(id: string): void {
+  if (!isBrowser()) {
+    return;
+  }
+  localStorage.setItem(ANON_ID_KEY, id);
+}
+
+/**
  * 清除匿名用户ID（用于测试）
  */
 export function clearAnonId(): void {
