@@ -1,0 +1,14 @@
+{
+  "permissions": {
+    "allow": [
+      "Bash(npx tsx:*)",
+      "Bash(npx:*)",
+      "Bash(node:*)",
+      "Bash(npm install:*)",
+      "Bash(find:*)",
+      "WebSearch",
+      "WebFetch(domain:tiptap.dev)",
+      "Bash(npm run:*)"
+    ]
+  }
+}

@@ -1,9 +1,17 @@
 import { getDb } from "./client";
-import { INIT_SQL, MIGRATION_ADD_AGENT_ID, MIGRATION_ADD_IS_PRIVATE, CREATE_USERS_TABLE } from "./schema";
+import {
+  INIT_SQL,
+  MIGRATION_ADD_AGENT_ID,
+  MIGRATION_ADD_IS_PRIVATE,
+  CREATE_USERS_TABLE,
+  CREATE_FOLDERS_TABLE,
+  CREATE_DOCUMENTS_TABLE,
+  CREATE_DOC_INDEXES,
+} from "./schema";
 
 /**
  * 初始化数据库表结构
- * 创建users、conversations和messages表及其索引
+ * 创建users、conversations、messages、folders和documents表及其索引
  */
 export async function initDatabase(): Promise<void> {
   const db = getDb();
@@ -14,6 +22,20 @@ export async function initDatabase(): Promise<void> {
   // 执行所有初始化SQL语句
   for (const sql of INIT_SQL) {
     await db.execute(sql);
+  }
+
+  // 创建文档系统的表
+  await db.execute(CREATE_FOLDERS_TABLE);
+  await db.execute(CREATE_DOCUMENTS_TABLE);
+
+  // 创建文档系统索引（忽略错误，因为索引可能已经存在）
+  for (const sql of CREATE_DOC_INDEXES) {
+    try {
+      await db.execute(sql);
+    } catch (error) {
+      // 索引已存在或其他错误，忽略
+      console.log("索引创建跳过或失败:", error);
+    }
   }
 }
 
@@ -91,3 +113,9 @@ export * from "./conversations";
 
 // 导出消息数据访问方法
 export * from "./messages";
+
+// 导出文件夹数据访问方法
+export * from "./folders";
+
+// 导出文档数据访问方法
+export * from "./documents";

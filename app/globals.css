@@ -1,3 +1,6 @@
+@import '../styles/_variables.scss';
+@import '../styles/_keyframe-animations.scss';
+
 @import "tailwindcss";
 @import "tw-animate-css";
 @import "shadcn/tailwind.css";
@@ -125,4 +128,127 @@
   body {
     @apply bg-background text-foreground;
   }
+}
+
+/* ==================== Tiptap编辑器样式 ==================== */
+
+/* ProseMirror基础样式 */
+.ProseMirror {
+  @apply outline-none;
+}
+
+.ProseMirror p {
+  @apply my-2;
+}
+
+.ProseMirror p.is-editor-empty:first-child::before {
+  @apply text-muted-foreground/50 float-left h-0 pointer-events-none;
+  content: attr(data-placeholder);
+}
+
+/* 标题样式 */
+.ProseMirror h1 {
+  @apply text-3xl font-bold my-4;
+}
+
+.ProseMirror h2 {
+  @apply text-2xl font-bold my-3;
+}
+
+.ProseMirror h3 {
+  @apply text-xl font-bold my-3;
+}
+
+.ProseMirror h4 {
+  @apply text-lg font-bold my-2;
+}
+
+.ProseMirror h5 {
+  @apply text-base font-bold my-2;
+}
+
+.ProseMirror h6 {
+  @apply text-sm font-bold my-2;
+}
+
+/* 列表样式 */
+.ProseMirror ul {
+  @apply list-disc pl-6 my-2;
+}
+
+.ProseMirror ol {
+  @apply list-decimal pl-6 my-2;
+}
+
+.ProseMirror li {
+  @apply my-1;
+}
+
+/* 任务列表样式 */
+.ProseMirror ul[data-type="taskList"] {
+  @apply list-none pl-0;
+}
+
+.ProseMirror ul[data-type="taskList"] li {
+  @apply flex items-start gap-2;
+}
+
+.ProseMirror ul[data-type="taskList"] li > label {
+  @apply flex-shrink-0 mt-0.5;
+}
+
+.ProseMirror ul[data-type="taskList"] li > div {
+  @apply flex-1;
+}
+
+.ProseMirror ul[data-type="taskList"] input[type="checkbox"] {
+  @apply w-4 h-4 rounded border-border cursor-pointer;
+}
+
+/* 引用块样式 */
+.ProseMirror blockquote {
+  @apply border-l-4 border-primary/30 pl-4 my-4 italic text-muted-foreground;
+}
+
+/* 代码块样式 */
+.ProseMirror pre {
+  @apply bg-muted rounded-md p-4 my-4 overflow-x-auto;
+}
+
+.ProseMirror pre code {
+  @apply bg-transparent p-0 text-sm font-mono;
+}
+
+.ProseMirror code {
+  @apply bg-muted px-1.5 py-0.5 rounded text-sm font-mono;
+}
+
+/* 链接样式 */
+.ProseMirror a {
+  @apply text-primary underline underline-offset-2;
+}
+
+/* 图片样式 */
+.ProseMirror img {
+  @apply max-w-full h-auto rounded-md my-4;
+}
+
+/* 高亮样式 */
+.ProseMirror mark {
+  @apply bg-yellow-200 dark:bg-yellow-800 rounded-sm px-0.5;
+}
+
+/* 水平线 */
+.ProseMirror hr {
+  @apply border-border my-4;
+}
+
+/* 选中状态 */
+.ProseMirror ::selection {
+  @apply bg-primary/20;
+}
+
+/* 编辑器聚焦状态 */
+.ProseMirror-focused {
+  @apply outline-none;
 }

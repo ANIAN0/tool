@@ -1,0 +1,284 @@
+/**
+ * 数据库初始化脚本
+ * 用于创建数据库表结构和索引
+ *
+ * 执行方式：npx tsx scripts/init-db.ts
+ */
+
+import { config } from "dotenv";
+import { resolve } from "path";
+
+// 加载环境变量
+config({ path: resolve(__dirname, "../.env") });
+
+import { createClient, type Client } from "@libsql/client";
+import {
+  CREATE_USERS_TABLE,
+  CREATE_CONVERSATIONS_TABLE,
+  CREATE_MESSAGES_TABLE,
+  CREATE_FOLDERS_TABLE,
+  CREATE_DOCUMENTS_TABLE,
+  CREATE_INDEXES,
+  CREATE_DOC_INDEXES,
+} from "../lib/db/schema";
+
+/**
+ * 创建数据库客户端
+ */
+function createDbClient(): Client {
+  const url = process.env.TURSO_DATABASE_URL;
+  const authToken = process.env.TURSO_AUTH_TOKEN;
+
+  if (!url) {
+    throw new Error("缺少环境变量: TURSO_DATABASE_URL");
+  }
+
+  if (!authToken) {
+    throw new Error("缺少环境变量: TURSO_AUTH_TOKEN");
+  }
+
+  return createClient({
+    url,
+    authToken,
+  });
+}
+
+/**
+ * 初始化数据库表结构
+ */
+async function initDatabase(db: Client): Promise<void> {
+  console.log("开始初始化数据库表结构...\n");
+
+  // 1. 创建 users 表
+  console.log("创建 users 表...");
+  await db.execute(CREATE_USERS_TABLE);
+  console.log("✅ users 表创建成功");
+
+  // 2. 创建 conversations 表
+  console.log("创建 conversations 表...");
+  await db.execute(CREATE_CONVERSATIONS_TABLE);
+  console.log("✅ conversations 表创建成功");
+
+  // 3. 创建 messages 表
+  console.log("创建 messages 表...");
+  await db.execute(CREATE_MESSAGES_TABLE);
+  console.log("✅ messages 表创建成功");
+
+  // 4. 创建 folders 表（文档系统）
+  console.log("创建 folders 表...");
+  await db.execute(CREATE_FOLDERS_TABLE);
+  console.log("✅ folders 表创建成功");
+
+  // 5. 创建 documents 表（文档系统）
+  console.log("创建 documents 表...");
+  await db.execute(CREATE_DOCUMENTS_TABLE);
+  console.log("✅ documents 表创建成功");
+
+  console.log("\n");
+}
+
+/**
+ * 创建索引
+ */
+async function createIndexes(db: Client): Promise<void> {
+  console.log("开始创建索引...\n");
+
+  // 创建基础索引
+  for (const sql of CREATE_INDEXES) {
+    try {
+      await db.execute(sql);
+      console.log(`✅ 索引创建成功: ${sql.substring(0, 60)}...`);
+    } catch (error) {
+      console.log(`⚠️ 索引创建跳过: ${sql.substring(0, 60)}...`);
+    }
+  }
+
+  // 创建文档系统索引
+  for (const sql of CREATE_DOC_INDEXES) {
+    try {
+      await db.execute(sql);
+      console.log(`✅ 文档索引创建成功: ${sql.substring(0, 60)}...`);
+    } catch (error) {
+      console.log(`⚠️ 文档索引创建跳过: ${sql.substring(0, 60)}...`);
+    }
+  }
+
+  console.log("\n");
+}
+
+/**
+ * 检查表是否存在
+ */
+async function tableExists(db: Client, tableName: string): Promise<boolean> {
+  const result = await db.execute({
+    sql: "SELECT name FROM sqlite_master WHERE type='table' AND name = ?",
+    args: [tableName],
+  });
+  return result.rows.length > 0;
+}
+
+/**
+ * 检查字段是否存在
+ */
+async function columnExists(
+  db: Client,
+  tableName: string,
+  columnName: string
+): Promise<boolean> {
+  const result = await db.execute({
+    sql: "SELECT * FROM pragma_table_info(?) WHERE name = ?",
+    args: [tableName, columnName],
+  });
+  return result.rows.length > 0;
+}
+
+/**
+ * 执行数据库迁移（添加新字段）
+ */
+async function migrateDatabase(db: Client): Promise<void> {
+  console.log("开始执行数据库迁移...\n");
+
+  // 迁移1: 添加 agent_id 字段到 conversations 表
+  if (await tableExists(db, "conversations")) {
+    if (!(await columnExists(db, "conversations", "agent_id"))) {
+      console.log("添加 agent_id 字段到 conversations 表...");
+      await db.execute(
+        "ALTER TABLE conversations ADD COLUMN agent_id TEXT DEFAULT 'production'"
+      );
+      console.log("✅ agent_id 字段添加成功");
+    } else {
+      console.log("✅ agent_id 字段已存在，跳过迁移");
+    }
+  }
+
+  // 迁移2: 添加 is_private 字段到 conversations 表
+  if (await tableExists(db, "conversations")) {
+    if (!(await columnExists(db, "conversations", "is_private"))) {
+      console.log("添加 is_private 字段到 conversations 表...");
+      await db.execute(
+        "ALTER TABLE conversations ADD COLUMN is_private INTEGER DEFAULT 0"
+      );
+      console.log("✅ is_private 字段添加成功");
+    } else {
+      console.log("✅ is_private 字段已存在，跳过迁移");
+    }
+  }
+
+  // 迁移3: 添加 folder_id 字段到 documents 表（如果不存在）
+  if (await tableExists(db, "documents")) {
+    if (!(await columnExists(db, "documents", "folder_id"))) {
+      console.log("添加 folder_id 字段到 documents 表...");
+      await db.execute(
+        "ALTER TABLE documents ADD COLUMN folder_id TEXT"
+      );
+      console.log("✅ folder_id 字段添加成功");
+    } else {
+      console.log("✅ folder_id 字段已存在，跳过迁移");
+    }
+  }
+
+  // 迁移4: 添加 user_id 字段到 documents 表（如果不存在）
+  if (await tableExists(db, "documents")) {
+    if (!(await columnExists(db, "documents", "user_id"))) {
+      console.log("添加 user_id 字段到 documents 表...");
+      await db.execute(
+        "ALTER TABLE documents ADD COLUMN user_id TEXT NOT NULL DEFAULT 'anonymous'"
+      );
+      console.log("✅ user_id 字段添加成功");
+    } else {
+      console.log("✅ user_id 字段已存在，跳过迁移");
+    }
+  }
+
+  console.log("\n");
+}
+
+/**
+ * 显示数据库状态
+ */
+async function showDatabaseStatus(db: Client): Promise<void> {
+  console.log("=== 数据库状态 ===\n");
+
+  const tables = ["users", "conversations", "messages", "folders", "documents"];
+
+  for (const table of tables) {
+    const exists = await tableExists(db, table);
+    if (exists) {
+      const countResult = await db.execute({
+        sql: `SELECT COUNT(*) as count FROM ${table}`,
+        args: [],
+      });
+      const count = Number(countResult.rows[0]?.count || 0);
+      console.log(`✅ ${table}: 存在 (${count} 条记录)`);
+    } else {
+      console.log(`❌ ${table}: 不存在`);
+    }
+  }
+
+  console.log("\n");
+}
+
+/**
+ * 主函数
+ */
+async function main(): Promise<void> {
+  console.log("=====================================");
+  console.log("     数据库初始化与迁移工具");
+  console.log("=====================================\n");
+
+  let db: Client | null = null;
+
+  try {
+    // 创建数据库连接
+    db = createDbClient();
+    console.log("✅ 数据库连接成功\n");
+
+    // 获取命令行参数
+    const args = process.argv.slice(2);
+    const command = args[0] || "all";
+
+    switch (command) {
+      case "init":
+        // 仅初始化表结构
+        await initDatabase(db);
+        await createIndexes(db);
+        break;
+
+      case "migrate":
+        // 仅执行迁移
+        await migrateDatabase(db);
+        break;
+
+      case "status":
+        // 仅查看状态
+        await showDatabaseStatus(db);
+        break;
+
+      case "all":
+      default:
+        // 执行完整流程：初始化 + 迁移 + 状态
+        await initDatabase(db);
+        await createIndexes(db);
+        await migrateDatabase(db);
+        await showDatabaseStatus(db);
+        break;
+    }
+
+    console.log("=====================================");
+    console.log("     操作完成！");
+    console.log("=====================================");
+  } catch (error) {
+    console.error("\n❌ 操作失败:", error);
+    process.exit(1);
+  } finally {
+    // 关闭数据库连接
+    if (db) {
+      // @ts-ignore - libsql client 有 close 方法
+      await db.close?.();
+    }
+  }
+
+  process.exit(0);
+}
+
+main();
