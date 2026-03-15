@@ -271,13 +271,80 @@ export interface CreateFolderParams {
   userId: string;
 }
 
+// ==================== 个人模型设置相关表结构 ====================
+
 /**
- * 创建文档的参数类型
+ * user_models表 - 存储用户自定义模型配置
+ * provider: 模型提供商 (openai, anthropic, google, custom等)
+ * api_key: 加密存储的API密钥
+ * base_url: 可选的自定义API基础URL
+ * is_default: 是否为默认模型
  */
-export interface CreateDocumentParams {
+export const CREATE_USER_MODELS_TABLE = `
+CREATE TABLE IF NOT EXISTS user_models (
+  id TEXT PRIMARY KEY,
+  user_id TEXT NOT NULL,
+  name TEXT NOT NULL,
+  provider TEXT NOT NULL,
+  model TEXT NOT NULL,
+  api_key TEXT NOT NULL,
+  base_url TEXT,
+  is_default INTEGER DEFAULT 0,
+  created_at INTEGER NOT NULL,
+  updated_at INTEGER NOT NULL,
+  FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE CASCADE
+);
+`;
+
+/**
+ * 个人模型设置索引
+ */
+export const CREATE_USER_MODEL_INDEXES = [
+  // 按用户ID查询模型
+  `CREATE INDEX IF NOT EXISTS idx_user_models_user_id ON user_models(user_id);`,
+  // 按默认模型查询
+  `CREATE INDEX IF NOT EXISTS idx_user_models_is_default ON user_models(is_default);`,
+];
+
+/**
+ * UserModel类型定义
+ * 用户自定义LLM模型配置
+ */
+export interface UserModel {
   id: string;
-  title: string;
-  content?: string;
-  folderId?: string | null;
+  user_id: string;
+  name: string;
+  provider: string;
+  model: string;
+  api_key: string;
+  base_url: string | null;
+  is_default: boolean;
+  created_at: number;
+  updated_at: number;
+}
+
+/**
+ * 创建用户模型的参数类型
+ */
+export interface CreateUserModelParams {
+  id: string;
   userId: string;
+  name: string;
+  provider: string;
+  model: string;
+  apiKey: string;
+  baseUrl?: string;
+  isDefault?: boolean;
+}
+
+/**
+ * 更新用户模型的参数类型
+ */
+export interface UpdateUserModelParams {
+  name?: string;
+  provider?: string;
+  model?: string;
+  apiKey?: string;
+  baseUrl?: string | null;
+  isDefault?: boolean;
 }

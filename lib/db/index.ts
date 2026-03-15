@@ -7,6 +7,8 @@ import {
   CREATE_FOLDERS_TABLE,
   CREATE_DOCUMENTS_TABLE,
   CREATE_DOC_INDEXES,
+  CREATE_USER_MODELS_TABLE,
+  CREATE_USER_MODEL_INDEXES,
 } from "./schema";
 
 /**
@@ -27,6 +29,18 @@ export async function initDatabase(): Promise<void> {
   // 创建文档系统的表
   await db.execute(CREATE_FOLDERS_TABLE);
   await db.execute(CREATE_DOCUMENTS_TABLE);
+
+  // 创建用户模型表
+  await db.execute(CREATE_USER_MODELS_TABLE);
+
+  // 创建用户模型索引
+  for (const sql of CREATE_USER_MODEL_INDEXES) {
+    try {
+      await db.execute(sql);
+    } catch (error) {
+      console.log("用户模型索引创建跳过或失败:", error);
+    }
+  }
 
   // 创建文档系统索引（忽略错误，因为索引可能已经存在）
   for (const sql of CREATE_DOC_INDEXES) {
@@ -77,6 +91,27 @@ export async function migrateDatabase(): Promise<void> {
   } catch (error) {
     console.error("创建 users 表失败:", error);
   }
+
+  // 迁移4：创建user_models表
+  try {
+    await db.execute(CREATE_USER_MODELS_TABLE);
+    console.log("user_models 表已创建或已存在");
+  } catch (error) {
+    console.error("创建 user_models 表失败:", error);
+  }
+
+  // 迁移5：创建user_models索引
+  for (const sql of CREATE_USER_MODEL_INDEXES) {
+    try {
+      await db.execute(sql);
+    } catch (error) {
+      if (String(error).includes("already exists")) {
+        console.log("索引已存在，跳过");
+      } else {
+        console.error("创建索引失败:", error);
+      }
+    }
+  }
 }
 
 /**
@@ -119,3 +154,6 @@ export * from "./folders";
 
 // 导出文档数据访问方法
 export * from "./documents";
+
+// 导出用户模型数据访问方法
+export * from "./user-models";

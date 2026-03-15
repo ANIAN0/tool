@@ -2,10 +2,10 @@
 
 /**
  * 模型选择器组件
- * 使用AI Elements的ModelSelector系列组件构建模型选择器
- * 功能点18：模型选择器组件
+ * 支持系统预设模型和用户自定义模型
  */
 
+import { useState, useEffect } from "react";
 import {
   ModelSelector as ModelSelectorDialog,
   ModelSelectorTrigger,
@@ -19,7 +19,9 @@ import {
   ModelSelectorName,
 } from "@/components/ai-elements/model-selector";
 import { Button } from "@/components/ui/button";
-import { CheckIcon, ChevronDownIcon } from "lucide-react";
+import { CheckIcon, ChevronDownIcon, User } from "lucide-react";
+import { getAnonId } from "@/lib/anon-id";
+import type { ApiUserModel } from "@/lib/hooks/use-user-models";
 
 /**
  * 模型定义
@@ -31,6 +33,7 @@ export interface Model {
   providerName: string;
   description?: string;
   free?: boolean;
+  isUserModel?: boolean;
 }
 
 /**
@@ -92,25 +95,6 @@ interface GroupedModels {
 }
 
 /**
- * 获取按供应商分组的模型
- */
-function getGroupedModels(): GroupedModels {
-  const groups: GroupedModels = {};
-
-  for (const model of AVAILABLE_MODELS) {
-    if (!groups[model.provider]) {
-      groups[model.provider] = {
-        name: model.providerName,
-        models: [],
-      };
-    }
-    groups[model.provider].models.push(model);
-  }
-
-  return groups;
-}
-
-/**
  * ModelSelectorProps
  */
 interface ModelSelectorProps {
@@ -131,11 +115,57 @@ export function ModelSelector({
   onChange,
   disabled = false,
 }: ModelSelectorProps) {
+  // 用户自定义模型列表
+  const [userModels, setUserModels] = useState<Model[]>([]);
+  const [isLoadingUserModels, setIsLoadingUserModels] = useState(false);
+
+  // 加载用户自定义模型
+  useEffect(() => {
+    const fetchUserModels = async () => {
+      const anonId = getAnonId();
+      if (!anonId) return;
+
+      setIsLoadingUserModels(true);
+      try {
+        const response = await fetch("/api/user/models", {
+          headers: {
+            "X-User-Id": anonId,
+          },
+        });
+
+        if (response.ok) {
+          const data = await response.json();
+          if (data.success && data.data) {
+            const models: ApiUserModel[] = data.data;
+            const formattedModels: Model[] = models.map((m) => ({
+              id: `user:${m.id}`, // 使用 user: 前缀标识用户模型
+              name: m.name,
+              provider: m.provider,
+              providerName: m.provider,
+              description: `${m.model}${m.is_default ? " (默认)" : ""}`,
+              isUserModel: true,
+            }));
+            setUserModels(formattedModels);
+          }
+        }
+      } catch (error) {
+        console.error("加载用户模型失败:", error);
+      } finally {
+        setIsLoadingUserModels(false);
+      }
+    };
+
+    fetchUserModels();
+  }, []);
+
+  // 合并系统模型和用户模型
+  const allModels = [...AVAILABLE_MODELS, ...userModels];
+
   // 获取当前选中的模型
-  const selectedModel = AVAILABLE_MODELS.find((m) => m.id === value);
+  const selectedModel = allModels.find((m) => m.id === value);
 
   // 按供应商分组
-  const groupedModels = getGroupedModels();
+  const groupedModels = getGroupedModels(allModels);
 
   return (
     <ModelSelectorDialog>
@@ -149,7 +179,11 @@ export function ModelSelector({
           {/* 显示当前选中模型 */}
           {selectedModel ? (
             <>
-              <ModelSelectorLogo className="size-4" provider={selectedModel.provider} />
+              {selectedModel.isUserModel ? (
+                <User className="size-4" />
+              ) : (
+                <ModelSelectorLogo className="size-4" provider={selectedModel.provider} />
+              )}
               <span className="hidden sm:inline">{selectedModel.name}</span>
               <span className="sm:hidden">
                 {selectedModel.name.length > 10
@@ -172,7 +206,39 @@ export function ModelSelector({
           {/* 无结果提示 */}
           <ModelSelectorEmpty>未找到匹配的模型</ModelSelectorEmpty>
 
-          {/* 按供应商分组显示 */}
+          {/* 用户自定义模型分组 */}
+          {userModels.length > 0 && (
+            <ModelSelectorGroup heading="我的模型">
+              {userModels.map((model) => (
+                <ModelSelectorItem
+                  className="gap-2"
+                  key={model.id}
+                  onSelect={() => onChange?.(model.id)}
+                  value={model.id}
+                >
+                  <User className="size-4 shrink-0" />
+                  <ModelSelectorName>
+                    <div className="flex items-center gap-1.5">
+                      <span>{model.name}</span>
+                      <span className="rounded bg-blue-100 px-1 py-0.5 text-[10px] font-medium text-blue-700 dark:bg-blue-900/30 dark:text-blue-400">
+                        自定义
+                      </span>
+                    </div>
+                    {model.description && (
+                      <span className="block text-muted-foreground text-xs">
+                        {model.description}
+                      </span>
+                    )}
+                  </ModelSelectorName>
+                  {value === model.id && (
+                    <CheckIcon className="size-4 shrink-0" />
+                  )}
+                </ModelSelectorItem>
+              ))}
+            </ModelSelectorGroup>
+          )}
+
+          {/* 按供应商分组显示系统模型 */}
           {Object.entries(groupedModels).map(([provider, group]) => (
             <ModelSelectorGroup key={provider} heading={group.name}>
               {group.models.map((model) => (
@@ -215,4 +281,26 @@ export function ModelSelector({
       </ModelSelectorContent>
     </ModelSelectorDialog>
   );
+}
+
+/**
+ * 获取按供应商分组的模型
+ */
+function getGroupedModels(models: Model[]): GroupedModels {
+  const groups: GroupedModels = {};
+
+  for (const model of models) {
+    // 跳过用户自定义模型（已在单独分组中显示）
+    if (model.isUserModel) continue;
+
+    if (!groups[model.provider]) {
+      groups[model.provider] = {
+        name: model.providerName,
+        models: [],
+      };
+    }
+    groups[model.provider].models.push(model);
+  }
+
+  return groups;
 }
