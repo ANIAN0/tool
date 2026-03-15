@@ -49,3 +49,8 @@ next-env.d.ts
 public/uploads
 
 docs
+
+.claude/
+
+# worktrees
+.worktrees/
