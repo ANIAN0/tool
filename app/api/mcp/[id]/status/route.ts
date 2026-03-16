@@ -6,7 +6,7 @@
 import { type NextRequest, NextResponse } from "next/server";
 import { getClient } from "@/lib/db/client";
 import { authenticateRequest } from "@/lib/auth/middleware";
-import type { McpStatusResult, McpTool } from "@/lib/db/schema";
+import type { McpStatusResult } from "@/lib/db/schema";
 
 /**
  * 检查MCP服务器连接状态
@@ -316,6 +316,3 @@ export async function GET(
     );
   }
 }
-
-// 导入generateId工具函数
-import { generateId } from "@/lib/utils";
