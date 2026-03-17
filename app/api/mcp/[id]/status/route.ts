@@ -4,7 +4,7 @@
  */
 
 import { type NextRequest, NextResponse } from "next/server";
-import { getClient } from "@/lib/db/client";
+import { getDb } from "@/lib/db/client";
 import { authenticateRequest } from "@/lib/auth/middleware";
 import type { McpStatusResult } from "@/lib/db/schema";
 
@@ -119,7 +119,7 @@ async function updateServerStatus(
   status: "online" | "offline" | "error",
   errorMessage: string | null
 ): Promise<void> {
-  const client = await getClient();
+  const client = getDb();
   const now = Date.now();
 
   await client.execute({
@@ -141,7 +141,7 @@ async function syncMcpTools(
   serverId: string,
   tools: Array<{ name: string; description?: string; inputSchema?: unknown }>
 ): Promise<void> {
-  const client = await getClient();
+  const client = getDb();
   const now = Date.now();
 
   // 获取现有工具
@@ -247,7 +247,7 @@ export async function GET(
   const userId = authResult.userId;
   const { id } = await params;
 
-  const client = await getClient();
+  const client = getDb();
 
   try {
     // 查询服务器URL和启用状态

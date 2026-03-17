@@ -4,7 +4,7 @@
  */
 
 import { type NextRequest, NextResponse } from "next/server";
-import { getClient } from "@/lib/db/client";
+import { getDb } from "@/lib/db/client";
 import { authenticateRequest } from "@/lib/auth/middleware";
 import type { McpServer, CreateMcpServerParams, McpStatus } from "@/lib/db/schema";
 import { generateId } from "@/lib/utils";
@@ -38,7 +38,7 @@ export async function GET(request: NextRequest) {
   }
 
   const userId = authResult.userId;
-  const client = await getClient();
+  const client = getDb();
 
   try {
     // 查询用户的所有MCP服务器
@@ -129,7 +129,7 @@ export async function POST(request: NextRequest) {
       );
     }
 
-    const client = await getClient();
+    const client = getDb();
     const now = Date.now();
 
     // 创建新服务器配置

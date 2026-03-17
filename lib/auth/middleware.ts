@@ -161,6 +161,72 @@ export function withOptionalAuth<T>(
 }
 
 /**
+ * 认证请求结果类型 - 成功
+ */
+interface AuthRequestSuccessResult {
+  success: true;
+  userId: string;
+}
+
+/**
+ * 认证请求结果类型 - 失败
+ */
+interface AuthRequestErrorResult {
+  success: false;
+  error: string;
+  status: number;
+}
+
+/**
+ * 认证请求结果类型
+ */
+type AuthRequestResult = AuthRequestSuccessResult | AuthRequestErrorResult;
+
+/**
+ * 验证请求并返回认证结果
+ * 用于API路由中手动验证请求
+ *
+ * @param request - Next.js请求对象
+ * @returns 认证结果，包含userId或错误信息
+ */
+export async function authenticateRequest(
+  request: NextRequest
+): Promise<AuthRequestResult> {
+  const authHeader = request.headers.get("Authorization");
+  const token = extractAccessToken(authHeader);
+
+  if (!token) {
+    return {
+      success: false,
+      error: "未提供认证令牌",
+      status: 401,
+    } as AuthRequestErrorResult;
+  }
+
+  const result = verifyAccessToken(token);
+
+  if (!result.valid) {
+    if (result.error === "访问令牌已过期") {
+      return {
+        success: false,
+        error: result.error,
+        status: 401,
+      } as AuthRequestErrorResult;
+    }
+    return {
+      success: false,
+      error: result.error || "无效的令牌",
+      status: 401,
+    } as AuthRequestErrorResult;
+  }
+
+  return {
+    success: true,
+    userId: result.payload!.userId,
+  } as AuthRequestSuccessResult;
+}
+
+/**
  * 检查用户是否为认证用户（非匿名）
  * @param userId - 用户ID
  * @returns 是否为认证用户

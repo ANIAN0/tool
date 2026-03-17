@@ -23,7 +23,7 @@ interface RouteParams {
 /**
  * GET 处理函数 - 获取单个模型
  */
-export const GET = withOptionalAuth(async (request, context) => {
+export const GET = withOptionalAuth(async (request, context): Promise<NextResponse> => {
   try {
     // 获取路由参数
     const params = await request.nextUrl.pathname.match(/\/api\/user\/models\/([^\/]+)$/) || [];
@@ -81,7 +81,7 @@ export const GET = withOptionalAuth(async (request, context) => {
 /**
  * PUT 处理函数 - 更新模型
  */
-export const PUT = withOptionalAuth(async (request, context) => {
+export const PUT = withOptionalAuth(async (request, context): Promise<NextResponse> => {
   try {
     // 获取路由参数
     const params = await request.nextUrl.pathname.match(/\/api\/user\/models\/([^\/]+)$/) || [];
@@ -182,7 +182,7 @@ export const PUT = withOptionalAuth(async (request, context) => {
 /**
  * DELETE 处理函数 - 删除模型
  */
-export const DELETE = withOptionalAuth(async (request, context) => {
+export const DELETE = withOptionalAuth(async (request, context): Promise<NextResponse> => {
   try {
     // 获取路由参数
     const params = await request.nextUrl.pathname.match(/\/api\/user\/models\/([^\/]+)$/) || [];

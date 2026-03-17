@@ -64,7 +64,7 @@ function renderJsonSchema(schema: Record<string, unknown>) {
                 {propObj.type as string || "any"}
               </span>
             </div>
-            {propObj.description && (
+            {!!propObj.description && (
               <p className="text-sm text-muted-foreground mt-1">
                 {propObj.description as string}
               </p>

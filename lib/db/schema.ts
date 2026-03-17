@@ -271,6 +271,17 @@ export interface CreateFolderParams {
   userId: string;
 }
 
+/**
+ * 创建文档的参数类型
+ */
+export interface CreateDocumentParams {
+  id: string;
+  title: string;
+  content?: string;
+  folderId?: string | null;
+  userId: string;
+}
+
 // ==================== 个人模型设置相关表结构 ====================
 
 /**

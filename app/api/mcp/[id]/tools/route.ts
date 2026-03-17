@@ -4,7 +4,7 @@
  */
 
 import { type NextRequest, NextResponse } from "next/server";
-import { getClient } from "@/lib/db/client";
+import { getDb } from "@/lib/db/client";
 import { authenticateRequest } from "@/lib/auth/middleware";
 import type { McpTool } from "@/lib/db/schema";
 
@@ -28,7 +28,7 @@ export async function GET(
   const userId = authResult.userId;
   const { id } = await params;
 
-  const client = await getClient();
+  const client = getDb();
 
   try {
     // 验证服务器是否存在且属于当前用户

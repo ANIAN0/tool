@@ -4,7 +4,7 @@
  */
 
 import { type NextRequest, NextResponse } from "next/server";
-import { getClient } from "@/lib/db/client";
+import { getDb } from "@/lib/db/client";
 import { authenticateRequest } from "@/lib/auth/middleware";
 import type { Tool } from "@/lib/db/schema";
 
@@ -121,7 +121,7 @@ export async function GET(request: NextRequest) {
   }
 
   const userId = authResult.userId;
-  const client = await getClient();
+  const client = getDb();
 
   try {
     // 从数据库获取MCP工具（包含服务器信息）

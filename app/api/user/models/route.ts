@@ -17,7 +17,7 @@ import { nanoid } from "nanoid";
 /**
  * GET 处理函数 - 获取用户模型列表
  */
-export const GET = withOptionalAuth(async (request, context) => {
+export const GET = withOptionalAuth(async (request, context): Promise<NextResponse> => {
   try {
     const models = await getUserModels(context.userId);
 
@@ -54,7 +54,7 @@ export const GET = withOptionalAuth(async (request, context) => {
 /**
  * POST 处理函数 - 创建新模型
  */
-export const POST = withOptionalAuth(async (request, context) => {
+export const POST = withOptionalAuth(async (request, context): Promise<NextResponse> => {
   try {
     const body = await request.json();
 

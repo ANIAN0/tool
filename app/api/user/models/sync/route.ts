@@ -31,7 +31,7 @@ interface SyncModelData {
 /**
  * POST 处理函数 - 同步匿名模型
  */
-export const POST = withAuth(async (request, context) => {
+export const POST = withAuth(async (request, context): Promise<NextResponse> => {
   try {
     const body = await request.json();
 

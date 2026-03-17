@@ -95,7 +95,10 @@ export interface UseUserModelsReturn {
 export function useUserModels(
   anonymousId?: string
 ): UseUserModelsReturn {
-  const { data: session, status: sessionStatus } = useSession();
+  // 使用 next-auth 的 useSession hook 获取会话状态
+  // 在静态预渲染期间 useSession 可能返回 undefined，所以需要提供默认值
+  const sessionResult = useSession() || { data: null, status: "unauthenticated" };
+  const { data: session, status: sessionStatus } = sessionResult;
   const isAuthenticated = sessionStatus === "authenticated";
 
   const [models, setModels] = useState<UserModel[]>([]);

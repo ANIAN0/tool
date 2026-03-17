@@ -10,7 +10,7 @@ import { setDefaultUserModel } from "@/lib/db";
 /**
  * PATCH 处理函数 - 设置默认模型
  */
-export const PATCH = withOptionalAuth(async (request, context) => {
+export const PATCH = withOptionalAuth(async (request, context): Promise<NextResponse> => {
   try {
     // 获取路由参数
     const params = await request.nextUrl.pathname.match(/\/api\/user\/models\/([^\/]+)\/default$/) || [];

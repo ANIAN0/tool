@@ -5,6 +5,18 @@
 
 import { clsx, type ClassValue } from "clsx"
 import { twMerge } from "tailwind-merge"
+import { nanoid } from "nanoid"
+
+/**
+ * 生成唯一ID
+ * 使用nanoid生成短且唯一的字符串ID
+ *
+ * @param length - ID长度，默认为12
+ * @returns 唯一ID字符串
+ */
+export function generateId(length: number = 12): string {
+  return nanoid(length)
+}
 
 /**
  * 合并并优化Tailwind CSS类名
