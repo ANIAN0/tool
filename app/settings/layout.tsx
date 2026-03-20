@@ -1,3 +1,5 @@
+"use client";
+
 /**
  * 设置页面布局
  * 提供统一的设置页面导航和布局结构
@@ -6,6 +8,8 @@
 import type { ReactNode } from "react";
 import Link from "next/link";
 import { cn } from "@/lib/utils";
+import { useAuthContext } from "@/components/auth/auth-provider";
+import { User } from "lucide-react";
 
 // 设置页面导航项
 const settingsNavItems = [
@@ -23,11 +27,30 @@ interface SettingsLayoutProps {
  * 设置页面布局组件
  */
 export default function SettingsLayout({ children }: SettingsLayoutProps) {
+  const { user, isAuthenticated } = useAuthContext();
+
   return (
     <div className="flex min-h-[calc(100vh-64px)]">
       {/* 侧边导航栏 */}
       <aside className="w-64 border-r bg-muted/30">
         <div className="p-4">
+          {/* 用户信息卡片 */}
+          {isAuthenticated && user && (
+            <div className="mb-4 pb-4 border-b">
+              <div className="flex items-center gap-3 px-3 py-2 rounded-md bg-muted/50">
+                <div className="w-8 h-8 rounded-full bg-primary/10 flex items-center justify-center">
+                  <User className="w-4 h-4 text-primary" />
+                </div>
+                <div className="flex-1 min-w-0">
+                  <p className="text-sm font-medium truncate">
+                    {user.username || "用户"}
+                  </p>
+                  <p className="text-xs text-muted-foreground">已登录</p>
+                </div>
+              </div>
+            </div>
+          )}
+
           <h2 className="mb-4 text-lg font-semibold">设置</h2>
           <nav className="space-y-1">
             {settingsNavItems.map((item) => (
