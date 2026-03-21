@@ -56,6 +56,16 @@ export async function getAuthContext(
     }
   }
 
+  // 尝试从 X-Anonymous-Id Header 获取匿名用户ID
+  const anonIdHeader = request.headers.get("X-Anonymous-Id");
+  if (anonIdHeader) {
+    const user = await getOrCreateUser(anonIdHeader);
+    return {
+      userId: user.id,
+      isAuthenticated: false,
+    };
+  }
+
   // 尝试从请求体获取匿名用户ID（仅POST请求）
   if (request.method === "POST") {
     try {
@@ -246,4 +256,30 @@ export async function isPrivateAgent(agentId: string): Promise<boolean> {
   const { getAgentConfig } = await import("@/lib/agents/config");
   const config = getAgentConfig(agentId);
   return config?.isPrivate === true;
+}
+
+/**
+ * 可选认证请求验证 - 支持匿名用户和认证用户
+ * 用于需要识别用户身份但允许匿名的 API 端点
+ *
+ * @param request - Next.js请求对象
+ * @returns 认证结果，包含userId或错误信息
+ */
+export async function authenticateRequestOptional(
+  request: NextRequest
+): Promise<AuthRequestResult> {
+  const context = await getAuthContext(request);
+
+  if (!context.userId) {
+    return {
+      success: false,
+      error: "无法识别用户身份",
+      status: 401,
+    };
+  }
+
+  return {
+    success: true,
+    userId: context.userId,
+  };
 }
