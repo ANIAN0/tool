@@ -6,6 +6,7 @@ import {
   generateTokenPair,
 } from "@/lib/auth";
 import { getUserById, getUserByUsername, upgradeToRegisteredUser, createAnonymousUser } from "@/lib/db/users";
+import { migrateMcpData } from "@/lib/db/mcp";
 
 // 邀请码从环境变量获取
 const INVITE_CODE = process.env.INVITE_CODE;
@@ -131,6 +132,16 @@ export async function POST(request: NextRequest): Promise<NextResponse<RegisterR
           { success: false, error: "注册失败，请稍后重试" },
           { status: 500 }
         );
+      }
+    }
+
+    // 迁移匿名用户 MCP 数据
+    if (anonymousId && anonymousId !== user.id) {
+      try {
+        await migrateMcpData(anonymousId, user.id);
+      } catch (error) {
+        // 迁移失败不影响注册流程，仅记录日志
+        console.error("迁移 MCP 数据失败:", error);
       }
     }
 

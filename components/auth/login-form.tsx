@@ -8,7 +8,7 @@
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
-import { setAnonId } from "@/lib/anon-id";
+import { getAnonId, setAnonId } from "@/lib/anon-id";
 import { Loader2, LogIn } from "lucide-react";
 import { useRouter } from "next/navigation";
 import { useState } from "react";
@@ -66,10 +66,15 @@ export function LoginForm({ onSuccess, onSwitchToRegister }: LoginFormProps) {
     setError(null);
 
     try {
+      // 获取匿名用户ID，用于数据迁移
+      const anonId = getAnonId();
       const response = await fetch("/api/auth/login", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify(formData),
+        body: JSON.stringify({
+          ...formData,
+          anonymousId: anonId,
+        }),
       });
 
       const data = await response.json();

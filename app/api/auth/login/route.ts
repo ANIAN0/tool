@@ -1,11 +1,13 @@
 import { NextRequest, NextResponse } from "next/server";
 import { verifyPassword, generateTokenPair } from "@/lib/auth";
 import { getUserByUsername } from "@/lib/db/users";
+import { migrateMcpData } from "@/lib/db/mcp";
 
 // 登录请求类型
 interface LoginRequest {
   username: string;
   password: string;
+  anonymousId?: string; // 匿名用户ID，用于数据迁移
 }
 
 // 登录响应类型
@@ -80,6 +82,17 @@ export async function POST(request: NextRequest): Promise<NextResponse<LoginResp
 
     // 生成令牌对
     const { accessToken, refreshToken } = generateTokenPair(user.id);
+
+    // 迁移匿名用户数据
+    const anonId = body.anonymousId;
+    if (anonId && anonId !== user.id) {
+      try {
+        await migrateMcpData(anonId, user.id);
+      } catch (error) {
+        // 迁移失败不影响登录流程，仅记录日志
+        console.error("迁移 MCP 数据失败:", error);
+      }
+    }
 
     return NextResponse.json({
       success: true,
