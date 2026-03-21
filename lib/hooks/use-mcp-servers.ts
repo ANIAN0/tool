@@ -200,6 +200,14 @@ export function useMcpServersPolling(
   const [isPolling, setIsPolling] = useState(true);
   const pollingRef = useRef<NodeJS.Timeout | null>(null);
 
+  // 使用 ref 存储 servers，避免依赖问题
+  const serversRef = useRef(servers);
+
+  // 同步 servers 到 ref
+  useEffect(() => {
+    serversRef.current = servers;
+  }, [servers]);
+
   /**
    * 检查单个服务器状态
    * @param serverId - 服务器ID
@@ -238,13 +246,14 @@ export function useMcpServersPolling(
    * 检查所有服务器状态
    */
   const checkAllServers = useCallback(async () => {
-    const enabledServers = servers.filter((s) => s.is_enabled);
+    // 使用 ref 而非直接依赖 servers
+    const enabledServers = serversRef.current.filter((s) => s.is_enabled);
 
     // 并行检查所有服务器
     await Promise.all(
       enabledServers.map((server) => checkServerStatus(server.id))
     );
-  }, [servers, checkServerStatus]);
+  }, [checkServerStatus]);
 
   // 设置轮询
   useEffect(() => {
@@ -256,14 +265,14 @@ export function useMcpServersPolling(
     document.addEventListener("visibilitychange", handleVisibilityChange);
 
     // 初始检查
-    if (servers.length > 0 && isPolling) {
+    if (serversRef.current.length > 0 && isPolling) {
       checkAllServers();
     }
 
     // 设置定时轮询
     if (isPolling) {
       pollingRef.current = setInterval(() => {
-        if (servers.length > 0) {
+        if (serversRef.current.length > 0) {
           checkAllServers();
         }
       }, interval);
@@ -275,7 +284,7 @@ export function useMcpServersPolling(
         clearInterval(pollingRef.current);
       }
     };
-  }, [servers, interval, isPolling, checkAllServers]);
+  }, [interval, isPolling, checkAllServers]);
 
   return {
     serverStatuses,
