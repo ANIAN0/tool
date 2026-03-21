@@ -377,6 +377,7 @@ CREATE TABLE IF NOT EXISTS user_mcp_servers (
   user_id TEXT NOT NULL,
   name TEXT NOT NULL,
   url TEXT NOT NULL,
+  headers TEXT,  -- 新增：存储 JSON 格式的 headers
   status TEXT DEFAULT 'offline',
   is_enabled INTEGER DEFAULT 1,
   last_check_at INTEGER,
@@ -429,6 +430,7 @@ export interface McpServer {
   user_id: string;
   name: string;
   url: string;
+  headers: string | null;  // 新增：JSON 格式的 headers
   status: McpStatus;
   is_enabled: boolean;
   last_check_at: number | null;
@@ -452,6 +454,8 @@ export interface McpStatusResult {
   error?: string;
   // 服务器响应时间（毫秒）
   responseTime?: number;
+  // 服务器提供的工具数量
+  toolsCount?: number;
 }
 
 /**
@@ -517,6 +521,7 @@ export interface CreateMcpServerParams {
   userId: string;
   name: string;
   url: string;
+  headers?: string;  // 新增：JSON 格式的 headers
 }
 
 /**
@@ -526,4 +531,5 @@ export interface UpdateMcpServerParams {
   name?: string;
   url?: string;
   isEnabled?: boolean;
+  headers?: string;  // 新增：JSON 格式的 headers
 }

@@ -42,7 +42,7 @@ async function checkMcpServerStatus(
     return {
       online: true,
       responseTime,
-      toolsCount: Object.keys(tools).length,
+      toolsCount: Object.keys(tools as Record<string, unknown>).length,
     };
   } catch (error) {
     const responseTime = Date.now() - startTime;
@@ -170,11 +170,20 @@ async function syncMcpTools(
   for (const tool of tools) {
     const name = tool.name;
     const description = tool.description || "";
-    // 兼容两种可能的字段名：inputSchema (MCP) 或 parameters (OpenAI风格)
-    const schema = tool.inputSchema || tool.parameters || { type: "object", properties: {} };
-    const inputSchema = JSON.stringify(schema);
 
-    console.log(`处理工具: ${name}, 描述: ${description.slice(0, 50)}...`);
+    // 获取原始 schema（兼容 inputSchema 和 parameters 两种字段名）
+    let rawSchema = tool.inputSchema || tool.parameters;
+
+    // SDK 返回的 inputSchema 可能被包装在 jsonSchema 字段中
+    // 例如：{ jsonSchema: { type: "object", properties: {...} } }
+    // 需要提取内部的真正 schema
+    if (rawSchema && typeof rawSchema === 'object' && 'jsonSchema' in rawSchema) {
+      rawSchema = (rawSchema as { jsonSchema: unknown }).jsonSchema;
+    }
+
+    // 最终 schema，如果都没有则使用空对象
+    const schema = rawSchema || { type: "object", properties: {} };
+    const inputSchema = JSON.stringify(schema);
 
     if (existingNames.has(name)) {
       // 更新现有工具

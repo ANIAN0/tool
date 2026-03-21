@@ -143,7 +143,7 @@ export async function PUT(
 
     // 构建更新字段
     const updates: string[] = [];
-    const args: (string | number)[] = [];
+    const args: (string | number | null)[] = [];
 
     // 更新名称
     if (name !== undefined) {

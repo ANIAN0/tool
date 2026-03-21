@@ -131,8 +131,8 @@ export function McpForm({
   const handleChange = (field: keyof McpFormData, value: string) => {
     setFormData((prev) => ({ ...prev, [field]: value }));
 
-    // 清除该字段的错误
-    if (fieldErrors[field]) {
+    // 清除该字段的错误（仅对 name 和 url 字段）
+    if ((field === 'name' || field === 'url') && fieldErrors[field]) {
       setFieldErrors((prev) => ({ ...prev, [field]: undefined }));
     }
   };
