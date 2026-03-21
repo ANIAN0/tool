@@ -53,6 +53,7 @@ export async function GET(
           user_id,
           name,
           url,
+          headers,
           status,
           is_enabled,
           last_check_at,
@@ -79,6 +80,7 @@ export async function GET(
       user_id: String(row.user_id),
       name: String(row.name),
       url: String(row.url),
+      headers: row.headers ? String(row.headers) : null,  // 新增 headers 字段
       status: String(row.status) as McpStatus,
       is_enabled: Boolean(row.is_enabled),
       last_check_at: row.last_check_at ? Number(row.last_check_at) : null,
@@ -119,7 +121,7 @@ export async function PUT(
 
   try {
     const body = await request.json();
-    const { name, url, isEnabled } = body;
+    const { name, url, isEnabled, headers } = body;  // 提取 headers 字段
 
     const client = getDb();
 
@@ -184,6 +186,26 @@ export async function PUT(
       args.push(isEnabled ? 1 : 0);
     }
 
+    // 更新 headers
+    if (headers !== undefined) {
+      if (headers) {
+        try {
+          JSON.parse(headers);
+          updates.push("headers = ?");
+          args.push(headers);
+        } catch {
+          return NextResponse.json(
+            { error: "headers 必须是有效的 JSON 字符串" },
+            { status: 400 }
+          );
+        }
+      } else {
+        // headers 为空字符串时设为 NULL
+        updates.push("headers = ?");
+        args.push(null);
+      }
+    }
+
     // 如果没有要更新的字段
     if (updates.length === 0) {
       return NextResponse.json(
@@ -218,6 +240,7 @@ export async function PUT(
           user_id,
           name,
           url,
+          headers,
           status,
           is_enabled,
           last_check_at,
@@ -236,6 +259,7 @@ export async function PUT(
       user_id: String(row.user_id),
       name: String(row.name),
       url: String(row.url),
+      headers: row.headers ? String(row.headers) : null,  // 新增 headers 字段
       status: String(row.status) as McpStatus,
       is_enabled: Boolean(row.is_enabled),
       last_check_at: row.last_check_at ? Number(row.last_check_at) : null,
