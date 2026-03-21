@@ -59,6 +59,15 @@
 - 公开的Agent对所有用户可见（包括匿名用户）
 - 其他用户查看公开Agent时为只读模式，不可编辑、不可复制
 
+### 2.4 匿名用户数据处理
+
+由于Agent配置相对复杂，本期 **不支持匿名用户创建Agent**。
+
+匿名用户登录后：
+- 无需迁移Agent数据（匿名用户无法创建Agent）
+- 可直接浏览公开Agent列表
+- 登录后可开始创建自己的Agent
+
 ---
 
 ## 3. 数据库设计
@@ -107,11 +116,14 @@ CREATE TABLE IF NOT EXISTS agent_tools (
   tool_id TEXT NOT NULL,
   created_at INTEGER NOT NULL,
   FOREIGN KEY (agent_id) REFERENCES agents(id) ON DELETE CASCADE,
-  FOREIGN KEY (tool_id) REFERENCES mcp_tools(id) ON DELETE CASCADE
+  FOREIGN KEY (tool_id) REFERENCES mcp_tools(id) ON DELETE CASCADE,
+  UNIQUE(agent_id, tool_id)
 );
 ```
 
-**说明：** 实现Agent与MCP工具的多对多关联，支持精确选择工具。
+**说明：**
+- 实现Agent与MCP工具的多对多关联，支持精确选择工具
+- `UNIQUE(agent_id, tool_id)` 约束防止重复关联
 
 ### 3.3 索引
 
@@ -143,9 +155,14 @@ CREATE INDEX IF NOT EXISTS idx_agent_tools_tool_id ON agent_tools(tool_id);
 
 **请求头：**
 ```
-Authorization: Bearer <token>
-X-Anonymous-Id: <anonymous_id>  // 匿名用户使用
+Authorization: Bearer <token>           // 登录用户
+X-Anonymous-Id: <anonymous_id>          // 匿名用户使用
 ```
+
+**响应逻辑：**
+- `myAgents`：仅登录用户返回自己创建的所有Agent（包括私有和公开）；匿名用户返回空数组
+- `publicAgents`：返回所有其他用户公开的Agent（不包含自己的公开Agent）
+- 匿名用户：`myAgents` 返回空数组，`publicAgents` 返回所有公开Agent
 
 **响应：**
 ```json
@@ -223,9 +240,23 @@ X-Anonymous-Id: <anonymous_id>  // 匿名用户使用
 
 ### 4.4 权限控制
 
-- **匿名用户**：仅允许 GET 请求
-- **登录用户**：可操作自己的Agent（检查 user_id 匹配）
-- **公开Agent**：所有用户可查看，但仅创建者可编辑
+**认证方式：**
+- GET 请求：使用 `authenticateRequestOptional`，支持登录用户和匿名用户
+- POST/PUT/DELETE/PATCH：使用 `authenticateRequest`，仅允许登录用户
+
+**权限校验：**
+- **匿名用户**：仅允许 GET 请求，返回空 `myAgents` 和完整 `publicAgents`
+- **登录用户**：可操作自己的Agent（检查 `user_id` 匹配）
+- **公开Agent**：所有用户可查看详情，但仅创建者可编辑/删除
+
+**实现示例：**
+```typescript
+// GET /api/agents - 使用 authenticateRequestOptional
+const { userId, isRegistered } = await authenticateRequestOptional(request);
+
+// POST /api/agents - 使用 authenticateRequest
+const userId = await authenticateRequest(request);
+```
 
 ---
 
@@ -436,3 +467,4 @@ lib/
 | 版本 | 日期 | 变更内容 |
 |------|------|---------|
 | 1.0.0 | 2026-03-22 | 初始设计文档 |
+| 1.0.1 | 2026-03-22 | 补充API响应逻辑、权限控制方式、匿名用户处理、唯一约束 |
