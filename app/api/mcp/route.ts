@@ -104,7 +104,7 @@ export async function POST(request: NextRequest) {
 
   try {
     const body = await request.json();
-    const { name, url } = body;
+    const { name, url, headers } = body;  // 提取 headers
 
     // 验证必填字段
     if (!name || typeof name !== "string" || name.trim() === "") {
@@ -129,6 +129,21 @@ export async function POST(request: NextRequest) {
       );
     }
 
+    // 验证 headers 格式（如果提供）
+    let headersJson: string | null = null;
+    if (headers) {
+      try {
+        // 验证是否为有效的 JSON
+        JSON.parse(headers);
+        headersJson = headers;
+      } catch {
+        return NextResponse.json(
+          { error: "headers 必须是有效的 JSON 字符串" },
+          { status: 400 }
+        );
+      }
+    }
+
     const client = getDb();
     const now = Date.now();
 
@@ -143,23 +158,17 @@ export async function POST(request: NextRequest) {
     await client.execute({
       sql: `
         INSERT INTO user_mcp_servers (
-          id,
-          user_id,
-          name,
-          url,
-          status,
-          is_enabled,
-          created_at,
-          updated_at
-        ) VALUES (?, ?, ?, ?, ?, ?, ?, ?)
+          id, user_id, name, url, headers, status, is_enabled, created_at, updated_at
+        ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
       `,
       args: [
         newServer.id,
         newServer.userId,
         newServer.name,
         newServer.url,
-        "offline", // 初始状态为离线
-        1, // 默认启用
+        headersJson,  // 新增
+        "offline",
+        1,
         now,
         now,
       ],
