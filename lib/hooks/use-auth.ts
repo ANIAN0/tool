@@ -88,6 +88,16 @@ function getTokensFromStorage(): CachedTokens {
 }
 
 /**
+ * 获取存储的匿名用户ID
+ * 优先从 localStorage 获取，其次 sessionStorage
+ */
+function getStoredAnonymousId(): string | null {
+  if (typeof window === "undefined") return null;
+  return localStorage.getItem("anonymous_user_id") ||
+         sessionStorage.getItem("anonymous_user_id");
+}
+
+/**
  * 认证状态管理Hook
  */
 export function useAuth() {
@@ -100,6 +110,9 @@ export function useAuth() {
     isLoading: true,
     accessToken: null,
   });
+
+  // 匿名用户ID状态
+  const [anonymousId, setAnonymousId] = useState<string | null>(null);
 
   // 从 localStorage 加载令牌（带缓存）
   const loadTokens = useCallback(() => {
@@ -192,6 +205,9 @@ export function useAuth() {
   // 初始化认证状态
   useEffect(() => {
     const initAuth = async () => {
+      // 获取匿名用户ID
+      setAnonymousId(getStoredAnonymousId());
+
       const { accessToken } = loadTokens();
 
       if (!accessToken) {
@@ -287,6 +303,7 @@ export function useAuth() {
 
   return {
     ...state,
+    anonymousId,
     login,
     logout,
     getAuthHeader,
