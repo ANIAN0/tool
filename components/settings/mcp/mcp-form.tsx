@@ -24,6 +24,7 @@ import type { McpServer } from "@/lib/db/schema";
 export interface McpFormData {
   name: string;
   url: string;
+  headers?: string;  // 新增：JSON 格式的 headers
 }
 
 /**
@@ -80,7 +81,13 @@ export function McpForm({
   const [formData, setFormData] = useState<McpFormData>({
     name: "",
     url: "",
+    headers: "",
   });
+
+  // headers 键值对状态
+  const [headerPairs, setHeaderPairs] = useState<Array<{ key: string; value: string }>>([
+    { key: "", value: "" },
+  ]);
 
   // 字段验证错误
   const [fieldErrors, setFieldErrors] = useState<{
@@ -94,9 +101,26 @@ export function McpForm({
       setFormData({
         name: editingServer.name,
         url: editingServer.url,
+        headers: editingServer.headers || "",
       });
+      // 解析现有的 headers
+      if (editingServer.headers) {
+        try {
+          const parsed = JSON.parse(editingServer.headers);
+          const pairs = Object.entries(parsed).map(([key, value]) => ({
+            key,
+            value: String(value),
+          }));
+          setHeaderPairs(pairs.length > 0 ? pairs : [{ key: "", value: "" }]);
+        } catch {
+          setHeaderPairs([{ key: "", value: "" }]);
+        }
+      } else {
+        setHeaderPairs([{ key: "", value: "" }]);
+      }
     } else {
-      setFormData({ name: "", url: "" });
+      setFormData({ name: "", url: "", headers: "" });
+      setHeaderPairs([{ key: "", value: "" }]);
     }
     setFieldErrors({});
   }, [editingServer, isOpen]);
@@ -144,7 +168,20 @@ export function McpForm({
       return;
     }
 
-    await onSubmit(formData);
+    // 转换 headers 为 JSON
+    const headersObj: Record<string, string> = {};
+    for (const pair of headerPairs) {
+      if (pair.key.trim()) {
+        headersObj[pair.key.trim()] = pair.value;
+      }
+    }
+    const headersJson = Object.keys(headersObj).length > 0 ? JSON.stringify(headersObj) : undefined;
+
+    await onSubmit({
+      name: formData.name,
+      url: formData.url,
+      headers: headersJson,
+    });
   };
 
   /**
@@ -220,6 +257,64 @@ export function McpForm({
                 MCP Streamable HTTP服务器的URL地址
               </p>
             )}
+          </div>
+
+          {/* Headers 配置 */}
+          <div className="space-y-2">
+            <Label>请求 Headers（可选）</Label>
+            <div className="space-y-2">
+              {headerPairs.map((pair, index) => (
+                <div key={index} className="flex gap-2">
+                  <Input
+                    placeholder="Header 名称"
+                    value={pair.key}
+                    onChange={(e) => {
+                      const newPairs = [...headerPairs];
+                      newPairs[index].key = e.target.value;
+                      setHeaderPairs(newPairs);
+                    }}
+                    disabled={isSubmitting}
+                    className="flex-1"
+                  />
+                  <Input
+                    placeholder="Header 值"
+                    value={pair.value}
+                    onChange={(e) => {
+                      const newPairs = [...headerPairs];
+                      newPairs[index].value = e.target.value;
+                      setHeaderPairs(newPairs);
+                    }}
+                    disabled={isSubmitting}
+                    className="flex-1"
+                  />
+                  <Button
+                    type="button"
+                    variant="outline"
+                    size="icon"
+                    onClick={() => {
+                      const newPairs = headerPairs.filter((_, i) => i !== index);
+                      setHeaderPairs(newPairs.length > 0 ? newPairs : [{ key: "", value: "" }]);
+                    }}
+                    disabled={isSubmitting}
+                  >
+                    ×
+                  </Button>
+                </div>
+              ))}
+            </div>
+            <Button
+              type="button"
+              variant="outline"
+              size="sm"
+              onClick={() => setHeaderPairs([...headerPairs, { key: "", value: "" }])}
+              disabled={isSubmitting}
+              className="mt-2"
+            >
+              + 添加 Header
+            </Button>
+            <p className="text-sm text-muted-foreground">
+              用于 MCP 服务器的认证，例如 Authorization、X-API-Key 等
+            </p>
           </div>
 
           {/* 表单操作按钮 */}
