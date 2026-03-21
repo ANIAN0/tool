@@ -7,6 +7,7 @@
 
 import type { ReactNode } from "react";
 import Link from "next/link";
+import { usePathname } from "next/navigation";
 import { cn } from "@/lib/utils";
 import { useAuthContext } from "@/components/auth/auth-provider";
 import { User } from "lucide-react";
@@ -16,7 +17,6 @@ const settingsNavItems = [
   { href: "/settings/models", label: "模型设置", icon: "🤖" },
   { href: "/settings/tools", label: "工具管理", icon: "🔧" },
   { href: "/settings/mcp", label: "MCP 服务器", icon: "🔌" },
-  { href: "/settings/profile", label: "个人资料", icon: "👤" },
 ];
 
 interface SettingsLayoutProps {
@@ -28,6 +28,7 @@ interface SettingsLayoutProps {
  */
 export default function SettingsLayout({ children }: SettingsLayoutProps) {
   const { user, isAuthenticated } = useAuthContext();
+  const pathname = usePathname();
 
   return (
     <div className="flex min-h-[calc(100vh-64px)]">
@@ -60,7 +61,8 @@ export default function SettingsLayout({ children }: SettingsLayoutProps) {
                 className={cn(
                   "flex items-center gap-3 rounded-md px-3 py-2 text-sm font-medium transition-colors",
                   "hover:bg-muted hover:text-foreground",
-                  "focus:bg-muted focus:text-foreground focus:outline-none"
+                  "focus:bg-muted focus:text-foreground focus:outline-none",
+                  pathname === item.href && "bg-muted text-foreground"
                 )}
               >
                 <span>{item.icon}</span>
