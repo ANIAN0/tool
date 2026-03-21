@@ -20,6 +20,11 @@ import {
   CREATE_DOCUMENTS_TABLE,
   CREATE_INDEXES,
   CREATE_DOC_INDEXES,
+  CREATE_USER_MODELS_TABLE,
+  CREATE_USER_MODEL_INDEXES,
+  CREATE_USER_MCP_SERVERS_TABLE,
+  CREATE_MCP_TOOLS_TABLE,
+  CREATE_MCP_SERVERS_INDEXES,
 } from "../lib/db/schema";
 
 /**
@@ -74,6 +79,21 @@ async function initDatabase(db: Client): Promise<void> {
   await db.execute(CREATE_DOCUMENTS_TABLE);
   console.log("✅ documents 表创建成功");
 
+  // 6. 创建 user_models 表（用户自定义模型）
+  console.log("创建 user_models 表...");
+  await db.execute(CREATE_USER_MODELS_TABLE);
+  console.log("✅ user_models 表创建成功");
+
+  // 7. 创建 user_mcp_servers 表（MCP服务器管理）
+  console.log("创建 user_mcp_servers 表...");
+  await db.execute(CREATE_USER_MCP_SERVERS_TABLE);
+  console.log("✅ user_mcp_servers 表创建成功");
+
+  // 8. 创建 mcp_tools 表（MCP工具缓存）
+  console.log("创建 mcp_tools 表...");
+  await db.execute(CREATE_MCP_TOOLS_TABLE);
+  console.log("✅ mcp_tools 表创建成功");
+
   console.log("\n");
 }
 
@@ -100,6 +120,26 @@ async function createIndexes(db: Client): Promise<void> {
       console.log(`✅ 文档索引创建成功: ${sql.substring(0, 60)}...`);
     } catch (error) {
       console.log(`⚠️ 文档索引创建跳过: ${sql.substring(0, 60)}...`);
+    }
+  }
+
+  // 创建用户模型索引
+  for (const sql of CREATE_USER_MODEL_INDEXES) {
+    try {
+      await db.execute(sql);
+      console.log(`✅ 用户模型索引创建成功: ${sql.substring(0, 60)}...`);
+    } catch (error) {
+      console.log(`⚠️ 用户模型索引创建跳过: ${sql.substring(0, 60)}...`);
+    }
+  }
+
+  // 创建MCP服务器相关索引
+  for (const sql of CREATE_MCP_SERVERS_INDEXES) {
+    try {
+      await db.execute(sql);
+      console.log(`✅ MCP索引创建成功: ${sql.substring(0, 60)}...`);
+    } catch (error) {
+      console.log(`⚠️ MCP索引创建跳过: ${sql.substring(0, 60)}...`);
     }
   }
 
@@ -190,6 +230,46 @@ async function migrateDatabase(db: Client): Promise<void> {
     }
   }
 
+  // 迁移5: 创建 user_models 表（如果不存在）
+  if (!(await tableExists(db, "user_models"))) {
+    console.log("创建 user_models 表...");
+    await db.execute(CREATE_USER_MODELS_TABLE);
+    console.log("✅ user_models 表创建成功");
+  } else {
+    console.log("✅ user_models 表已存在，跳过迁移");
+  }
+
+  // 迁移6: 创建 user_mcp_servers 表（如果不存在）
+  if (!(await tableExists(db, "user_mcp_servers"))) {
+    console.log("创建 user_mcp_servers 表...");
+    await db.execute(CREATE_USER_MCP_SERVERS_TABLE);
+    console.log("✅ user_mcp_servers 表创建成功");
+  } else {
+    console.log("✅ user_mcp_servers 表已存在，跳过迁移");
+  }
+
+  // 迁移7: 创建 mcp_tools 表（如果不存在）
+  if (!(await tableExists(db, "mcp_tools"))) {
+    console.log("创建 mcp_tools 表...");
+    await db.execute(CREATE_MCP_TOOLS_TABLE);
+    console.log("✅ mcp_tools 表创建成功");
+  } else {
+    console.log("✅ mcp_tools 表已存在，跳过迁移");
+  }
+
+  // 迁移8: 添加 headers 字段到 user_mcp_servers 表（用于存储自定义请求头）
+  if (await tableExists(db, "user_mcp_servers")) {
+    if (!(await columnExists(db, "user_mcp_servers", "headers"))) {
+      console.log("添加 headers 字段到 user_mcp_servers 表...");
+      await db.execute(
+        "ALTER TABLE user_mcp_servers ADD COLUMN headers TEXT"
+      );
+      console.log("✅ headers 字段添加成功");
+    } else {
+      console.log("✅ headers 字段已存在，跳过迁移");
+    }
+  }
+
   console.log("\n");
 }
 
@@ -199,7 +279,16 @@ async function migrateDatabase(db: Client): Promise<void> {
 async function showDatabaseStatus(db: Client): Promise<void> {
   console.log("=== 数据库状态 ===\n");
 
-  const tables = ["users", "conversations", "messages", "folders", "documents"];
+  const tables = [
+    "users",
+    "conversations",
+    "messages",
+    "folders",
+    "documents",
+    "user_models",
+    "user_mcp_servers",
+    "mcp_tools",
+  ];
 
   for (const table of tables) {
     const exists = await tableExists(db, table);
