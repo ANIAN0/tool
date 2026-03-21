@@ -7,6 +7,7 @@
 
 import { useCallback, useEffect, useState } from "react";
 import { useRouter } from "next/navigation";
+import { getAnonId } from "@/lib/anon-id";
 
 // 用户信息类型
 export interface AuthUser {
@@ -85,16 +86,6 @@ function getTokensFromStorage(): CachedTokens {
   cacheInitialized = true;
 
   return tokensCache;
-}
-
-/**
- * 获取存储的匿名用户ID
- * 优先从 localStorage 获取，其次 sessionStorage
- */
-function getStoredAnonymousId(): string | null {
-  if (typeof window === "undefined") return null;
-  return localStorage.getItem("anonymous_user_id") ||
-         sessionStorage.getItem("anonymous_user_id");
 }
 
 /**
@@ -206,7 +197,7 @@ export function useAuth() {
   useEffect(() => {
     const initAuth = async () => {
       // 获取匿名用户ID
-      setAnonymousId(getStoredAnonymousId());
+      setAnonymousId(getAnonId());
 
       const { accessToken } = loadTokens();
 
@@ -288,10 +279,18 @@ export function useAuth() {
 
   // 获取认证头（用于API请求）
   const getAuthHeader = useCallback((): Record<string, string> => {
+    // 已登录用户使用 JWT Token
     const { accessToken } = state;
     if (accessToken) {
       return { Authorization: `Bearer ${accessToken}` };
     }
+
+    // 未登录用户使用匿名 ID
+    const anonId = getAnonId();
+    if (anonId) {
+      return { "X-Anonymous-Id": anonId };
+    }
+
     return {};
   }, [state]);
 
