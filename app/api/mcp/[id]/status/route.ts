@@ -7,104 +7,101 @@ import { type NextRequest, NextResponse } from "next/server";
 import { getDb } from "@/lib/db/client";
 import { authenticateRequest } from "@/lib/auth/middleware";
 import type { McpStatusResult } from "@/lib/db/schema";
+import { createMCPClient } from "@ai-sdk/mcp";
 
 /**
  * 检查MCP服务器连接状态
- * 尝试连接服务器并返回状态信息
+ * 使用 @ai-sdk/mcp SDK 尝试连接服务器并返回状态信息
  * @param url - MCP服务器URL
+ * @param headers - 可选的自定义请求头
  * @returns 状态检查结果
  */
-async function checkMcpServerStatus(url: string): Promise<McpStatusResult> {
+async function checkMcpServerStatus(
+  url: string,
+  headers?: Record<string, string>
+): Promise<McpStatusResult> {
   const startTime = Date.now();
+  let mcpClient: { tools: () => Promise<unknown>; close: () => Promise<void> } | null = null;
 
   try {
-    // 尝试连接MCP服务器的根路径或健康检查端点
-    // MCP Streamable HTTP服务器通常支持GET请求获取服务器信息
-    const controller = new AbortController();
-    const timeoutId = setTimeout(() => controller.abort(), 10000); // 10秒超时
-
-    const response = await fetch(url, {
-      method: "GET",
-      signal: controller.signal,
-      headers: {
-        Accept: "application/json",
+    // 使用 @ai-sdk/mcp SDK 创建客户端
+    // SDK 会自动处理完整的协议握手流程（initialize → initialized → tools/list）
+    mcpClient = await createMCPClient({
+      transport: {
+        type: "http",
+        url,
+        headers,  // 传递自定义 headers
       },
     });
 
-    clearTimeout(timeoutId);
+    // SDK 内部已经完成了 initialize 和 notifications/initialized
+    // 现在可以直接获取工具列表
+    const tools = await mcpClient.tools();
     const responseTime = Date.now() - startTime;
 
-    if (response.ok) {
-      return {
-        online: true,
-        responseTime,
-      };
-    }
-
-    // 服务器响应但返回错误状态码
     return {
-      online: false,
-      error: `服务器返回错误: ${response.status} ${response.statusText}`,
+      online: true,
       responseTime,
+      toolsCount: Object.keys(tools).length,
     };
   } catch (error) {
     const responseTime = Date.now() - startTime;
-
-    // 处理超时错误
-    if (error instanceof Error && error.name === "AbortError") {
-      return {
-        online: false,
-        error: "连接超时（超过10秒）",
-        responseTime,
-      };
-    }
-
-    // 处理其他连接错误
     return {
       online: false,
       error: error instanceof Error ? error.message : "未知错误",
       responseTime,
     };
+  } finally {
+    // 确保关闭客户端
+    if (mcpClient) {
+      await mcpClient.close();
+    }
   }
 }
 
 /**
  * 从MCP服务器获取工具列表
- * 实际实现需要调用MCP的tool/list方法
+ * 使用 @ai-sdk/mcp SDK 获取工具列表
  * @param url - MCP服务器URL
+ * @param headers - 可选的自定义请求头
  * @returns 工具列表
  */
-async function fetchMcpTools(url: string): Promise<Array<{ name: string; description?: string; inputSchema?: unknown }>> {
-  try {
-    // MCP协议中，tool/list通常通过POST请求到服务器端点
-    // 实际实现需要根据具体的MCP服务器协议调整
-    const controller = new AbortController();
-    const timeoutId = setTimeout(() => controller.abort(), 10000);
+async function fetchMcpTools(
+  url: string,
+  headers?: Record<string, string>
+): Promise<Array<{ name: string; description?: string; inputSchema?: unknown }>> {
+  let mcpClient: { tools: () => Promise<unknown>; close: () => Promise<void> } | null = null;
 
-    const response = await fetch(url, {
-      method: "POST",
-      signal: controller.signal,
-      headers: {
-        "Content-Type": "application/json",
-        Accept: "application/json",
+  try {
+    mcpClient = await createMCPClient({
+      transport: {
+        type: "http",
+        url,
+        headers,
       },
-      body: JSON.stringify({
-        method: "tools/list",
-      }),
     });
 
-    clearTimeout(timeoutId);
+    const tools = await mcpClient.tools();
 
-    if (!response.ok) {
-      return [];
+    // 转换 SDK 返回的工具格式为项目需要的格式
+    const toolsArray: Array<{ name: string; description?: string; inputSchema?: unknown }> = [];
+
+    for (const [name, tool] of Object.entries(tools as Record<string, { description?: string; inputSchema?: unknown }>)) {
+      toolsArray.push({
+        name,
+        description: tool.description,
+        inputSchema: tool.inputSchema,
+      });
     }
 
-    const data = await response.json();
-    // MCP协议返回的工具列表格式
-    return data.tools || [];
-  } catch {
-    // 获取工具列表失败时不阻塞，返回空数组
+    return toolsArray;
+  } catch (error) {
+    console.error("获取MCP工具列表失败:", error);
     return [];
+  } finally {
+    if (mcpClient) {
+      await mcpClient.close();
+    }
   }
 }
 
@@ -139,10 +136,12 @@ async function updateServerStatus(
  */
 async function syncMcpTools(
   serverId: string,
-  tools: Array<{ name: string; description?: string; inputSchema?: unknown }>
+  tools: Array<{ name: string; description?: string; inputSchema?: unknown; parameters?: unknown }>
 ): Promise<void> {
   const client = getDb();
   const now = Date.now();
+
+  console.log(`同步 ${tools.length} 个工具到数据库，服务器ID: ${serverId}`);
 
   // 获取现有工具
   const existingResult = await client.execute({
@@ -153,6 +152,8 @@ async function syncMcpTools(
   const existingNames = new Set(existingResult.rows.map((row) => String(row.name)));
   const newNames = new Set(tools.map((t) => t.name));
 
+  console.log(`现有工具: ${existingNames.size} 个，新工具: ${newNames.size} 个`);
+
   // 删除不再存在的工具
   const toDelete = [...existingNames].filter((name) => !newNames.has(name));
   if (toDelete.length > 0) {
@@ -162,15 +163,18 @@ async function syncMcpTools(
         args: [serverId, name],
       });
     }
+    console.log(`删除 ${toDelete.length} 个不再存在的工具`);
   }
 
   // 更新或插入工具
   for (const tool of tools) {
     const name = tool.name;
     const description = tool.description || "";
-    const inputSchema = tool.inputSchema
-      ? JSON.stringify(tool.inputSchema)
-      : JSON.stringify({ type: "object", properties: {} });
+    // 兼容两种可能的字段名：inputSchema (MCP) 或 parameters (OpenAI风格)
+    const schema = tool.inputSchema || tool.parameters || { type: "object", properties: {} };
+    const inputSchema = JSON.stringify(schema);
+
+    console.log(`处理工具: ${name}, 描述: ${description.slice(0, 50)}...`);
 
     if (existingNames.has(name)) {
       // 更新现有工具
@@ -200,6 +204,7 @@ async function syncMcpTools(
           now,
         ],
       });
+      console.log(`插入新工具: ${name}`);
     }
   }
 
@@ -214,6 +219,8 @@ async function syncMcpTools(
       args: [now, serverId, ...tools.map((t) => t.name)],
     });
   }
+
+  console.log(`工具同步完成`);
 }
 
 /**
@@ -253,7 +260,7 @@ export async function GET(
     // 查询服务器URL和启用状态
     const result = await client.execute({
       sql: `
-        SELECT url, is_enabled FROM user_mcp_servers
+        SELECT url, is_enabled, headers FROM user_mcp_servers
         WHERE id = ? AND user_id = ?
       `,
       args: [id, userId],
@@ -269,6 +276,9 @@ export async function GET(
     const row = result.rows[0];
     const url = String(row.url);
     const isEnabled = Boolean(row.is_enabled);
+    // 从数据库解析 headers（存储为 JSON 字符串）
+    const headersJson = row.headers ? String(row.headers) : null;
+    const headers = headersJson ? JSON.parse(headersJson) : undefined;
 
     // 如果服务器被禁用，直接返回离线状态
     if (!isEnabled) {
@@ -279,12 +289,12 @@ export async function GET(
       });
     }
 
-    // 检查服务器状态
-    const statusResult = await checkMcpServerStatus(url);
+    // 检查服务器状态，传递 headers 支持认证
+    const statusResult = await checkMcpServerStatus(url, headers);
 
     if (statusResult.online) {
-      // 服务器在线，获取工具列表
-      const tools = await fetchMcpTools(url);
+      // 服务器在线，获取工具列表，传递 headers
+      const tools = await fetchMcpTools(url, headers);
 
       // 同步工具到数据库
       await syncMcpTools(id, tools);
