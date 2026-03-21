@@ -5,7 +5,7 @@
 
 import { type NextRequest, NextResponse } from "next/server";
 import { getDb } from "@/lib/db/client";
-import { authenticateRequest } from "@/lib/auth/middleware";
+import { authenticateRequestOptional } from "@/lib/auth/middleware";
 import type { McpStatusResult } from "@/lib/db/schema";
 import { createMCPClient } from "@ai-sdk/mcp";
 
@@ -251,8 +251,8 @@ export async function GET(
   request: NextRequest,
   { params }: { params: Promise<{ id: string }> }
 ) {
-  // 验证用户身份
-  const authResult = await authenticateRequest(request);
+  // 验证用户身份（支持匿名用户）
+  const authResult = await authenticateRequestOptional(request);
   if (!authResult.success) {
     return NextResponse.json(
       { error: authResult.error },

@@ -5,7 +5,7 @@
 
 import { type NextRequest, NextResponse } from "next/server";
 import { getDb } from "@/lib/db/client";
-import { authenticateRequest } from "@/lib/auth/middleware";
+import { authenticateRequestOptional } from "@/lib/auth/middleware";
 import type { McpServer, CreateMcpServerParams, McpStatus } from "@/lib/db/schema";
 import { generateId } from "@/lib/utils";
 
@@ -28,8 +28,8 @@ function isValidUrl(url: string): boolean {
  * GET /api/mcp
  */
 export async function GET(request: NextRequest) {
-  // 验证用户身份
-  const authResult = await authenticateRequest(request);
+  // 验证用户身份（支持匿名用户）
+  const authResult = await authenticateRequestOptional(request);
   if (!authResult.success) {
     return NextResponse.json(
       { error: authResult.error },
@@ -93,8 +93,8 @@ export async function GET(request: NextRequest) {
  * POST /api/mcp
  */
 export async function POST(request: NextRequest) {
-  // 验证用户身份
-  const authResult = await authenticateRequest(request);
+  // 验证用户身份（支持匿名用户）
+  const authResult = await authenticateRequestOptional(request);
   if (!authResult.success) {
     return NextResponse.json(
       { error: authResult.error },
