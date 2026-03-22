@@ -73,13 +73,48 @@
 |------|--------|------|
 | sessionId | 代码 | = conversationId |
 | userId | 代码 | = 当前登录用户ID |
-| command/path/content | Agent | AI生成 |
+| command/relativePath/content | Agent | AI生成 |
 
 ### 3.3 自动重建机制
 
 1. 用户数据持久化在磁盘，不随会话销毁
 2. 调用exec时自动激活会话（创建VM，加载数据）
 3. AgentChat API对调用方透明
+
+### 3.4 并发处理策略
+
+**同一用户多会话并发：**
+- 允许同一用户在不同对话（不同sessionId）中并发访问
+- 每个会话独立的VM实例，互不影响
+- 用户数据共享同一工作空间，采用文件锁机制避免冲突
+
+**文件锁机制：**
+```typescript
+// 写操作前获取排他锁
+const lockPath = `${userDir}/.locks/${relativePath}.lock`;
+await acquireLock(lockPath, { exclusive: true });
+// 操作完成后释放锁
+await releaseLock(lockPath);
+```
+
+### 3.5 会话状态持久化
+
+Gateway服务重启后的恢复机制：
+
+1. **用户数据**：存储在磁盘 `/var/lib/zeroboot/users/`，不受影响
+2. **会话状态**：存储在内存，重启后丢失
+3. **恢复流程**：新请求到达时，自动重新激活会话（从磁盘加载数据）
+
+**可选优化**：使用Redis持久化会话状态（生产环境建议）
+
+```typescript
+// Redis存储会话状态
+await redis.set(`session:${sessionId}`, JSON.stringify({
+  userId,
+  status: 'idle',  // 重启后默认为idle
+  lastActivity: Date.now(),
+}));
+```
 
 ## 4. API设计
 
@@ -151,15 +186,50 @@
 
 ## 5. AgentChat API实现
 
-### 5.1 SandboxSessionManager
+### 5.1 配置管理
+
+所有配置项统一管理，避免重复定义：
+
+```typescript
+// lib/sandbox/config.ts
+
+export const SANDBOX_CONFIG = {
+  // 从环境变量读取，统一配置源
+  gatewayUrl: process.env.SANDBOX_GATEWAY_URL || 'http://sandbox-server:8080',
+  apiKey: process.env.SANDBOX_API_KEY || '',
+  idleTimeoutMs: parseInt(process.env.SANDBOX_IDLE_TIMEOUT_MS || '1800000'), // 30分钟
+  requestTimeoutMs: parseInt(process.env.SANDBOX_REQUEST_TIMEOUT_MS || '60000'), // 60秒
+};
+```
+
+### 5.2 SandboxSessionManager
 
 ```typescript
 // lib/sandbox/session-manager.ts
 
+import { SANDBOX_CONFIG } from './config';
+
+// 全局单例实例
+let instance: SandboxSessionManager | null = null;
+
+/**
+ * 获取SandboxSessionManager单例
+ */
+export function getSandboxManager(): SandboxSessionManager {
+  if (!instance) {
+    instance = new SandboxSessionManager();
+  }
+  return instance;
+}
+
 export class SandboxSessionManager {
   private gatewayUrl: string;
   private apiKey: string;
-  private readonly IDLE_TIMEOUT = 30 * 60 * 1000;
+
+  constructor() {
+    this.gatewayUrl = SANDBOX_CONFIG.gatewayUrl;
+    this.apiKey = SANDBOX_CONFIG.apiKey;
+  }
 
   /**
    * 执行命令（自动激活会话）
@@ -177,7 +247,7 @@ export class SandboxSessionManager {
   async readFile(params: {
     sessionId: string;
     userId: string;
-    path: string;
+    relativePath: string;  // 相对于工作空间的路径
   }): Promise<string>;
 
   /**
@@ -186,7 +256,7 @@ export class SandboxSessionManager {
   async writeFile(params: {
     sessionId: string;
     userId: string;
-    path: string;
+    relativePath: string;  // 相对于工作空间的路径
     content: string;
   }): Promise<void>;
 
@@ -197,13 +267,14 @@ export class SandboxSessionManager {
 }
 ```
 
-### 5.2 内置工具定义
+### 5.3 内置工具定义
 
 ```typescript
 // lib/sandbox/tools.ts
 
 import { tool } from 'ai';
 import { z } from 'zod';
+import { getSandboxManager } from './session-manager';
 
 /**
  * bash工具 - 在沙盒中执行命令
@@ -215,6 +286,8 @@ export const bashTool = tool({
   }),
   execute: async ({ command }, context) => {
     const { conversationId, userId } = context;
+    // 获取沙盒管理器单例
+    const sandboxManager = getSandboxManager();
     return sandboxManager.exec({
       sessionId: conversationId,
       userId,
@@ -230,14 +303,15 @@ export const bashTool = tool({
 export const readFileTool = tool({
   description: '读取沙盒工作空间中的文件内容',
   parameters: z.object({
-    path: z.string().describe('文件路径（相对于工作空间）'),
+    relativePath: z.string().describe('文件路径（相对于工作空间）'),
   }),
-  execute: async ({ path }, context) => {
+  execute: async ({ relativePath }, context) => {
     const { conversationId, userId } = context;
+    const sandboxManager = getSandboxManager();
     return sandboxManager.readFile({
       sessionId: conversationId,
       userId,
-      path,
+      relativePath,
     });
   },
 });
@@ -248,15 +322,16 @@ export const readFileTool = tool({
 export const writeFileTool = tool({
   description: '写入文件到沙盒工作空间',
   parameters: z.object({
-    path: z.string().describe('文件路径（相对于工作空间）'),
+    relativePath: z.string().describe('文件路径（相对于工作空间）'),
     content: z.string().describe('文件内容'),
   }),
-  execute: async ({ path, content }, context) => {
+  execute: async ({ relativePath, content }, context) => {
     const { conversationId, userId } = context;
+    const sandboxManager = getSandboxManager();
     return sandboxManager.writeFile({
       sessionId: conversationId,
       userId,
-      path,
+      relativePath,
       content,
     });
   },
@@ -292,10 +367,40 @@ const agentInstance = new ToolLoopAgent({
 
 ## 6. Gateway实现
 
-### 6.1 会话服务
+### 6.1 配置管理
+
+```typescript
+// Gateway src/config/index.ts
+
+export const config = {
+  gateway: {
+    port: parseInt(process.env.GATEWAY_PORT || '8080'),
+  },
+  zeroboot: {
+    url: process.env.ZERBOOT_URL || 'http://127.0.0.1:8081',
+    timeout: parseInt(process.env.ZERBOOT_TIMEOUT_MS || '60000'),
+  },
+  session: {
+    idleTimeoutMs: parseInt(process.env.IDLE_TIMEOUT_MS || '1800000'), // 30分钟
+  },
+  storage: {
+    userDataRoot: process.env.USER_DATA_ROOT || '/var/lib/zeroboot/users',
+  },
+  security: {
+    apiKey: process.env.API_KEY || '',
+    maxCodeSize: parseInt(process.env.MAX_CODE_SIZE || '1048576'), // 1MB
+    maxFileSize: parseInt(process.env.MAX_FILE_SIZE || '10485760'), // 10MB
+    maxStoragePerUser: parseInt(process.env.MAX_STORAGE_PER_USER || '1073741824'), // 1GB
+  },
+};
+```
+
+### 6.2 会话服务
 
 ```typescript
 // Gateway src/services/session.ts
+
+import { config } from '../config';
 
 interface SessionState {
   sessionId: string;
@@ -307,7 +412,8 @@ interface SessionState {
 
 class SessionService {
   private sessions: Map<string, SessionState> = new Map();
-  private readonly IDLE_TIMEOUT = 30 * 60 * 1000;
+  // 使用统一配置
+  private readonly IDLE_TIMEOUT = config.session.idleTimeoutMs;
 
   /**
    * 获取或创建会话
@@ -378,10 +484,14 @@ class SessionService {
 }
 ```
 
-### 6.2 执行服务
+### 6.3 执行服务
 
 ```typescript
 // Gateway src/services/exec.ts
+
+import * as path from 'path';
+import * as fs from 'fs/promises';
+import { config } from '../config';
 
 class ExecService {
   /**
@@ -410,11 +520,51 @@ class ExecService {
   }
 
   /**
+   * 验证路径安全性
+   * 防止路径遍历攻击
+   */
+  private validatePath(userDir: string, relativePath: string): string {
+    // 规范化路径
+    const normalizedRelative = path.normalize(relativePath);
+
+    // 检查是否包含危险路径片段
+    if (normalizedRelative.startsWith('..') || path.isAbsolute(normalizedRelative)) {
+      throw new Error('Invalid path: path traversal detected');
+    }
+
+    // 构建完整路径
+    const fullPath = path.join(userDir, 'workspace', normalizedRelative);
+
+    // 再次验证最终路径在工作空间内
+    const workspaceDir = path.join(userDir, 'workspace');
+    if (!fullPath.startsWith(workspaceDir)) {
+      throw new Error('Invalid path: path escapes workspace');
+    }
+
+    return fullPath;
+  }
+
+  /**
    * 读取文件
    */
-  async readFile(sessionId: string, userId: string, path: string): Promise<string> {
+  async readFile(sessionId: string, userId: string, relativePath: string): Promise<string> {
     const userDir = this.getUserDir(userId);
-    const filePath = path.join(userDir, 'workspace', path);
+
+    // 验证路径安全性
+    const filePath = this.validatePath(userDir, relativePath);
+
+    // 检查文件是否存在
+    try {
+      await fs.access(filePath);
+    } catch {
+      throw new Error(`File not found: ${relativePath}`);
+    }
+
+    // 检查文件大小
+    const stats = await fs.stat(filePath);
+    if (stats.size > config.security.maxFileSize) {
+      throw new Error(`File too large: max ${config.security.maxFileSize} bytes`);
+    }
 
     return fs.readFile(filePath, 'utf-8');
   }
@@ -425,14 +575,59 @@ class ExecService {
   async writeFile(
     sessionId: string,
     userId: string,
-    path: string,
+    relativePath: string,
     content: string
   ): Promise<void> {
     const userDir = this.getUserDir(userId);
-    const filePath = path.join(userDir, 'workspace', path);
 
+    // 验证路径安全性
+    const filePath = this.validatePath(userDir, relativePath);
+
+    // 检查内容大小
+    if (content.length > config.security.maxFileSize) {
+      throw new Error(`Content too large: max ${config.security.maxFileSize} bytes`);
+    }
+
+    // 检查用户存储配额
+    await this.checkStorageQuota(userDir, content.length);
+
+    // 创建目录并写入文件
     await fs.mkdir(path.dirname(filePath), { recursive: true });
-    await fs.writeFile(filePath, content);
+    await fs.writeFile(filePath, content, 'utf-8');
+  }
+
+  /**
+   * 检查存储配额
+   */
+  private async checkStorageQuota(userDir: string, additionalBytes: number): Promise<void> {
+    const workspaceDir = path.join(userDir, 'workspace');
+    const currentSize = await this.getDirSize(workspaceDir);
+
+    if (currentSize + additionalBytes > config.security.maxStoragePerUser) {
+      throw new Error(`Storage quota exceeded: max ${config.security.maxStoragePerUser} bytes`);
+    }
+  }
+
+  /**
+   * 计算目录大小
+   */
+  private async getDirSize(dirPath: string): Promise<number> {
+    let size = 0;
+    try {
+      const entries = await fs.readdir(dirPath, { withFileTypes: true });
+      for (const entry of entries) {
+        const fullPath = path.join(dirPath, entry.name);
+        if (entry.isDirectory()) {
+          size += await this.getDirSize(fullPath);
+        } else {
+          const stats = await fs.stat(fullPath);
+          size += stats.size;
+        }
+      }
+    } catch {
+      // 目录不存在，返回0
+    }
+    return size;
   }
 }
 ```
@@ -537,7 +732,98 @@ LOG_LEVEL=info
 - 平均执行时间
 - 错误率
 
-## 10. 变更记录
+## 10. Zeroboot API 参考
+
+### 10.1 核心接口
+
+| 方法 | 接口 | 说明 |
+|------|------|------|
+| POST | `/v1/exec` | 在VM中执行代码 |
+| GET | `/health` | 健康检查 |
+
+### 10.2 执行接口详情
+
+**POST /v1/exec**
+
+```typescript
+// 请求
+{
+  "code": "string",      // 要执行的代码
+  "language": "bash" | "python" | "node",  // 语言类型
+  "timeout_seconds": 30, // 超时时间（可选）
+}
+
+// 响应
+{
+  "stdout": "string",    // 标准输出
+  "stderr": "string",    // 标准错误
+  "exit_code": 0,        // 退出码
+  "exec_time_ms": 150,   // 执行时间
+}
+```
+
+### 10.3 VM管理
+
+Zeroboot使用内存快照技术实现快速VM创建（~0.8ms/fork）：
+
+- 预热模板：启动时加载基础VM镜像
+- Fork创建：基于CoW的快速实例化
+- 自动清理：执行完成后自动销毁
+
+### 10.4 参考文档
+
+- Zeroboot GitHub: https://github.com/anthropics/zeroboot
+- API文档：见沙盒服务部署实施文档 `docs/功能开发/沙盒服务部署实施文档.md`
+
+## 11. 安全加固
+
+### 11.1 资源配额
+
+| 资源 | 限制 | 配置项 |
+|------|------|--------|
+| 单文件大小 | 10 MB | `MAX_FILE_SIZE` |
+| 单次代码大小 | 1 MB | `MAX_CODE_SIZE` |
+| 用户存储空间 | 1 GB | `MAX_STORAGE_PER_USER` |
+| 执行超时 | 60 秒 | `ZERBOOT_TIMEOUT_MS` |
+| VM内存 | 512 MB | Zeroboot配置 |
+| VM CPU | 1 核 | Zeroboot配置 |
+
+### 11.2 代码执行限制
+
+```typescript
+// Gateway src/utils/security.ts
+
+// 禁止的危险命令模式
+const FORBIDDEN_PATTERNS = [
+  /rm\s+-rf\s+\//,                    // 根目录删除
+  /mkfs/,                             // 格式化
+  /dd\s+if=/,                         // 直接磁盘操作
+  /:(){ :|:& };:/,                   // Fork炸弹
+  /curl\s+.+\|\s*(bash|sh)/,         // 远程脚本执行
+  /wget\s+.+\|\s*(bash|sh)/,
+  /sudo\s+/,                          // 提权
+];
+
+function validateCode(code: string): void {
+  for (const pattern of FORBIDDEN_PATTERNS) {
+    if (pattern.test(code)) {
+      throw new Error(`Forbidden command pattern detected`);
+    }
+  }
+}
+```
+
+### 11.3 网络安全
+
+```bash
+# 仅允许Agent服务器IP访问Gateway
+sudo ufw allow from <agent-server-ip> to any port 8080
+
+# Zeroboot仅本地访问
+# 默认绑定 127.0.0.1:8081
+```
+
+## 12. 变更记录
 
 | 版本 | 日期 | 变更内容 |
 |------|------|---------|
