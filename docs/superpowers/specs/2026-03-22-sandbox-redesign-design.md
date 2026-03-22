@@ -332,40 +332,33 @@ uid_map: 0 65534 1
 gid_map: 0 65534 1
 
 # ==================== 挂载点 ====================
-# 工作空间挂载
+# 工作空间挂载（每个用户独立的 workspace）
+# 注意：使用 chroot_dir 后，mount 目标路径相对于 chroot 内部
+# rootfs 已包含最小化的二进制和库，无需额外挂载系统目录
 mount: /var/lib/sandbox/users/{USER_HASH}/workspace:/workspace:rw
 
-# 必要的系统目录 (只读)
-mount: /bin:/bin:ro
-mount: /usr:/usr:ro
-mount: /lib:/lib:ro
-mount: /lib64:/lib64:ro
-
 # ==================== seccomp 过滤 ====================
-# 安全的系统调用白名单（已移除 mount/umount/chroot/pivot_root/reboot/kexec/bpf 等危险调用）
+# 安全的系统调用白名单
+# 已移除危险调用：mount/umount/chroot/pivot_root/reboot/kexec/bpf/unshare/ptrace
 # 仅允许进程执行和文件操作所需的基础调用
-seccomp_string: "ALLOW { read, write, open, close, stat, fstat, lstat, poll, lseek, mmap, mprotect, munmap, brk, rt_sigaction, rt_sigprocmask, rt_sigreturn, ioctl, pread64, pwrite64, readv, writev, access, pipe, select, sched_yield, mremap, msync, mincore, madvise, dup, dup2, dup3, pause, getitimer, alarm, setitimer, getpid, getppid, getpgrp, getpgid, getsid, sendfile, socket, connect, accept, accept4, sendto, recvfrom, sendmsg, recvmsg, shutdown, bind, listen, getsockname, getpeername, socketpair, setsockopt, getsockopt, fork, vfork, clone, execve, exit, exit_group, wait4, waitid, kill, uname, fcntl, flock, fsync, fdatasync, truncate, ftruncate, getdents, getdents64, getcwd, chdir, fchdir, rename, renameat, renameat2, mkdir, mkdirat, rmdir, creat, link, linkat, unlink, unlinkat, symlink, symlinkat, readlink, readlinkat, chmod, fchmod, fchmodat, chown, fchown, lchown, fchownat, umask, gettimeofday, getrlimit, getrusage, sysinfo, times, getuid, getgid, setuid, setgid, geteuid, getegid, setpgid, setreuid, setregid, getgroups, setgroups, setresuid, getresuid, setresgid, getresgid, setfsuid, setfsgid, capget, capset, rt_sigpending, rt_sigtimedwait, rt_sigqueueinfo, sigaltstack, utime, utimes, utimensat, mknod, mknodat, personality, statfs, fstatfs, getpriority, setpriority, sched_setparam, sched_getparam, sched_setscheduler, sched_getscheduler, sched_get_priority_max, sched_get_priority_min, sched_rr_get_interval, sched_setaffinity, sched_getaffinity, mlock, munlock, mlockall, munlockall, prctl, arch_prctl, gettid, readahead, setxattr, lsetxattr, fsetxattr, getxattr, lgetxattr, fgetxattr, listxattr, llistxattr, flistxattr, removexattr, lremovexattr, fremovexattr, tkill, tgkill, time, futex, set_thread_area, get_thread_area, set_robust_list, get_robust_list, remap_file_pages, set_tid_address, restart_syscall, semtimedop, fadvise64, timer_create, timer_settime, timer_gettime, timer_getoverrun, timer_delete, clock_settime, clock_gettime, clock_getres, clock_nanosleep, epoll_create, epoll_create1, epoll_ctl, epoll_wait, epoll_pwait, signalfd, signalfd4, timerfd_create, timerfd_settime, timerfd_gettime, eventfd, eventfd2, inotify_init, inotify_init1, inotify_add_watch, inotify_rm_watch, openat, newfstatat, faccessat, pselect6, ppoll, splice, tee, sync_file_range, vmsplice, fanotify_init, fanotify_mark, prlimit64, name_to_handle_at, open_by_handle_at, syncfs, sendmmsg, recvmmsg, setns, getcpu, process_vm_readv, process_vm_writev, kcmp, finit_module, sched_setattr, sched_getattr, seccomp, getrandom, memfd_create, execveat, membarrier, mlock2, copy_file_range, preadv, preadv2, pwritev, pwritev2, pkey_mprotect, pkey_alloc, pkey_free, statx, fallocate, sync, fadvise }"
+seccomp_string: "ALLOW { read, write, open, close, stat, fstat, lstat, poll, lseek, mmap, mprotect, munmap, brk, rt_sigaction, rt_sigprocmask, rt_sigreturn, ioctl, pread64, pwrite64, readv, writev, access, pipe, select, sched_yield, mremap, msync, mincore, madvise, dup, dup2, dup3, pause, getitimer, alarm, setitimer, getpid, getppid, getpgrp, getpgid, getsid, sendfile, socket, connect, accept, accept4, sendto, recvfrom, sendmsg, recvmsg, shutdown, bind, listen, getsockname, getpeername, socketpair, setsockopt, getsockopt, fork, vfork, clone, execve, exit, exit_group, wait4, waitid, kill, uname, fcntl, flock, fsync, fdatasync, truncate, ftruncate, getdents, getdents64, getcwd, chdir, fchdir, rename, renameat, renameat2, mkdir, mkdirat, rmdir, creat, link, linkat, unlink, unlinkat, symlink, symlinkat, readlink, readlinkat, chmod, fchmod, fchmodat, chown, fchown, lchown, fchownat, umask, gettimeofday, getrlimit, getrusage, sysinfo, times, getuid, getgid, setuid, setgid, geteuid, getegid, setpgid, setreuid, setregid, getgroups, setgroups, setresuid, getresuid, setresgid, getresgid, setfsuid, setfsgid, capget, capset, rt_sigpending, rt_sigtimedwait, rt_sigqueueinfo, sigaltstack, utime, utimes, utimensat, mknod, mknodat, personality, statfs, fstatfs, getpriority, setpriority, sched_setparam, sched_getparam, sched_setscheduler, sched_getscheduler, sched_get_priority_max, sched_get_priority_min, sched_rr_get_interval, sched_setaffinity, sched_getaffinity, mlock, munlock, mlockall, munlockall, prctl, arch_prctl, gettid, readahead, setxattr, lsetxattr, fsetxattr, getxattr, lgetxattr, fgetxattr, listxattr, llistxattr, flistxattr, removexattr, lremovexattr, fremovexattr, tkill, tgkill, time, futex, set_thread_area, get_thread_area, set_robust_list, get_robust_list, remap_file_pages, set_tid_address, restart_syscall, semtimedop, fadvise64, timer_create, timer_settime, timer_gettime, timer_getoverrun, timer_delete, clock_settime, clock_gettime, clock_getres, clock_nanosleep, epoll_create, epoll_create1, epoll_ctl, epoll_wait, epoll_pwait, signalfd, signalfd4, timerfd_create, timerfd_settime, timerfd_gettime, eventfd, eventfd2, inotify_init, inotify_init1, inotify_add_watch, inotify_rm_watch, openat, newfstatat, faccessat, pselect6, ppoll, splice, tee, sync_file_range, vmsplice, fanotify_init, fanotify_mark, prlimit64, name_to_handle_at, open_by_handle_at, syncfs, sendmmsg, recvmmsg, getcpu, process_vm_readv, process_vm_writev, kcmp, finit_module, sched_setattr, sched_getattr, seccomp, getrandom, memfd_create, execveat, membarrier, mlock2, copy_file_range, preadv, preadv2, pwritev, pwritev2, pkey_mprotect, pkey_alloc, pkey_free, statx, fallocate, sync, fadvise }"
 ```
 
-### 4.2 语言特定配置
+**配置说明：**
 
-```ini
-# config/languages/python.conf
-# Python 运行时额外配置
+使用 `chroot_dir` 指向最小化的 rootfs，所有必要的二进制和库已在 rootfs 创建时复制。无需额外挂载宿主机系统目录，这确保了：
+1. 隔离性：沙盒内只能访问 rootfs 中的最小化环境
+2. 安全性：无法访问宿主机的其他二进制和库
+3. 一致性：每个沙盒使用相同的最小化环境
 
-mount: /usr/bin/python3:/usr/bin/python3:ro
-mount: /usr/lib/python3:/usr/lib/python3:ro
-env: PYTHONIOENCODING=utf-8
-```
+### 4.2 语言运行时说明
 
-```ini
-# config/languages/node.conf
-# Node.js 运行时额外配置
+运行时已在 rootfs 创建时预置，无需额外配置：
+- **bash**: `/bin/bash` (已在 rootfs)
+- **Python3**: `/usr/bin/python3` + 依赖库 (已在 rootfs)
+- **Node.js**: `/usr/bin/node` + 标准库 (已在 rootfs)
 
-mount: /usr/bin/node:/usr/bin/node:ro
-mount: /usr/lib/node_modules:/usr/lib/node_modules:ro
-env: NODE_PATH=/usr/lib/node_modules
-```
+如需添加新语言支持，更新安装脚本中的 rootfs 创建部分即可。
 
 ---
 
@@ -659,6 +652,73 @@ async def cleanup_task(session_manager: SessionManager):
             print(f"[Cleanup] Removed {cleaned} expired sessions")
 ```
 
+### 6.3 用户数据生命周期管理
+
+**数据保留策略：**
+
+| 数据类型 | 保留时间 | 清理方式 |
+|---------|---------|---------|
+| 活跃用户数据 | 永久 | 用户主动删除 |
+| 闲置用户数据 | 30天 | 自动清理 |
+| 临时执行文件 | 立即 | 执行后清理 |
+
+**数据清理 API：**
+
+```http
+DELETE /api/v1/users/{userId}/data
+Authorization: Bearer <API_KEY>
+```
+
+**响应:**
+```json
+{
+  "success": true,
+  "deletedFiles": 15,
+  "freedBytes": 1048576
+}
+```
+
+**定时数据清理任务：**
+```python
+# 每天凌晨 3 点清理闲置超过 30 天的用户数据
+import os
+import shutil
+from datetime import datetime, timedelta
+
+DATA_ROOT = "/var/lib/sandbox/users"
+IDLE_DAYS = 30
+
+def cleanup_idle_user_data():
+    """清理闲置用户数据"""
+    cutoff = datetime.now() - timedelta(days=IDLE_DAYS)
+    cleaned = 0
+
+    for user_dir in os.listdir(DATA_ROOT):
+        user_path = os.path.join(DATA_ROOT, user_dir)
+        workspace = os.path.join(user_path, "workspace")
+
+        if not os.path.isdir(workspace):
+            continue
+
+        # 检查最后访问时间
+        stat = os.stat(workspace)
+        last_access = datetime.fromtimestamp(stat.st_atime)
+
+        if last_access < cutoff:
+            shutil.rmtree(user_path)
+            cleaned += 1
+            print(f"[Cleanup] Removed idle user data: {user_dir}")
+
+    return cleaned
+```
+
+**配置项：**
+```bash
+# .env
+USER_DATA_IDLE_DAYS=30    # 用户数据闲置天数阈值
+CLEANUP_HOUR=3            # 清理任务执行时间（小时）
+```
+
 ---
 
 ## 7. 部署方案
@@ -717,13 +777,13 @@ echo -e "${GREEN}✓ nsjail 安装完成${NC}"
 # 3. 创建目录结构
 echo -e "${YELLOW}[3/6] 创建目录结构...${NC}"
 mkdir -p /var/lib/sandbox/{rootfs,users}
-mkdir -p /var/lib/sandbox/rootfs/{bin,usr,lib,lib64,tmp}
-mkdir -p /etc/sandbox
+mkdir -p /var/lib/sandbox/rootfs/{bin,usr/bin,usr/lib,lib/x86_64-linux-gnu,lib64,tmp,var}
+mkdir -p /etc/sandbox/ssl
+mkdir -p /var/log/sandbox
 chmod 700 /var/lib/sandbox/users
 
 # 4. 创建最小化 rootfs（仅包含必要二进制和依赖）
 echo -e "${YELLOW}[4/6] 创建 rootfs...${NC}"
-mkdir -p /var/lib/sandbox/rootfs/{bin,usr/bin,usr/lib,lib,lib64,tmp,var}
 
 # 复制必要的 shell 和基础工具
 cp /bin/bash /var/lib/sandbox/rootfs/bin/
@@ -740,6 +800,10 @@ cp -r /usr/lib/python3* /var/lib/sandbox/rootfs/usr/lib/ 2>/dev/null || true
 # 复制 Node.js 运行时（如果安装了）
 cp /usr/bin/node /var/lib/sandbox/rootfs/usr/bin/ 2>/dev/null || true
 cp -r /usr/lib/node_modules /var/lib/sandbox/rootfs/usr/lib/ 2>/dev/null || true
+
+# 复制网络工具（curl/wget 用于网络请求）
+cp /usr/bin/curl /var/lib/sandbox/rootfs/usr/bin/ 2>/dev/null || true
+cp /usr/bin/wget /var/lib/sandbox/rootfs/usr/bin/ 2>/dev/null || true
 
 # 复制必要的共享库（使用 ldd 自动收集依赖）
 copy_deps() {
