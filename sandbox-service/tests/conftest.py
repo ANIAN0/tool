@@ -34,3 +34,16 @@ from src.services.sandbox import NsjailSandbox
 def sandbox():
     """NsjailSandbox fixture"""
     return NsjailSandbox()
+
+
+from fastapi.testclient import TestClient
+
+
+@pytest.fixture
+def client(monkeypatch):
+    """测试客户端"""
+    # 设置测试 API Key
+    monkeypatch.setenv("API_KEY", "test-api-key")
+
+    from src.main import app
+    return TestClient(app)
