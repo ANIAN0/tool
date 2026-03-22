@@ -29,7 +29,6 @@ import {
 import { nanoid } from "nanoid";
 import { wrapModelWithDevTools } from "@/lib/ai";
 import { ToolLoopAgent, stepCountIs } from "ai";
-import { createToolsFromMcpTools } from "@/lib/agents/tools";
 
 // 创建 OpenRouter provider 实例
 const openrouter = createOpenRouter({
@@ -136,8 +135,6 @@ function extractTitle(content: string): string {
  * Agent对话API路由
  */
 export async function POST(req: Request) {
-  let cleanup: (() => Promise<void>) | null = null;
-
   try {
     // 解析请求体
     const body = await req.json();
@@ -307,21 +304,19 @@ export async function POST(req: Request) {
       ignoreIncompleteToolCalls: true,
     });
 
-    // 创建工具（如果Agent有关联的工具）
-    let tools: Record<string, unknown> = {};
-    if (agent.tools && agent.tools.length > 0) {
-      // TODO: 实现从MCP工具创建工具实例
-      // const toolsResult = await createToolsFromMcpTools(agent.tools);
-      // tools = toolsResult.tools;
-      // cleanup = toolsResult.cleanup;
-    }
+    // TODO: 创建工具（如果Agent有关联的工具）
+    // 目前暂不支持工具调用，后续实现
+    // if (agent.tools && agent.tools.length > 0) {
+    //   const toolsResult = await createToolsFromMcpTools(agent.tools);
+    //   tools = toolsResult.tools;
+    //   cleanup = toolsResult.cleanup;
+    // }
 
     // 创建ToolLoopAgent实例
     const systemPrompt = agent.system_prompt || "你是一个有帮助的AI助手。";
     const agentInstance = new ToolLoopAgent({
       model: wrappedModel,
       instructions: systemPrompt,
-      tools: Object.keys(tools).length > 0 ? tools : undefined,
       stopWhen: stepCountIs(10),
     });
 
@@ -352,14 +347,6 @@ export async function POST(req: Request) {
             console.error("保存消息失败:", saveError);
           }
         }
-
-        if (cleanup) {
-          try {
-            await cleanup();
-          } catch (cleanupError) {
-            console.error("清理资源失败:", cleanupError);
-          }
-        }
       },
     });
 
@@ -369,14 +356,6 @@ export async function POST(req: Request) {
     });
   } catch (error) {
     console.error("Agent对话API错误:", error);
-
-    if (cleanup) {
-      try {
-        await cleanup();
-      } catch (cleanupError) {
-        console.error("清理资源失败:", cleanupError);
-      }
-    }
 
     return new Response(
       JSON.stringify({ error: "服务器内部错误" }),
