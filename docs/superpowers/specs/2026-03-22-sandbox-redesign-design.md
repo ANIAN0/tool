@@ -397,7 +397,41 @@ seccomp_string: "ALLOW { read, write, open, close, stat, fstat, lstat, poll, lse
 3. **API Key**：32+ 字符随机字符串
 4. **请求签名**：可选的请求时间戳防重放
 
-### 5.4 危险操作防护
+### 5.4 沙盒网络访问限制
+
+沙盒允许网络访问，但需要限制目标以防止攻击内网：
+
+```bash
+# 使用 iptables 限制沙盒网络访问
+# 仅允许访问外网（非内网 IP）
+
+# 创建沙盒网络链
+iptables -N SANDBOX_OUT
+iptables -A OUTPUT -m owner --uid-owner nobody -j SANDBOX_OUT
+
+# 允许 DNS 查询
+iptables -A SANDBOX_OUT -p udp --dport 53 -j ACCEPT
+iptables -A SANDBOX_OUT -p tcp --dport 53 -j ACCEPT
+
+# 阻止访问内网地址
+iptables -A SANDBOX_OUT -d 10.0.0.0/8 -j DROP
+iptables -A SANDBOX_OUT -d 172.16.0.0/12 -j DROP
+iptables -A SANDBOX_OUT -d 192.168.0.0/16 -j DROP
+iptables -A SANDBOX_OUT -d 127.0.0.0/8 -j DROP
+
+# 允许访问外网
+iptables -A SANDBOX_OUT -j ACCEPT
+```
+
+**可选配置：网络出口白名单**
+
+```bash
+# 仅允许访问特定域名/IP
+# 在 .env 中配置
+ALLOWED_NETWORK_TARGETS=api.openai.com,api.anthropic.com,*.github.com
+```
+
+### 5.5 危险操作防护
 
 ```python
 # 路径遍历防护
@@ -509,14 +543,26 @@ class NsjailSandbox:
         script_path: str,
         workdir: str,
         language: str,
-        timeout: int
+        timeout: int,
+        user_hash: str
     ) -> list:
-        """构建 nsjail 命令"""
+        """
+        构建 nsjail 命令
+
+        Args:
+            script_path: 脚本文件路径
+            workdir: 工作目录
+            language: 语言类型
+            timeout: 超时秒数
+            user_hash: 用户哈希（用于动态挂载）
+        """
         cmd = [
             self.nsjail_path,
             "--config", self.config_path,
             "--time_limit", str(timeout),
-            "--cwd", workdir,
+            "--cwd", "/workspace",
+            # 动态绑定用户工作空间（替代配置文件中的占位符）
+            "--bindmount", f"/var/lib/sandbox/users/{user_hash}/workspace:/workspace:rw",
         ]
 
         # 根据语言选择执行器
@@ -569,11 +615,18 @@ class SessionManager:
         self.idle_timeout = 30 * 60  # 30分钟
 
     def get_or_create(self, session_id: str, user_id: str) -> Session:
-        """获取或创建会话"""
+        """
+        获取或创建会话
+
+        安全说明：会话创建时绑定 user_id，后续访问验证归属
+        """
         now = time.time()
 
         if session_id in self.sessions:
             session = self.sessions[session_id]
+            # 验证会话归属：防止用户访问其他用户的会话
+            if session.user_id != user_id:
+                raise PermissionError(f"Session {session_id} does not belong to user {user_id}")
             session.last_activity = now
             return session
 
@@ -595,6 +648,11 @@ class SessionManager:
         )
         self.sessions[session_id] = session
         return session
+
+    def verify_ownership(self, session_id: str, user_id: str) -> bool:
+        """验证会话归属"""
+        session = self.sessions.get(session_id)
+        return session is not None and session.user_id == user_id
 
     def update_activity(self, session_id: str):
         """更新会话活动时间"""
@@ -805,6 +863,12 @@ cp -r /usr/lib/node_modules /var/lib/sandbox/rootfs/usr/lib/ 2>/dev/null || true
 cp /usr/bin/curl /var/lib/sandbox/rootfs/usr/bin/ 2>/dev/null || true
 cp /usr/bin/wget /var/lib/sandbox/rootfs/usr/bin/ 2>/dev/null || true
 
+# 复制 CA 证书（HTTPS 请求必需）
+mkdir -p /var/lib/sandbox/rootfs/etc/ssl/certs
+cp -r /etc/ssl/certs/* /var/lib/sandbox/rootfs/etc/ssl/certs/ 2>/dev/null || true
+# 确保 CA 证书文件存在
+[ -f /etc/ca-certificates.conf ] && cp /etc/ca-certificates.conf /var/lib/sandbox/rootfs/etc/ 2>/dev/null || true
+
 # 复制必要的共享库（使用 ldd 自动收集依赖）
 copy_deps() {
     local bin=$1
@@ -1013,17 +1077,27 @@ nsjail 需要特权操作，具体需要的能力：
 ```ini
 # sandbox-service.service 安全配置
 [Service]
-# nsjail 需要的能力
-AmbientCapabilities=CAP_SYS_ADMIN CAP_SYS_CHROOT CAP_SETUID CAP_SETGID CAP_NET_RAW
+# nsjail 需要的能力（CAP_NET_RAW 已移除，TCP/UDP 足够）
+AmbientCapabilities=CAP_SYS_ADMIN CAP_SYS_CHROOT CAP_SETUID CAP_SETGID
 
 # 允许这些能力但限制其他
-CapabilityBoundingSet=CAP_SYS_ADMIN CAP_SYS_CHROOT CAP_SETUID CAP_SETGID CAP_NET_RAW CAP_KILL
+CapabilityBoundingSet=CAP_SYS_ADMIN CAP_SYS_CHROOT CAP_SETUID CAP_SETGID CAP_KILL
 
 # 其他安全设置仍然有效
 ProtectSystem=strict
 ProtectHome=true
 PrivateTmp=true
 ```
+
+**能力说明：**
+
+| 能力 | 用途 | 必要性 |
+|------|------|--------|
+| `CAP_SYS_ADMIN` | 创建 namespace | ✅ 必需 |
+| `CAP_SYS_CHROOT` | chroot 操作 | ✅ 必需 |
+| `CAP_SETUID` / `CAP_SETGID` | 用户映射 | ✅ 必需 |
+| `CAP_KILL` | 终止子进程 | ✅ 必需 |
+| ~~`CAP_NET_RAW`~~ | Raw socket | ❌ 已移除（增加攻击面） |
 
 ---
 
