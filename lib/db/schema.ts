@@ -52,6 +52,14 @@ ALTER TABLE conversations ADD COLUMN is_private INTEGER DEFAULT 0;
 `;
 
 /**
+ * 迁移SQL：为现有conversations表添加source字段
+ * 用于区分对话来源：chat页面 或 agent-chat页面
+ */
+export const MIGRATION_ADD_SOURCE = `
+ALTER TABLE conversations ADD COLUMN source TEXT DEFAULT 'chat';
+`;
+
+/**
  * messages表 - 存储消息记录
  * content字段存储完整消息内容：
  * - 纯文本消息：直接存储文本字符串
@@ -116,6 +124,8 @@ export interface Conversation {
   agent_id: string;
   // 是否私有对话
   is_private: boolean;
+  // 对话来源：'chat' 或 'agent-chat'
+  source: string;
   created_at: number;
   updated_at: number;
 }
@@ -164,6 +174,8 @@ export interface CreateConversationParams {
   agentId?: string;
   // 是否私有对话，默认为 false
   isPrivate?: boolean;
+  // 对话来源，默认为 'chat'
+  source?: string;
 }
 
 /**
