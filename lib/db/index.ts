@@ -3,6 +3,7 @@ import {
   INIT_SQL,
   MIGRATION_ADD_AGENT_ID,
   MIGRATION_ADD_IS_PRIVATE,
+  MIGRATION_ADD_SOURCE,
   CREATE_USERS_TABLE,
   CREATE_FOLDERS_TABLE,
   CREATE_DOCUMENTS_TABLE,
@@ -205,6 +206,18 @@ export async function migrateDatabase(): Promise<void> {
       } else {
         console.error("创建Agent索引失败:", error);
       }
+    }
+  }
+
+  // 迁移12：添加source字段
+  try {
+    await db.execute(MIGRATION_ADD_SOURCE);
+    console.log("数据库迁移成功：已添加 source 字段");
+  } catch (error) {
+    if (String(error).includes("duplicate column")) {
+      console.log("source 字段已存在，跳过迁移");
+    } else {
+      console.error("数据库迁移失败:", error);
     }
   }
 }
