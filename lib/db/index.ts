@@ -252,3 +252,6 @@ export * from "./documents";
 
 // 导出用户模型数据访问方法
 export * from "./user-models";
+
+// 导出Agent数据访问方法
+export * from "./agents";
