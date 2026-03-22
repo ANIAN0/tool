@@ -16,3 +16,12 @@ def temp_data_root():
     """临时数据目录"""
     with tempfile.TemporaryDirectory() as tmpdir:
         yield tmpdir
+
+
+from src.services.session import SessionManager
+
+
+@pytest.fixture
+def session_manager(temp_data_root):
+    """SessionManager fixture"""
+    return SessionManager(data_root=temp_data_root)
