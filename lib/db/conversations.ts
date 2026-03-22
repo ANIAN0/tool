@@ -15,6 +15,8 @@ function rowToConversation(row: Record<string, unknown>): Conversation {
     agent_id: (row.agent_id as string) || DEFAULT_AGENT_ID,
     // is_private 默认为 false
     is_private: Boolean(row.is_private),
+    // source 默认为 'chat'（兼容旧数据）
+    source: (row.source as string) || 'chat',
     created_at: row.created_at as number,
     updated_at: row.updated_at as number,
   };
@@ -34,11 +36,13 @@ export async function createConversation(
   const agentId = params.agentId || DEFAULT_AGENT_ID;
   // 获取 isPrivate，默认为 false
   const isPrivate = params.isPrivate ? 1 : 0;
+  // 获取 source，默认为 'chat'
+  const source = params.source || 'chat';
 
   // 插入对话记录
   await db.execute({
-    sql: `INSERT INTO conversations (id, user_id, title, model, agent_id, is_private, created_at, updated_at)
-          VALUES (?, ?, ?, ?, ?, ?, ?, ?)`,
+    sql: `INSERT INTO conversations (id, user_id, title, model, agent_id, is_private, source, created_at, updated_at)
+          VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)`,
     args: [
       params.id,
       params.userId,
@@ -46,6 +50,7 @@ export async function createConversation(
       params.model ?? null,
       agentId,
       isPrivate,
+      source,
       now,
       now,
     ],
@@ -59,6 +64,7 @@ export async function createConversation(
     model: params.model ?? null,
     agent_id: agentId,
     is_private: Boolean(isPrivate),
+    source,
     created_at: now,
     updated_at: now,
   };
@@ -73,12 +79,43 @@ export async function getConversations(userId: string): Promise<Conversation[]> 
   const db = getDb();
 
   const result = await db.execute({
-    sql: `SELECT * FROM conversations 
-          WHERE user_id = ? 
+    sql: `SELECT * FROM conversations
+          WHERE user_id = ?
           ORDER BY updated_at DESC`,
     args: [userId],
   });
 
+  return result.rows.map(rowToConversation);
+}
+
+/**
+ * 获取用户的所有对话列表（支持source过滤）
+ * @param userId - 用户ID
+ * @param options - 可选的过滤选项
+ * @returns 对话列表，按更新时间倒序排列
+ */
+export async function getConversationsWithFilter(
+  userId: string,
+  options?: { source?: string }
+): Promise<Conversation[]> {
+  const db = getDb();
+
+  // 构建SQL查询
+  let sql = `SELECT * FROM conversations WHERE user_id = ?`;
+  const args: string[] = [userId];
+
+  // 如果指定了source过滤
+  if (options?.source) {
+    sql += ` AND source = ?`;
+    args.push(options.source);
+  } else {
+    // 未指定source时，兼容旧数据（source IS NULL 或 source = 'chat'）
+    sql += ` AND (source IS NULL OR source = 'chat')`;
+  }
+
+  sql += ` ORDER BY updated_at DESC`;
+
+  const result = await db.execute({ sql, args });
   return result.rows.map(rowToConversation);
 }
 
