@@ -49,11 +49,12 @@ class ExecService {
       // 构建工作目录路径
       const workdir = path.join(session.userDir, 'workspace');
 
-      // 调用Zeroboot执行
+      // 调用Zeroboot执行（传递工作目录）
       const response = await zerobootClient.post('/v1/exec', {
         code,
         language,
         timeout_seconds: 60,
+        workdir, // 工作目录：用户的workspace
       });
 
       // 更新会话活动时间
