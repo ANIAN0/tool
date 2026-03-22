@@ -1,0 +1,23 @@
+[Unit]
+Description=Zeroboot Sandboxed Execution Engine
+After=network.target
+Wants=network.target
+
+[Service]
+Type=simple
+User=zeroboot
+Group=zeroboot
+ExecStart=/usr/local/bin/zeroboot serve /var/lib/zeroboot/templates 8081
+Restart=always
+RestartSec=5
+StandardOutput=journal
+StandardError=journal
+
+# 安全加固
+NoNewPrivileges=true
+ProtectSystem=strict
+ProtectHome=true
+PrivateTmp=true
+
+[Install]
+WantedBy=multi-user.target

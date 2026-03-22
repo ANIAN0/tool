@@ -1,0 +1,29 @@
+[Unit]
+Description=Sandbox Gateway - User Management & Data Persistence
+After=network.target zeroboot.service
+Wants=zeroboot.service
+
+[Service]
+Type=simple
+User=zeroboot
+Group=zeroboot
+WorkingDirectory=/opt/sandbox-gateway
+ExecStart=/usr/bin/node /opt/sandbox-gateway/src/index.js
+Restart=always
+RestartSec=5
+StandardOutput=journal
+StandardError=journal
+Environment=NODE_ENV=production
+
+# 安全加固
+NoNewPrivileges=true
+ProtectSystem=strict
+ProtectHome=true
+PrivateTmp=true
+
+# 资源限制
+LimitNOFILE=65536
+MemoryMax=1G
+
+[Install]
+WantedBy=multi-user.target
