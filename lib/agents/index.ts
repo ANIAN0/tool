@@ -57,3 +57,14 @@ export async function createAgent(
 // 导出类型和配置
 export { getAgentConfig, getAgentList, DEFAULT_AGENT_ID, AGENTS, type AgentConfig } from './config';
 export { createToolsByTypes, type ToolType, type ToolsCreateResult } from './tools';
+
+// 导出模板相关
+export {
+  AGENT_TEMPLATES,
+  getTemplateById,
+  getTemplateList,
+  validateTemplateConfig,
+  getTemplateDefaultConfig,
+  type AgentTemplate,
+  type TemplateConfigField,
+} from './templates';
