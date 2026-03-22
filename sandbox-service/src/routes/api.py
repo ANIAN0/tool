@@ -2,7 +2,7 @@
 
 """API 路由"""
 
-from datetime import datetime
+from datetime import datetime, timezone
 from fastapi import APIRouter, Request, Depends, HTTPException
 from src.middleware.auth import verify_api_key
 from src.services.session import SessionManager
@@ -30,7 +30,7 @@ async def health_check():
     """健康检查"""
     return {
         "status": "healthy",
-        "timestamp": datetime.utcnow().isoformat() + "Z",
+        "timestamp": datetime.now(timezone.utc).isoformat().replace("+00:00", "Z"),
         "version": "1.0.0"
     }
 

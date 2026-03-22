@@ -11,6 +11,15 @@ import tempfile
 sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 
 
+@pytest.fixture(autouse=True)
+def clear_cache():
+    """每个测试前清除配置缓存，确保环境变量更改生效"""
+    from src.config import clear_settings_cache
+    clear_settings_cache()
+    yield
+    clear_settings_cache()
+
+
 @pytest.fixture
 def temp_data_root():
     """临时数据目录"""

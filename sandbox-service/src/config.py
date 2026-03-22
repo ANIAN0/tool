@@ -3,11 +3,16 @@
 """配置管理模块"""
 
 from functools import lru_cache
-from pydantic_settings import BaseSettings
+from pydantic_settings import BaseSettings, SettingsConfigDict
 
 
 class Settings(BaseSettings):
     """应用配置"""
+
+    model_config = SettingsConfigDict(
+        env_file=".env",
+        env_file_encoding="utf-8"
+    )
 
     # 服务配置
     PORT: int = 8443
@@ -34,12 +39,13 @@ class Settings(BaseSettings):
     # 日志配置
     LOG_FILE: str = "/var/log/sandbox/audit.log"
 
-    class Config:
-        env_file = ".env"
-        env_file_encoding = "utf-8"
-
 
 @lru_cache()
 def get_settings() -> Settings:
     """获取配置单例"""
     return Settings()
+
+
+def clear_settings_cache() -> None:
+    """清除配置缓存（供测试使用）"""
+    get_settings.cache_clear()
