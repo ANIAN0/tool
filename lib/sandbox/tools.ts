@@ -1,6 +1,6 @@
 // lib/sandbox/tools.ts
 
-import { tool } from 'ai';
+import { tool, ToolSet } from 'ai';
 import { z } from 'zod';
 import { getSandboxManager } from './session-manager';
 import { isSandboxEnabled } from './config';
@@ -139,9 +139,9 @@ export const writeFileTool = tool({
 
 /**
  * 获取所有沙盒工具
- * @returns 沙盒工具对象
+ * @returns 沙盒工具对象（符合ToolSet类型）
  */
-export function getSandboxTools() {
+export function getSandboxTools(): ToolSet {
   if (!isSandboxEnabled()) {
     return {};
   }

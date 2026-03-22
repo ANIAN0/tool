@@ -29,6 +29,7 @@ import {
 import { nanoid } from "nanoid";
 import { wrapModelWithDevTools } from "@/lib/ai";
 import { ToolLoopAgent, stepCountIs } from "ai";
+import { getSandboxTools } from "@/lib/sandbox";
 
 // 创建 OpenRouter provider 实例
 const openrouter = createOpenRouter({
@@ -305,18 +306,25 @@ export async function POST(req: Request) {
     });
 
     // TODO: 创建工具（如果Agent有关联的工具）
-    // 目前暂不支持工具调用，后续实现
+    // 目前暂不支持工具调用，后续实现需要：
+    // 1. 声明变量: let tools: Record<string, unknown> = {}; let cleanup: (() => Promise<void>) | null = null;
+    // 2. 取消注释以下代码块
     // if (agent.tools && agent.tools.length > 0) {
     //   const toolsResult = await createToolsFromMcpTools(agent.tools);
     //   tools = toolsResult.tools;
     //   cleanup = toolsResult.cleanup;
     // }
+    // 3. 在 ToolLoopAgent 配置中添加 tools 参数
+
+    // 创建沙盒工具
+    const sandboxTools = getSandboxTools();
 
     // 创建ToolLoopAgent实例
     const systemPrompt = agent.system_prompt || "你是一个有帮助的AI助手。";
     const agentInstance = new ToolLoopAgent({
       model: wrappedModel,
       instructions: systemPrompt,
+      tools: sandboxTools, // 添加沙盒工具
       stopWhen: stepCountIs(10),
     });
 
