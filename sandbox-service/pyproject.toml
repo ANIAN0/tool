@@ -1,0 +1,16 @@
+# sandbox-service/pyproject.toml
+
+[project]
+name = "sandbox-service"
+version = "1.0.0"
+description = "基于 nsjail 的代码沙盒服务"
+requires-python = ">=3.9"
+
+[tool.pytest.ini_options]
+asyncio_mode = "auto"
+testpaths = ["tests"]
+pythonpath = ["."]
+
+[tool.mypy]
+python_version = "3.9"
+strict = true
