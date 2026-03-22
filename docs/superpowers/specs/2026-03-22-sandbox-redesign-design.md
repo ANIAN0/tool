@@ -218,6 +218,60 @@ GET /health
 }
 ```
 
+### 3.3 错误响应格式
+
+所有 API 错误使用统一格式：
+
+```json
+{
+  "success": false,
+  "error": {
+    "code": "EXEC_TIMEOUT",
+    "message": "执行超时：命令运行超过 60 秒",
+    "details": {}
+  }
+}
+```
+
+**错误码定义：**
+
+| 错误码 | HTTP 状态码 | 说明 |
+|--------|-------------|------|
+| `UNAUTHORIZED` | 401 | API Key 无效或缺失 |
+| `INVALID_REQUEST` | 400 | 请求参数错误 |
+| `SESSION_NOT_FOUND` | 404 | 会话不存在 |
+| `EXEC_TIMEOUT` | 408 | 执行超时 |
+| `MEMORY_EXCEEDED` | 409 | 内存限制超出 |
+| `STORAGE_EXCEEDED` | 409 | 存储配额超出 |
+| `PATH_TRAVERSAL` | 403 | 路径遍历攻击检测 |
+| `LANGUAGE_NOT_SUPPORTED` | 400 | 不支持的语言 |
+| `INTERNAL_ERROR` | 500 | 内部服务错误 |
+| `RATE_LIMITED` | 429 | 请求过于频繁 |
+
+### 3.4 速率限制
+
+外网暴露的服务必须实施速率限制：
+
+| 维度 | 限制 | 说明 |
+|------|------|------|
+| IP 级别 | 100 请求/分钟 | 单个 IP 地址 |
+| API Key 级别 | 500 请求/分钟 | 单个 API Key |
+| 会话级别 | 30 次执行/分钟 | 单个会话执行次数 |
+
+超出限制返回：
+```json
+{
+  "success": false,
+  "error": {
+    "code": "RATE_LIMITED",
+    "message": "请求过于频繁，请 60 秒后重试",
+    "details": {
+      "retryAfter": 60
+    }
+  }
+}
+```
+
 ---
 
 ## 4. nsjail 配置
@@ -228,7 +282,7 @@ GET /health
 # config/nsjail.conf
 
 # ==================== 模式设置 ====================
-mode: LISTEN  # 单次执行模式
+mode: ONCE  # 单次执行模式（每次执行单独调用nsjail）
 
 # ==================== 资源限制 ====================
 # 内存限制 100MB
@@ -288,8 +342,9 @@ mount: /lib:/lib:ro
 mount: /lib64:/lib64:ro
 
 # ==================== seccomp 过滤 ====================
-# 允许的基础系统调用
-seccomp_string: "ALLOW { read, write, open, close, stat, fstat, lstat, poll, lseek, mmap, mprotect, munmap, brk, rt_sigaction, rt_sigprocmask, rt_sigreturn, ioctl, pread64, pwrite64, readv, writev, access, pipe, select, sched_yield, mremap, msync, mincore, madvise, dup, dup2, pause, getitimer, alarm, setitimer, getpid, sendfile, socket, connect, accept, sendto, recvfrom, sendmsg, recvmsg, shutdown, bind, listen, getsockname, getpeername, socketpair, setsockopt, getsockopt, fork, vfork, execve, exit, wait4, kill, uname, fcntl, flock, fsync, fdatasync, truncate, ftruncate, getdents, getcwd, chdir, fchdir, rename, mkdir, rmdir, creat, link, unlink, symlink, readlink, chmod, fchmod, chown, fchown, lchown, umask, gettimeofday, getrlimit, getrusage, sysinfo, times, getuid, getgid, setuid, setgid, geteuid, getegid, setpgid, getppid, getpgrp, setsid, setreuid, setregid, getgroups, setgroups, setresuid, getresuid, setresgid, getresgid, getpgid, setfsuid, setfsgid, getsid, capget, capset, rt_sigpending, rt_sigtimedwait, rt_sigqueueinfo, sigaltstack, utime, mknod, uselib, personality, ustat, statfs, fstatfs, sysfs, getpriority, setpriority, sched_setparam, sched_getparam, sched_setscheduler, sched_getscheduler, sched_get_priority_max, sched_get_priority_min, sched_rr_get_interval, mlock, munlock, mlockall, munlockall, vhangup, pivot_root, _sysctl, prctl, arch_prctl, adjtimex, setrlimit, chroot, sync, acct, settimeofday, mount, umount2, swapon, swapoff, reboot, sethostname, setdomainname, iopl, ioperm, create_module, init_module, delete_module, get_kernel_syms, query_module, quotactl, nfsservctl, getpmsg, putpmsg, afs_syscall, tuxcall, security, gettid, readahead, setxattr, lsetxattr, fsetxattr, getxattr, lgetxattr, fgetxattr, listxattr, llistxattr, flistxattr, removexattr, lremovexattr, fremovexattr, tkill, time, futex, sched_setaffinity, sched_getaffinity, set_thread_area, io_setup, io_destroy, io_getevents, io_submit, io_cancel, get_thread_area, epol_create, epoll_ctl, epoll_wait, remap_file_pages, getdents64, set_tid_address, restart_syscall, semtimedop, fadvise64, timer_create, timer_settime, timer_gettime, timer_getoverrun, timer_delete, clock_settime, clock_gettime, clock_getres, clock_nanosleep, exit_group, epoll_wait, epoll_ctl, tgkill, utimes, mbind, set_mempolicy, get_mempolicy, mq_open, mq_unlink, mq_timedsend, mq_timedreceive, mq_notify, mq_getsetattr, kexec_load, waitid, add_key, request_key, keyctl, ioprio_set, ioprio_get, inotify_init, inotify_add_watch, inotify_rm_watch, migrate_pages, openat, mkdirat, mknodat, fchownat, futimesat, newfstatat, unlinkat, renameat, linkat, symlinkat, readlinkat, fchmodat, faccessat, pselect6, ppoll, unshare, set_robust_list, get_robust_list, splice, tee, sync_file_range, vmsplice, move_pages, utimensat, epoll_pwait, signalfd, timerfd_create, eventfd, fallocate, timerfd_settime, timerfd_gettime, accept4, signalfd4, eventfd2, epoll_create1, dup3, pipe2, inotify_init1, preadv, pwritev, rt_tgsigqueueinfo, perf_event_open, recvmmsg, fanotify_init, fanotify_mark, prlimit64, name_to_handle_at, open_by_handle_at, clock_adjtime, syncfs, sendmmsg, setns, getcpu, process_vm_readv, process_vm_writev, kcmp, finit_module, sched_setattr, sched_getattr, renameat2, seccomp, getrandom, memfd_create, kexec_file_load, bpf, execveat, userfaultfd, membarrier, mlock2, copy_file_range, preadv2, pwritev2, pkey_mprotect, pkey_alloc, pkey_free, statx }"
+# 安全的系统调用白名单（已移除 mount/umount/chroot/pivot_root/reboot/kexec/bpf 等危险调用）
+# 仅允许进程执行和文件操作所需的基础调用
+seccomp_string: "ALLOW { read, write, open, close, stat, fstat, lstat, poll, lseek, mmap, mprotect, munmap, brk, rt_sigaction, rt_sigprocmask, rt_sigreturn, ioctl, pread64, pwrite64, readv, writev, access, pipe, select, sched_yield, mremap, msync, mincore, madvise, dup, dup2, dup3, pause, getitimer, alarm, setitimer, getpid, getppid, getpgrp, getpgid, getsid, sendfile, socket, connect, accept, accept4, sendto, recvfrom, sendmsg, recvmsg, shutdown, bind, listen, getsockname, getpeername, socketpair, setsockopt, getsockopt, fork, vfork, clone, execve, exit, exit_group, wait4, waitid, kill, uname, fcntl, flock, fsync, fdatasync, truncate, ftruncate, getdents, getdents64, getcwd, chdir, fchdir, rename, renameat, renameat2, mkdir, mkdirat, rmdir, creat, link, linkat, unlink, unlinkat, symlink, symlinkat, readlink, readlinkat, chmod, fchmod, fchmodat, chown, fchown, lchown, fchownat, umask, gettimeofday, getrlimit, getrusage, sysinfo, times, getuid, getgid, setuid, setgid, geteuid, getegid, setpgid, setreuid, setregid, getgroups, setgroups, setresuid, getresuid, setresgid, getresgid, setfsuid, setfsgid, capget, capset, rt_sigpending, rt_sigtimedwait, rt_sigqueueinfo, sigaltstack, utime, utimes, utimensat, mknod, mknodat, personality, statfs, fstatfs, getpriority, setpriority, sched_setparam, sched_getparam, sched_setscheduler, sched_getscheduler, sched_get_priority_max, sched_get_priority_min, sched_rr_get_interval, sched_setaffinity, sched_getaffinity, mlock, munlock, mlockall, munlockall, prctl, arch_prctl, gettid, readahead, setxattr, lsetxattr, fsetxattr, getxattr, lgetxattr, fgetxattr, listxattr, llistxattr, flistxattr, removexattr, lremovexattr, fremovexattr, tkill, tgkill, time, futex, set_thread_area, get_thread_area, set_robust_list, get_robust_list, remap_file_pages, set_tid_address, restart_syscall, semtimedop, fadvise64, timer_create, timer_settime, timer_gettime, timer_getoverrun, timer_delete, clock_settime, clock_gettime, clock_getres, clock_nanosleep, epoll_create, epoll_create1, epoll_ctl, epoll_wait, epoll_pwait, signalfd, signalfd4, timerfd_create, timerfd_settime, timerfd_gettime, eventfd, eventfd2, inotify_init, inotify_init1, inotify_add_watch, inotify_rm_watch, openat, newfstatat, faccessat, pselect6, ppoll, splice, tee, sync_file_range, vmsplice, fanotify_init, fanotify_mark, prlimit64, name_to_handle_at, open_by_handle_at, syncfs, sendmmsg, recvmmsg, setns, getcpu, process_vm_readv, process_vm_writev, kcmp, finit_module, sched_setattr, sched_getattr, seccomp, getrandom, memfd_create, execveat, membarrier, mlock2, copy_file_range, preadv, preadv2, pwritev, pwritev2, pkey_mprotect, pkey_alloc, pkey_free, statx, fallocate, sync, fadvise }"
 ```
 
 ### 4.2 语言特定配置
@@ -557,9 +612,51 @@ class SessionManager:
         """获取会话"""
         return self.sessions.get(session_id)
 
+    def delete_session(self, session_id: str) -> bool:
+        """删除会话（不删除用户数据）"""
+        if session_id in self.sessions:
+            del self.sessions[session_id]
+            return True
+        return False
+
+    def cleanup_expired(self) -> int:
+        """
+        清理过期会话
+        返回清理的会话数量
+        """
+        now = time.time()
+        expired = [
+            sid for sid, session in self.sessions.items()
+            if now - session.last_activity > self.idle_timeout
+        ]
+        for sid in expired:
+            del self.sessions[sid]
+        return len(expired)
+
     def _hash_user_id(self, user_id: str) -> str:
         """对用户ID进行哈希处理"""
         return hashlib.sha256(user_id.encode()).hexdigest()[:16]
+```
+
+**会话清理策略：**
+
+| 场景 | 行为 |
+|------|------|
+| 会话闲置超时 | 从内存中移除会话对象，保留用户数据 |
+| 服务重启 | 会话状态丢失，用户数据持久化在磁盘 |
+| 用户请求删除 | 清理会话，保留用户数据（可选删除） |
+
+**定时清理任务：**
+```python
+# 每 5 分钟检查过期会话
+import asyncio
+
+async def cleanup_task(session_manager: SessionManager):
+    while True:
+        await asyncio.sleep(300)  # 5分钟
+        cleaned = session_manager.cleanup_expired()
+        if cleaned > 0:
+            print(f"[Cleanup] Removed {cleaned} expired sessions")
 ```
 
 ---
@@ -624,13 +721,48 @@ mkdir -p /var/lib/sandbox/rootfs/{bin,usr,lib,lib64,tmp}
 mkdir -p /etc/sandbox
 chmod 700 /var/lib/sandbox/users
 
-# 4. 创建最小化 rootfs
+# 4. 创建最小化 rootfs（仅包含必要二进制和依赖）
 echo -e "${YELLOW}[4/6] 创建 rootfs...${NC}"
-# 复制必要的二进制和库
-cp -r /bin/* /var/lib/sandbox/rootfs/bin/
-cp -r /usr /var/lib/sandbox/rootfs/
-cp -r /lib/* /var/lib/sandbox/rootfs/lib/
-cp -r /lib64/* /var/lib/sandbox/rootfs/lib64/ 2>/dev/null || true
+mkdir -p /var/lib/sandbox/rootfs/{bin,usr/bin,usr/lib,lib,lib64,tmp,var}
+
+# 复制必要的 shell 和基础工具
+cp /bin/bash /var/lib/sandbox/rootfs/bin/
+cp /bin/sh /var/lib/sandbox/rootfs/bin/ 2>/dev/null || ln -s bash /var/lib/sandbox/rootfs/bin/sh
+cp /bin/ls /var/lib/sandbox/rootfs/bin/ 2>/dev/null || true
+cp /bin/cat /var/lib/sandbox/rootfs/bin/ 2>/dev/null || true
+cp /bin/mkdir /var/lib/sandbox/rootfs/bin/ 2>/dev/null || true
+cp /bin/rm /var/lib/sandbox/rootfs/bin/ 2>/dev/null || true
+
+# 复制 Python3 运行时
+cp /usr/bin/python3 /var/lib/sandbox/rootfs/usr/bin/
+cp -r /usr/lib/python3* /var/lib/sandbox/rootfs/usr/lib/ 2>/dev/null || true
+
+# 复制 Node.js 运行时（如果安装了）
+cp /usr/bin/node /var/lib/sandbox/rootfs/usr/bin/ 2>/dev/null || true
+cp -r /usr/lib/node_modules /var/lib/sandbox/rootfs/usr/lib/ 2>/dev/null || true
+
+# 复制必要的共享库（使用 ldd 自动收集依赖）
+copy_deps() {
+    local bin=$1
+    ldd "$bin" 2>/dev/null | grep -o '/lib[^ ]*' | while read lib; do
+        mkdir -p "/var/lib/sandbox/rootfs$(dirname "$lib")"
+        cp -n "$lib" "/var/lib/sandbox/rootfs$lib" 2>/dev/null || true
+    done
+}
+
+# 收集所有已复制二进制的依赖
+for bin in /var/lib/sandbox/rootfs/bin/* /var/lib/sandbox/rootfs/usr/bin/*; do
+    [ -x "$bin" ] && copy_deps "$bin"
+done
+
+# 复制基础运行时库
+cp /lib/x86_64-linux-gnu/libc.so.6 /var/lib/sandbox/rootfs/lib/x86_64-linux-gnu/ 2>/dev/null || true
+cp /lib/x86_64-linux-gnu/libdl.so.2 /var/lib/sandbox/rootfs/lib/x86_64-linux-gnu/ 2>/dev/null || true
+cp /lib/x86_64-linux-gnu/libpthread.so.0 /var/lib/sandbox/rootfs/lib/x86_64-linux-gnu/ 2>/dev/null || true
+cp /lib64/ld-linux-x86-64.so.2 /var/lib/sandbox/rootfs/lib64/ 2>/dev/null || true
+
+# 移除可能的 setuid 二进制（安全加固）
+find /var/lib/sandbox/rootfs -perm -4000 -exec chmod -s {} \; 2>/dev/null || true
 
 # 5. 安装 Python 服务
 echo -e "${YELLOW}[5/6] 安装 sandbox-service...${NC}"
@@ -721,6 +853,113 @@ docs/superpowers/specs/2026-03-22-sandbox-redesign-design.md
 | 资源耗尽 | 中 | 中 | 严格的 cgroup 限制 |
 | API Key 泄露 | 中 | 高 | 使用 TLS + 定期轮换 |
 | 路径遍历攻击 | 低 | 高 | 严格的路径验证 |
+
+---
+
+## 10. 前提条件
+
+### 10.1 系统要求
+
+| 组件 | 要求 | 说明 |
+|------|------|------|
+| Linux 内核 | 3.8+ | 支持 user namespace |
+| cgroup | v1 或 v2 | 资源限制 |
+| Python | 3.9+ | FastAPI 运行时 |
+| 内存 | 2GB+ | 服务器最低配置 |
+
+### 10.2 内核配置检查
+
+```bash
+# 检查 namespace 支持
+ls /proc/self/ns/
+
+# 检查 cgroup 支持
+cat /proc/filesystems | grep cgroup
+
+# 检查 user namespace（最关键）
+cat /proc/sys/kernel/unprivileged_userns_clone
+# 应返回 1 或未启用但 root 可用
+```
+
+### 10.3 必需的系统能力
+
+nsjail 需要以下 Linux capabilities：
+- `CAP_SYS_ADMIN` - 创建命名空间
+- `CAP_SYS_CHROOT` - chroot 操作
+- `CAP_SETUID` / `CAP_SETGID` - 用户映射
+
+---
+
+## 11. 日志审计设计
+
+### 11.1 审计日志格式
+
+```json
+{
+  "timestamp": "2026-03-22T10:00:00.000Z",
+  "event": "EXEC",
+  "sessionId": "session-123",
+  "userId": "user-456",
+  "language": "bash",
+  "codeSize": 128,
+  "exitCode": 0,
+  "execTimeMs": 150,
+  "clientIp": "1.2.3.4"
+}
+```
+
+### 11.2 记录的事件类型
+
+| 事件 | 说明 |
+|------|------|
+| `SESSION_CREATE` | 会话创建 |
+| `SESSION_DELETE` | 会话删除 |
+| `EXEC` | 代码执行 |
+| `FILE_READ` | 文件读取 |
+| `FILE_WRITE` | 文件写入 |
+| `AUTH_FAILURE` | 认证失败 |
+| `RATE_LIMITED` | 触发速率限制 |
+| `SECURITY_VIOLATION` | 安全违规（路径遍历等） |
+
+### 11.3 日志配置
+
+```python
+# 日志写入 /var/log/sandbox/audit.log
+# 自动轮转，保留 30 天
+
+import logging
+from logging.handlers import RotatingFileHandler
+
+audit_logger = logging.getLogger('audit')
+audit_logger.setLevel(logging.INFO)
+handler = RotatingFileHandler(
+    '/var/log/sandbox/audit.log',
+    maxBytes=100*1024*1024,  # 100MB
+    backupCount=30
+)
+audit_logger.addHandler(handler)
+```
+
+---
+
+## 12. systemd capabilities 说明
+
+nsjail 需要特权操作，具体需要的能力：
+
+```ini
+# sandbox-service.service 安全配置
+[Service]
+# nsjail 需要的能力
+AmbientCapabilities=CAP_SYS_ADMIN CAP_SYS_CHROOT CAP_SETUID CAP_SETGID CAP_NET_RAW
+
+# 允许这些能力但限制其他
+CapabilityBoundingSet=CAP_SYS_ADMIN CAP_SYS_CHROOT CAP_SETUID CAP_SETGID CAP_NET_RAW CAP_KILL
+
+# 其他安全设置仍然有效
+ProtectSystem=strict
+ProtectHome=true
+PrivateTmp=true
+```
 
 ---
 
