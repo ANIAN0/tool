@@ -32,6 +32,7 @@ import { useTools } from "@/lib/hooks/use-tools";
 import {
   getTemplateList,
   getTemplateDefaultConfig,
+  getTemplateById,
   type TemplateConfigField,
 } from "@/lib/agents/templates";
 import type { AgentWithTools } from "@/lib/db/schema";
@@ -115,13 +116,23 @@ export function AgentForm({
     if (open) {
       if (agent) {
         // 编辑模式：从agent初始化表单
+        // 辅助函数：安全解析JSON，失败时返回默认配置
+        const parseTemplateConfig = (jsonStr: string | null, templateId: string) => {
+          if (!jsonStr) return getTemplateDefaultConfig(templateId);
+          try {
+            return JSON.parse(jsonStr);
+          } catch {
+            // JSON解析失败时，返回模板默认配置
+            console.warn("模板配置JSON解析失败，使用默认配置");
+            return getTemplateDefaultConfig(templateId);
+          }
+        };
+
         setFormData({
           name: agent.name,
           description: agent.description || "",
           templateId: agent.template_id,
-          templateConfig: agent.template_config
-            ? JSON.parse(agent.template_config)
-            : getTemplateDefaultConfig(agent.template_id),
+          templateConfig: parseTemplateConfig(agent.template_config, agent.template_id),
           systemPrompt: agent.system_prompt || "",
           modelId: agent.model_id || "",
           toolIds: agent.tools.map((t) => t.id),
@@ -237,26 +248,12 @@ export function AgentForm({
    * 渲染模板配置字段
    */
   const renderTemplateConfigFields = () => {
-    // 根据模板ID获取配置字段定义
-    const template = templateList.find((t) => t.id === formData.templateId);
+    // 根据模板ID获取完整的模板定义
+    const template = getTemplateById(formData.templateId);
     if (!template) return null;
 
-    // 由于模板列表只返回简要信息，这里使用hardcoded配置字段
-    // 后续可以扩展为从模板详情获取
-    const configFields: TemplateConfigField[] =
-      formData.templateId === "basic-loop"
-        ? [
-            {
-              key: "stepCount",
-              label: "步骤上限",
-              type: "number",
-              defaultValue: 20,
-              required: true,
-              min: 1,
-              max: 100,
-            },
-          ]
-        : [];
+    // 从模板定义获取配置字段
+    const configFields = template.configFields;
 
     return configFields.map((field) => (
       <div key={field.key} className="space-y-2">

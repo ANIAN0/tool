@@ -5,7 +5,7 @@
 
 import { type NextRequest, NextResponse } from "next/server";
 import { authenticateRequest } from "@/lib/auth/middleware";
-import { setAgentPublic, isAgentCreator } from "@/lib/db/agents";
+import { setAgentPublic, isAgentCreator, getAgentById } from "@/lib/db/agents";
 
 interface RouteParams {
   params: Promise<{ id: string }>;
@@ -60,13 +60,20 @@ export async function PATCH(
       );
     }
 
-    // 返回成功响应
+    // 返回成功响应 - 包含完整的Agent信息（含工具）
+    // 使用getAgentById获取AgentWithTools，与Hook期望格式一致
+    const agentWithTools = await getAgentById(agentId, userId);
+
+    if (!agentWithTools) {
+      return NextResponse.json(
+        { success: false, error: "获取更新后的Agent失败" },
+        { status: 500 }
+      );
+    }
+
     return NextResponse.json({
       success: true,
-      data: {
-        id: updated.id,
-        isPublic: updated.is_public,
-      },
+      agent: agentWithTools,
     });
   } catch (error) {
     console.error("更新Agent公开状态失败:", error);

@@ -68,6 +68,59 @@ async function getAgentTools(agentId: string): Promise<
 }
 
 /**
+ * 批量获取多个Agent的工具信息
+ * 解决N+1查询问题
+ */
+async function getAgentsToolsBatch(agentIds: string[]): Promise<
+  Map<string, Array<{ id: string; name: string; serverName?: string }>>
+> {
+  const db = getDb();
+
+  // 如果没有Agent ID，返回空Map
+  if (agentIds.length === 0) {
+    return new Map();
+  }
+
+  // 一次性查询所有Agent的工具
+  const placeholders = agentIds.map(() => "?").join(",");
+  const result = await db.execute({
+    sql: `
+      SELECT at.agent_id, t.id, t.name, s.name as server_name
+      FROM agent_tools at
+      JOIN mcp_tools t ON at.tool_id = t.id
+      LEFT JOIN user_mcp_servers s ON t.server_id = s.id
+      WHERE at.agent_id IN (${placeholders})
+      ORDER BY t.name
+    `,
+    args: agentIds,
+  });
+
+  // 按agent_id分组
+  const toolsMap = new Map<string, Array<{ id: string; name: string; serverName?: string }>>();
+
+  for (const row of result.rows) {
+    const agentId = row.agent_id as string;
+    if (!toolsMap.has(agentId)) {
+      toolsMap.set(agentId, []);
+    }
+    toolsMap.get(agentId)!.push({
+      id: row.id as string,
+      name: row.name as string,
+      serverName: row.server_name as string | undefined,
+    });
+  }
+
+  // 确保所有Agent都有对应的条目（即使工具为空）
+  for (const id of agentIds) {
+    if (!toolsMap.has(id)) {
+      toolsMap.set(id, []);
+    }
+  }
+
+  return toolsMap;
+}
+
+/**
  * 插入Agent工具关联
  */
 async function insertAgentTools(
@@ -197,6 +250,7 @@ export async function getAgentById(
 
 /**
  * 获取用户的所有Agent
+ * 使用批量查询优化，避免N+1问题
  */
 export async function getAgentsByUserId(userId: string): Promise<AgentWithTools[]> {
   const db = getDb();
@@ -209,23 +263,26 @@ export async function getAgentsByUserId(userId: string): Promise<AgentWithTools[
     args: [userId],
   });
 
-  // 获取每个Agent的工具信息
-  const agents: AgentWithTools[] = [];
-  for (const row of result.rows) {
-    const agent = mapRowToAgent(row);
-    const tools = await getAgentTools(agent.id);
-    agents.push({
-      ...agent,
-      tools,
-    });
-  }
+  // 提取所有Agent ID
+  const agentIds = result.rows.map((row) => row.id as string);
 
-  return agents;
+  // 批量获取所有Agent的工具信息（一次性查询）
+  const toolsMap = await getAgentsToolsBatch(agentIds);
+
+  // 组装结果
+  return result.rows.map((row) => {
+    const agent = mapRowToAgent(row);
+    return {
+      ...agent,
+      tools: toolsMap.get(agent.id) || [],
+    };
+  });
 }
 
 /**
  * 获取所有公开的Agent（排除指定用户的）
  * 用于发现/市场页面
+ * 使用批量查询优化，避免N+1问题
  */
 export async function getPublicAgents(
   excludeUserId?: string
@@ -250,23 +307,24 @@ export async function getPublicAgents(
 
   const result = await db.execute({ sql, args });
 
-  // 获取每个Agent的工具信息和创建者信息
-  const agents: PublicAgentWithCreator[] = [];
-  for (const row of result.rows) {
-    const agent = mapRowToAgent(row);
-    const tools = await getAgentTools(agent.id);
+  // 提取所有Agent ID
+  const agentIds = result.rows.map((row) => row.id as string);
 
-    agents.push({
+  // 批量获取所有Agent的工具信息（一次性查询）
+  const toolsMap = await getAgentsToolsBatch(agentIds);
+
+  // 组装结果
+  return result.rows.map((row) => {
+    const agent = mapRowToAgent(row);
+    return {
       ...agent,
       creator: {
         id: agent.user_id,
         username: row.creator_username as string | null,
       },
-      tools,
-    });
-  }
-
-  return agents;
+      tools: toolsMap.get(agent.id) || [],
+    };
+  });
 }
 
 /**
