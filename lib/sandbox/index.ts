@@ -12,7 +12,9 @@ export { SANDBOX_CONFIG, validateSandboxConfig, isSandboxEnabled } from './confi
 export { SandboxSessionManager, getSandboxManager } from './session-manager';
 
 // 工具
-export { bashTool, readFileTool, writeFileTool, getSandboxTools } from './tools';
+export { getSandboxToolsWithContext, getSandboxTools } from './tools';
+// 工具上下文类型
+export type { SandboxToolContext } from './tools';
 
 // 类型
 export type {

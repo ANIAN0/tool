@@ -29,7 +29,7 @@ import {
 import { nanoid } from "nanoid";
 import { wrapModelWithDevTools } from "@/lib/ai";
 import { ToolLoopAgent, stepCountIs } from "ai";
-import { getSandboxTools } from "@/lib/sandbox";
+import { getSandboxToolsWithContext } from "@/lib/sandbox";
 
 // 创建 OpenRouter provider 实例
 const openrouter = createOpenRouter({
@@ -316,8 +316,11 @@ export async function POST(req: Request) {
     // }
     // 3. 在 ToolLoopAgent 配置中添加 tools 参数
 
-    // 创建沙盒工具
-    const sandboxTools = getSandboxTools();
+    // 创建沙盒工具（绑定会话上下文）
+    const sandboxTools = getSandboxToolsWithContext({
+      conversationId: currentConversationId!,
+      userId: userId,
+    });
 
     // 创建ToolLoopAgent实例
     const systemPrompt = agent.system_prompt || "你是一个有帮助的AI助手。";
