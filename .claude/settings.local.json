@@ -27,7 +27,12 @@
       "Bash(git write-tree:*)",
       "Bash(git -C /h/hucar/hugit/hu_coding/code/nianian/my-app add scripts/init-db.ts)",
       "Bash(git -C /h/hucar/hugit/hu_coding/code/nianian/my-app commit -m \"feat\\(mcp\\): 添加 headers 字段数据库迁移\")",
-      "Bash(git:*)"
+      "Bash(git:*)",
+      "Bash(npm test:*)",
+      "mcp__plugin_context7_context7__resolve-library-id",
+      "mcp__plugin_context7_context7__query-docs",
+      "Bash(cd:*)",
+      "Bash(find . -type f \\\\\\(-name *.ts -o -name *.tsx -o -name *.js \\\\\\) -path */lib/*)"
     ]
   }
 }
