@@ -988,12 +988,21 @@ class TestNsjailSandboxSuffix:
 - [ ] **Step 2: 添加 conftest fixture**
 
 ```python
-# 在 sandbox-service/tests/conftest.py 中添加
+# 在 sandbox-service/tests/conftest.py 中追加
+
+from src.services.sandbox import NsjailSandbox
 
 @pytest.fixture
 def sandbox():
     """NsjailSandbox fixture"""
     return NsjailSandbox()
+
+@pytest.fixture
+def temp_data_root():
+    """临时数据目录（用于沙盒测试）"""
+    import tempfile
+    with tempfile.TemporaryDirectory() as tmpdir:
+        yield tmpdir
 ```
 
 - [ ] **Step 3: 运行测试验证失败**
@@ -1211,6 +1220,10 @@ git commit -m "feat(sandbox): 实现 NsjailSandbox._build_command 方法"
 ```python
 # 在 sandbox-service/tests/test_sandbox.py 中添加
 
+import os
+from src.utils.security import hash_user_id
+
+
 class TestNsjailSandboxExec:
     """NsjailSandbox.exec 测试（模拟模式）"""
 
@@ -1218,7 +1231,7 @@ class TestNsjailSandboxExec:
     async def test_exec_creates_script_file(self, sandbox, temp_data_root):
         """测试脚本文件创建"""
         # 创建用户工作目录
-        user_hash = sandbox._hash_user_id("user-123")
+        user_hash = hash_user_id("user-123")
         workspace = os.path.join(temp_data_root, user_hash, "workspace")
         os.makedirs(workspace, exist_ok=True)
 
