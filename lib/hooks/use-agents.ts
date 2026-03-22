@@ -75,9 +75,9 @@ export interface UseAgentsReturn {
   // 操作方法
   fetchAgents: () => Promise<void>;
   createAgent: (params: CreateAgentInput) => Promise<AgentWithTools | null>;
-  updateAgent: (id: string, params: UpdateAgentInput) => Promise<AgentWithTools | null>;
+  updateAgent: (id: string, params: UpdateAgentInput) => Promise<boolean>;
   deleteAgent: (id: string) => Promise<boolean>;
-  togglePublic: (id: string) => Promise<AgentWithTools | null>;
+  togglePublic: (id: string, isPublic: boolean) => Promise<boolean>;
   refreshAgents: () => Promise<void>;
   clearError: () => void;
 }
@@ -192,10 +192,10 @@ export function useAgents(): UseAgentsReturn {
    * 更新 Agent
    * @param id - Agent ID
    * @param params - 更新参数
-   * @returns 更新后的 Agent 或 null
+   * @returns 是否更新成功
    */
   const updateAgent = useCallback(
-    async (id: string, params: UpdateAgentInput): Promise<AgentWithTools | null> => {
+    async (id: string, params: UpdateAgentInput): Promise<boolean> => {
       setError(null);
 
       try {
@@ -241,12 +241,12 @@ export function useAgents(): UseAgentsReturn {
           setPublicAgents((prev) => prev.filter((a) => a.id !== id));
         }
 
-        return data.agent;
+        return true;
       } catch (err) {
         // 设置错误信息
         setError(err instanceof Error ? err.message : "更新 Agent 失败");
         console.error("更新 Agent 失败:", err);
-        return null;
+        return false;
       }
     },
     [getAuthHeader]
@@ -296,10 +296,11 @@ export function useAgents(): UseAgentsReturn {
   /**
    * 切换 Agent 公开状态
    * @param id - Agent ID
-   * @returns 更新后的 Agent 或 null
+   * @param isPublic - 目标公开状态
+   * @returns 是否操作成功
    */
   const togglePublic = useCallback(
-    async (id: string): Promise<AgentWithTools | null> => {
+    async (id: string, isPublic: boolean): Promise<boolean> => {
       setError(null);
 
       try {
@@ -307,8 +308,10 @@ export function useAgents(): UseAgentsReturn {
         const response = await fetch(`/api/agents/${id}/publish`, {
           method: "PATCH",
           headers: {
+            "Content-Type": "application/json",
             ...getAuthHeader(),
           },
+          body: JSON.stringify({ isPublic }),
         });
 
         const data: AgentResponse = await response.json();
@@ -342,12 +345,12 @@ export function useAgents(): UseAgentsReturn {
           setPublicAgents((prev) => prev.filter((a) => a.id !== id));
         }
 
-        return data.agent;
+        return true;
       } catch (err) {
         // 设置错误信息
         setError(err instanceof Error ? err.message : "切换公开状态失败");
         console.error("切换公开状态失败:", err);
-        return null;
+        return false;
       }
     },
     [getAuthHeader]

@@ -5,7 +5,7 @@
 
 "use client";
 
-import { useAgents, type CreateAgentInput, type UpdateAgentInput } from "@/lib/hooks/use-agents";
+import { useAgents, type CreateAgentInput, type UpdateAgentInput, type AgentWithTools } from "@/lib/hooks/use-agents";
 import { AgentList, type AgentFormData } from "@/components/settings/agent-list";
 import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
 import { Info } from "lucide-react";
@@ -33,7 +33,7 @@ export default function AgentsSettingsPage() {
    * 将表单数据转换为创建API所需的格式
    * @param data - 表单数据
    */
-  const handleCreate = async (data: AgentFormData) => {
+  const handleCreate = async (data: AgentFormData): Promise<AgentWithTools | null> => {
     // 构建创建参数
     const params: CreateAgentInput = {
       name: data.name,
@@ -46,7 +46,7 @@ export default function AgentsSettingsPage() {
     };
 
     // 调用创建方法
-    await createAgent(params);
+    return createAgent(params);
   };
 
   /**
@@ -55,7 +55,7 @@ export default function AgentsSettingsPage() {
    * @param id - Agent ID
    * @param data - 表单数据
    */
-  const handleUpdate = async (id: string, data: AgentFormData) => {
+  const handleUpdate = async (id: string, data: AgentFormData): Promise<boolean> => {
     // 构建更新参数
     const params: UpdateAgentInput = {
       name: data.name,
@@ -68,25 +68,24 @@ export default function AgentsSettingsPage() {
     };
 
     // 调用更新方法
-    await updateAgent(id, params);
+    return updateAgent(id, params);
   };
 
   /**
    * 处理删除Agent
    * @param id - Agent ID
    */
-  const handleDelete = async (id: string) => {
-    await deleteAgent(id);
+  const handleDelete = async (id: string): Promise<boolean> => {
+    return deleteAgent(id);
   };
 
   /**
    * 处理切换公开状态
    * @param id - Agent ID
-   * @param _isPublic - 目标公开状态（未使用，togglePublic会自动切换）
+   * @param isPublic - 目标公开状态
    */
-  const handleTogglePublic = async (id: string, _isPublic: boolean) => {
-    // togglePublic方法会自动切换当前状态，不需要传递目标状态
-    await togglePublic(id);
+  const handleTogglePublic = async (id: string, isPublic: boolean): Promise<boolean> => {
+    return togglePublic(id, isPublic);
   };
 
   /**

@@ -16,7 +16,18 @@
       "Bash(git log:*)",
       "Bash(git merge:*)",
       "Bash(npm ls:*)",
-      "Bash(git branch:*)"
+      "Bash(git branch:*)",
+      "WebFetch(domain:ai-sdk.dev)",
+      "Bash(ls:*)",
+      "Bash(xargs grep:*)",
+      "Bash(git commit:*)",
+      "Bash(git diff-index:*)",
+      "Bash(git hash-object:*)",
+      "Bash(git update-index:*)",
+      "Bash(git write-tree:*)",
+      "Bash(git -C /h/hucar/hugit/hu_coding/code/nianian/my-app add scripts/init-db.ts)",
+      "Bash(git -C /h/hucar/hugit/hu_coding/code/nianian/my-app commit -m \"feat\\(mcp\\): 添加 headers 字段数据库迁移\")",
+      "Bash(git:*)"
     ]
   }
 }

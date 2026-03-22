@@ -14,6 +14,9 @@ import { AgentCard } from "./agent-card";
 import { AgentForm, type AgentFormData } from "./agent-form";
 import type { AgentWithTools, PublicAgentWithCreator } from "@/lib/db/schema";
 
+// 重新导出AgentFormData类型供外部使用
+export type { AgentFormData };
+
 /**
  * Agent列表组件属性
  */

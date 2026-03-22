@@ -6,6 +6,7 @@
 "use client";
 
 import { useMcpServers, useMcpServersPolling } from "@/lib/hooks/use-mcp-servers";
+import { useAuth } from "@/lib/hooks/use-auth";
 import { McpList } from "@/components/settings/mcp/mcp-list";
 import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
 import { Info } from "lucide-react";
@@ -15,6 +16,8 @@ import type { McpFormData } from "@/components/settings/mcp/mcp-form";
  * MCP管理页面组件
  */
 export default function McpSettingsPage() {
+  // 获取认证信息
+  const { getAuthHeader } = useAuth();
   // 获取MCP服务器列表和操作函数
   const {
     servers,
@@ -35,10 +38,28 @@ export default function McpSettingsPage() {
    * @param data - 表单数据
    */
   const handleCreate = async (data: McpFormData) => {
-    await createServer({
+    // 创建服务器并获取返回的服务器对象
+    const server = await createServer({
       name: data.name,
       url: data.url,
     });
+
+    // 创建成功后立即检查状态，触发工具同步
+    if (server?.id) {
+      try {
+        const response = await fetch(`/api/mcp/${server.id}/status`, {
+          headers: {
+            ...getAuthHeader(),
+          },
+        });
+        const statusData = await response.json();
+
+        // 更新本地状态
+        updateServerStatus(server.id, statusData.status, statusData.error);
+      } catch {
+        updateServerStatus(server.id, "error", "检查状态失败");
+      }
+    }
   };
 
   /**
@@ -76,7 +97,11 @@ export default function McpSettingsPage() {
    */
   const handleCheckStatus = async (id: string) => {
     try {
-      const response = await fetch(`/api/mcp/${id}/status`);
+      const response = await fetch(`/api/mcp/${id}/status`, {
+        headers: {
+          ...getAuthHeader(),
+        },
+      });
       const data = await response.json();
 
       // 更新本地状态

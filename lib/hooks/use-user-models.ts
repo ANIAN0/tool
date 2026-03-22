@@ -4,7 +4,7 @@
  */
 
 import { useState, useEffect, useCallback } from "react";
-import { useSession } from "next-auth/react";
+import { useAuth } from "./use-auth";
 import { nanoid } from "nanoid";
 import {
   getLocalModels,
@@ -95,11 +95,9 @@ export interface UseUserModelsReturn {
 export function useUserModels(
   anonymousId?: string
 ): UseUserModelsReturn {
-  // 使用 next-auth 的 useSession hook 获取会话状态
-  // 在静态预渲染期间 useSession 可能返回 undefined，所以需要提供默认值
-  const sessionResult = useSession() || { data: null, status: "unauthenticated" };
-  const { data: session, status: sessionStatus } = sessionResult;
-  const isAuthenticated = sessionStatus === "authenticated";
+  // 使用项目自定义的 useAuth hook 获取认证状态
+  // 替代错误的 next-auth useSession 调用
+  const { isAuthenticated, getAuthHeader } = useAuth();
 
   const [models, setModels] = useState<UserModel[]>([]);
   const [isLoading, setIsLoading] = useState(true);
@@ -111,7 +109,12 @@ export function useUserModels(
       setIsLoading(true);
       setError(null);
 
-      const response = await fetch("/api/user/models");
+      // 使用 getAuthHeader 添加 Authorization 请求头
+      const response = await fetch("/api/user/models", {
+        headers: {
+          ...getAuthHeader(),
+        },
+      });
       const data = await response.json();
 
       if (!response.ok || !data.success) {
@@ -125,7 +128,7 @@ export function useUserModels(
     } finally {
       setIsLoading(false);
     }
-  }, []);
+  }, [getAuthHeader]);
 
   // 获取匿名用户的模型列表
   const fetchAnonymousModels = useCallback(() => {
@@ -168,7 +171,10 @@ export function useUserModels(
           // 认证用户：调用 API
           const response = await fetch("/api/user/models", {
             method: "POST",
-            headers: { "Content-Type": "application/json" },
+            headers: {
+              "Content-Type": "application/json",
+              ...getAuthHeader(),
+            },
             body: JSON.stringify(params),
           });
 
@@ -206,7 +212,7 @@ export function useUserModels(
         return false;
       }
     },
-    [isAuthenticated, anonymousId, fetchAuthModels]
+    [isAuthenticated, anonymousId, fetchAuthModels, getAuthHeader]
   );
 
   // 更新模型
@@ -219,7 +225,10 @@ export function useUserModels(
           // 认证用户：调用 API
           const response = await fetch(`/api/user/models/${id}`, {
             method: "PUT",
-            headers: { "Content-Type": "application/json" },
+            headers: {
+              "Content-Type": "application/json",
+              ...getAuthHeader(),
+            },
             body: JSON.stringify(params),
           });
 
@@ -259,7 +268,7 @@ export function useUserModels(
         return false;
       }
     },
-    [isAuthenticated, anonymousId, fetchAuthModels]
+    [isAuthenticated, anonymousId, fetchAuthModels, getAuthHeader]
   );
 
   // 删除模型
@@ -272,6 +281,9 @@ export function useUserModels(
           // 认证用户：调用 API
           const response = await fetch(`/api/user/models/${id}`, {
             method: "DELETE",
+            headers: {
+              ...getAuthHeader(),
+            },
           });
 
           const data = await response.json();
@@ -302,7 +314,7 @@ export function useUserModels(
         return false;
       }
     },
-    [isAuthenticated, anonymousId, fetchAuthModels]
+    [isAuthenticated, anonymousId, fetchAuthModels, getAuthHeader]
   );
 
   // 设置默认模型
@@ -315,6 +327,9 @@ export function useUserModels(
           // 认证用户：调用 API
           const response = await fetch(`/api/user/models/${id}/default`, {
             method: "PATCH",
+            headers: {
+              ...getAuthHeader(),
+            },
           });
 
           const data = await response.json();
@@ -345,7 +360,7 @@ export function useUserModels(
         return false;
       }
     },
-    [isAuthenticated, anonymousId, fetchAuthModels]
+    [isAuthenticated, anonymousId, fetchAuthModels, getAuthHeader]
   );
 
   // 获取默认模型
@@ -395,7 +410,10 @@ export function useUserModels(
         // 调用同步 API
         const response = await fetch("/api/user/models/sync", {
           method: "POST",
-          headers: { "Content-Type": "application/json" },
+          headers: {
+            "Content-Type": "application/json",
+            ...getAuthHeader(),
+          },
           body: JSON.stringify({ models: modelsToSync }),
         });
 
@@ -417,7 +435,7 @@ export function useUserModels(
         return false;
       }
     },
-    [isAuthenticated, fetchAuthModels]
+    [isAuthenticated, fetchAuthModels, getAuthHeader]
   );
 
   // 清除错误

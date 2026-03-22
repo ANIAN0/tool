@@ -4,6 +4,7 @@
  */
 
 import { useState, useCallback, useEffect, useMemo } from "react";
+import { useAuth } from "./use-auth";
 import type { Tool } from "@/lib/db/schema";
 
 // API响应类型
@@ -34,6 +35,7 @@ export interface ToolFilter {
  * 提供获取工具列表、筛选等功能
  */
 export function useTools() {
+  const { getAuthHeader } = useAuth();
   const [tools, setTools] = useState<Tool[]>([]);
   const [stats, setStats] = useState<ToolsResponse["stats"] | null>(null);
   const [isLoading, setIsLoading] = useState(false);
@@ -47,7 +49,11 @@ export function useTools() {
     setError(null);
 
     try {
-      const response = await fetch("/api/tools");
+      const response = await fetch("/api/tools", {
+        headers: {
+          ...getAuthHeader(),
+        },
+      });
 
       if (!response.ok) {
         const data = await response.json();
@@ -62,7 +68,7 @@ export function useTools() {
     } finally {
       setIsLoading(false);
     }
-  }, []);
+  }, [getAuthHeader]);
 
   // 组件挂载时自动获取列表
   useEffect(() => {
@@ -148,6 +154,7 @@ export function useToolFiltering(tools: Tool[], filter: ToolFilter) {
  * @param serverId - MCP服务器ID
  */
 export function useMcpServerTools(serverId: string | null) {
+  const { getAuthHeader } = useAuth();
   const [tools, setTools] = useState<Array<{
     id: string;
     name: string;
@@ -165,7 +172,11 @@ export function useMcpServerTools(serverId: string | null) {
     setError(null);
 
     try {
-      const response = await fetch(`/api/mcp/${serverId}/tools`);
+      const response = await fetch(`/api/mcp/${serverId}/tools`, {
+        headers: {
+          ...getAuthHeader(),
+        },
+      });
 
       if (!response.ok) {
         const data = await response.json();
@@ -194,7 +205,7 @@ export function useMcpServerTools(serverId: string | null) {
     } finally {
       setIsLoading(false);
     }
-  }, [serverId]);
+  }, [serverId, getAuthHeader]);
 
   useEffect(() => {
     fetchTools();
@@ -209,19 +220,6 @@ export function useMcpServerTools(serverId: string | null) {
  * @returns 图标名称或emoji
  */
 export function getToolIcon(tool: Tool): string {
-  // 系统工具图标映射
-  const systemIconMap: Record<string, string> = {
-    search: "🔍",
-    readFile: "📖",
-    writeFile: "✏️",
-    listDirectory: "📁",
-    codeReview: "👁️",
-  };
-
-  if (tool.source === "system") {
-    return systemIconMap[tool.name] || "🔧";
-  }
-
   // MCP工具使用通用图标
   return "🔌";
 }
@@ -232,10 +230,6 @@ export function getToolIcon(tool: Tool): string {
  * @returns 状态标签文本
  */
 export function getToolStatusLabel(tool: Tool): { text: string; color: string } {
-  if (tool.source === "system") {
-    return { text: "系统内置", color: "bg-green-100 text-green-800" };
-  }
-
   if (tool.isAvailable) {
     return { text: "可用", color: "bg-blue-100 text-blue-800" };
   }
