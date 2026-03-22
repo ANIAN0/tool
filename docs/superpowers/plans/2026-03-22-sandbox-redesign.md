@@ -63,8 +63,10 @@ lib/sandbox/config.ts               # 更新配置
 - Create: `sandbox-service/src/routes/__init__.py`
 - Create: `sandbox-service/src/services/__init__.py`
 - Create: `sandbox-service/src/utils/__init__.py`
-- Create: `sandbox-service/config/__init__.py`
 - Create: `sandbox-service/tests/__init__.py`
+- Create: `sandbox-service/tests/conftest.py` (基础版)
+
+> 注：`config/` 目录用于存放 nsjail 配置文件，不是 Python 包，无需 `__init__.py`
 
 - [ ] **Step 1: 创建项目根目录**
 
@@ -82,12 +84,26 @@ touch sandbox-service/src/utils/__init__.py
 touch sandbox-service/tests/__init__.py
 ```
 
-- [ ] **Step 3: 验证目录结构**
+- [ ] **Step 3: 创建基础 conftest.py**
+
+```python
+# sandbox-service/tests/conftest.py
+
+"""pytest 配置"""
+
+import sys
+import os
+
+# 确保 src 模块可以被导入
+sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
+```
+
+- [ ] **Step 4: 验证目录结构**
 
 Run: `ls -la sandbox-service/`
 Expected: 显示 src, config, deploy, tests 目录
 
-- [ ] **Step 4: 提交**
+- [ ] **Step 5: 提交**
 
 ```bash
 git add sandbox-service/
@@ -138,6 +154,7 @@ requires-python = ">=3.9"
 [tool.pytest.ini_options]
 asyncio_mode = "auto"
 testpaths = ["tests"]
+pythonpath = ["."]
 
 [tool.mypy]
 python_version = "3.9"
