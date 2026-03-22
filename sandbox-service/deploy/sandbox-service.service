@@ -1,0 +1,26 @@
+# sandbox-service/deploy/sandbox-service.service
+
+[Unit]
+Description=Sandbox Service (nsjail)
+After=network.target
+
+[Service]
+Type=simple
+User=root
+WorkingDirectory=/opt/sandbox-service
+Environment="PATH=/opt/sandbox-service/venv/bin"
+ExecStart=/opt/sandbox-service/venv/bin/uvicorn src.main:app --host 0.0.0.0 --port 8443 --ssl-keyfile /etc/sandbox/ssl/key.pem --ssl-certfile /etc/sandbox/ssl/cert.pem
+Restart=always
+RestartSec=5
+
+# 能力设置
+AmbientCapabilities=CAP_SYS_ADMIN CAP_SYS_CHROOT CAP_SETUID CAP_SETGID
+CapabilityBoundingSet=CAP_SYS_ADMIN CAP_SYS_CHROOT CAP_SETUID CAP_SETGID CAP_KILL
+
+# 安全加固
+ProtectSystem=strict
+ProtectHome=true
+PrivateTmp=true
+
+[Install]
+WantedBy=multi-user.target
