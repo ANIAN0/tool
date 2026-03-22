@@ -25,3 +25,12 @@ from src.services.session import SessionManager
 def session_manager(temp_data_root):
     """SessionManager fixture"""
     return SessionManager(data_root=temp_data_root)
+
+
+from src.services.sandbox import NsjailSandbox
+
+
+@pytest.fixture
+def sandbox():
+    """NsjailSandbox fixture"""
+    return NsjailSandbox()
