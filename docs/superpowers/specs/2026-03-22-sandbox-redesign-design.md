@@ -332,10 +332,9 @@ uid_map: 0 65534 1
 gid_map: 0 65534 1
 
 # ==================== 挂载点 ====================
-# 工作空间挂载（每个用户独立的 workspace）
-# 注意：使用 chroot_dir 后，mount 目标路径相对于 chroot 内部
-# rootfs 已包含最小化的二进制和库，无需额外挂载系统目录
-mount: /var/lib/sandbox/users/{USER_HASH}/workspace:/workspace:rw
+# 工作空间挂载：使用命令行动态挂载，此配置仅作参考
+# 实际挂载通过 --bindmount 参数在运行时指定
+# mount: /var/lib/sandbox/users/{USER_HASH}/workspace:/workspace:rw
 
 # ==================== seccomp 过滤 ====================
 # 安全的系统调用白名单
@@ -474,6 +473,7 @@ class NsjailSandbox:
         code: str,
         language: str,
         workdir: str,
+        user_hash: str,
         timeout: int = 60,
         memory_limit: int = 100 * 1024 * 1024  # 100MB
     ) -> dict:
@@ -484,6 +484,7 @@ class NsjailSandbox:
             code: 要执行的代码
             language: 语言 (bash/python/node)
             workdir: 工作目录
+            user_hash: 用户哈希（用于动态挂载）
             timeout: 超时秒数
             memory_limit: 内存限制字节
 
@@ -506,7 +507,8 @@ class NsjailSandbox:
                 script_path=script_path,
                 workdir=workdir,
                 language=language,
-                timeout=timeout
+                timeout=timeout,
+                user_hash=user_hash
             )
 
             # 执行
