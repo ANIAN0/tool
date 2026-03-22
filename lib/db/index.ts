@@ -9,6 +9,13 @@ import {
   CREATE_DOC_INDEXES,
   CREATE_USER_MODELS_TABLE,
   CREATE_USER_MODEL_INDEXES,
+  CREATE_USER_MCP_SERVERS_TABLE,
+  CREATE_MCP_TOOLS_TABLE,
+  CREATE_MCP_SERVERS_INDEXES,
+  // Agent相关表Schema
+  CREATE_AGENTS_TABLE,
+  CREATE_AGENT_TOOLS_TABLE,
+  CREATE_AGENTS_INDEXES,
 } from "./schema";
 
 /**
@@ -42,6 +49,21 @@ export async function initDatabase(): Promise<void> {
     }
   }
 
+  // 创建MCP服务器表
+  await db.execute(CREATE_USER_MCP_SERVERS_TABLE);
+
+  // 创建MCP工具表
+  await db.execute(CREATE_MCP_TOOLS_TABLE);
+
+  // 创建MCP服务器相关索引
+  for (const sql of CREATE_MCP_SERVERS_INDEXES) {
+    try {
+      await db.execute(sql);
+    } catch (error) {
+      console.log("MCP服务器索引创建跳过或失败:", error);
+    }
+  }
+
   // 创建文档系统索引（忽略错误，因为索引可能已经存在）
   for (const sql of CREATE_DOC_INDEXES) {
     try {
@@ -49,6 +71,21 @@ export async function initDatabase(): Promise<void> {
     } catch (error) {
       // 索引已存在或其他错误，忽略
       console.log("索引创建跳过或失败:", error);
+    }
+  }
+
+  // 创建agents表
+  await db.execute(CREATE_AGENTS_TABLE);
+
+  // 创建agent_tools表
+  await db.execute(CREATE_AGENT_TOOLS_TABLE);
+
+  // 创建Agent相关索引
+  for (const sql of CREATE_AGENTS_INDEXES) {
+    try {
+      await db.execute(sql);
+    } catch (error) {
+      console.log("Agent索引创建跳过或失败:", error);
     }
   }
 }
@@ -109,6 +146,64 @@ export async function migrateDatabase(): Promise<void> {
         console.log("索引已存在，跳过");
       } else {
         console.error("创建索引失败:", error);
+      }
+    }
+  }
+
+  // 迁移6：创建user_mcp_servers表
+  try {
+    await db.execute(CREATE_USER_MCP_SERVERS_TABLE);
+    console.log("user_mcp_servers 表已创建或已存在");
+  } catch (error) {
+    console.error("创建 user_mcp_servers 表失败:", error);
+  }
+
+  // 迁移7：创建mcp_tools表
+  try {
+    await db.execute(CREATE_MCP_TOOLS_TABLE);
+    console.log("mcp_tools 表已创建或已存在");
+  } catch (error) {
+    console.error("创建 mcp_tools 表失败:", error);
+  }
+
+  // 迁移8：创建MCP服务器相关索引
+  for (const sql of CREATE_MCP_SERVERS_INDEXES) {
+    try {
+      await db.execute(sql);
+    } catch (error) {
+      if (String(error).includes("already exists")) {
+        console.log("MCP索引已存在，跳过");
+      } else {
+        console.error("创建MCP索引失败:", error);
+      }
+    }
+  }
+
+  // 迁移9：创建agents表
+  try {
+    await db.execute(CREATE_AGENTS_TABLE);
+    console.log("agents 表已创建或已存在");
+  } catch (error) {
+    console.error("创建 agents 表失败:", error);
+  }
+
+  // 迁移10：创建agent_tools表
+  try {
+    await db.execute(CREATE_AGENT_TOOLS_TABLE);
+    console.log("agent_tools 表已创建或已存在");
+  } catch (error) {
+    console.error("创建 agent_tools 表失败:", error);
+  }
+
+  // 迁移11：创建Agent相关索引
+  for (const sql of CREATE_AGENTS_INDEXES) {
+    try {
+      await db.execute(sql);
+    } catch (error) {
+      if (String(error).includes("already exists")) {
+        console.log("Agent索引已存在，跳过");
+      } else {
+        console.error("创建Agent索引失败:", error);
       }
     }
   }
