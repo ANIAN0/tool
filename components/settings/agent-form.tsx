@@ -36,6 +36,7 @@ import {
   type TemplateConfigField,
 } from "@/lib/agents/templates";
 import type { AgentWithTools } from "@/lib/db/schema";
+import { getDefaultSystemTools, SYSTEM_TOOL_IDS } from "@/lib/constants/system-tools";
 
 /**
  * Agent表单数据接口
@@ -53,8 +54,10 @@ export interface AgentFormData {
   systemPrompt: string;
   // 模型ID
   modelId: string;
-  // 工具ID列表
+  // MCP工具ID列表
   toolIds: string[];
+  // 启用的系统工具ID列表
+  enabledSystemTools: string[];
 }
 
 /**
@@ -84,6 +87,7 @@ const DEFAULT_FORM_DATA: AgentFormData = {
   systemPrompt: "",
   modelId: "",
   toolIds: [],
+  enabledSystemTools: getDefaultSystemTools(), // 默认启用所有系统工具
 };
 
 /**
@@ -135,7 +139,8 @@ export function AgentForm({
           templateConfig: parseTemplateConfig(agent.template_config, agent.template_id),
           systemPrompt: agent.system_prompt || "",
           modelId: agent.model_id || "",
-          toolIds: agent.tools.map((t) => t.id),
+          toolIds: agent.tools.filter(t => t.source === 'mcp').map((t) => t.id),
+          enabledSystemTools: agent.enabledSystemTools || getDefaultSystemTools(), // 新增
         });
       } else {
         // 创建模式：重置为默认值
@@ -200,6 +205,18 @@ export function AgentForm({
       toolIds: checked
         ? [...prev.toolIds, toolId]
         : prev.toolIds.filter((id) => id !== toolId),
+    }));
+  }, []);
+
+  /**
+   * 处理系统工具选择切换
+   */
+  const handleSystemToolToggle = useCallback((toolId: string, checked: boolean) => {
+    setFormData((prev) => ({
+      ...prev,
+      enabledSystemTools: checked
+        ? [...prev.enabledSystemTools, toolId]
+        : prev.enabledSystemTools.filter((id) => id !== toolId),
     }));
   }, []);
 
@@ -445,46 +462,103 @@ export function AgentForm({
                   <Loader2 className="h-4 w-4 animate-spin" />
                   加载工具列表中...
                 </div>
-              ) : tools.length === 0 ? (
-                <p className="text-sm text-muted-foreground">
-                  暂无可用工具
-                </p>
               ) : (
-                <div className="border rounded-md p-3 max-h-[200px] overflow-y-auto">
-                  <div className="space-y-3">
-                    {tools.map((tool) => (
-                      <div key={tool.id} className="flex items-start space-x-2">
-                        <Checkbox
-                          id={`tool-${tool.id}`}
-                          checked={formData.toolIds.includes(tool.id)}
-                          onCheckedChange={(checked) =>
-                            handleToolToggle(tool.id, checked as boolean)
-                          }
-                          disabled={!tool.isAvailable}
-                        />
-                        <div className="grid gap-1 leading-none">
-                          <label
-                            htmlFor={`tool-${tool.id}`}
-                            className={`text-sm font-medium leading-none peer-disabled:cursor-not-allowed peer-disabled:opacity-70 ${
-                              !tool.isAvailable ? "text-muted-foreground" : ""
-                            }`}
-                          >
-                            {tool.name}
-                            {tool.source === "mcp" && tool.server && (
-                              <span className="ml-2 text-xs text-muted-foreground">
-                                ({tool.server.name})
-                              </span>
-                            )}
-                          </label>
-                          {tool.description && (
-                            <p className="text-xs text-muted-foreground line-clamp-2">
-                              {tool.description}
-                            </p>
-                          )}
+                <div className="space-y-4">
+                  {/* 系统工具组 - 使用常量渲染所有可用系统工具 */}
+                  <div className="space-y-2">
+                    <div className="flex items-center justify-between">
+                      <span className="text-sm font-medium">系统工具（沙盒环境）</span>
+                      {formData.enabledSystemTools.length === 0 && (
+                        <span className="text-xs text-amber-600">
+                          禁用所有系统工具可能导致 Agent 无法正常执行任务
+                        </span>
+                      )}
+                    </div>
+                    <div className="border rounded-md p-3 bg-muted/30">
+                      <div className="space-y-3">
+                        {SYSTEM_TOOL_IDS.map((toolId) => {
+                          // 从 tools 数组获取工具详情（描述等）
+                          const toolInfo = tools.find((t) => t.id === toolId);
+                          const toolName = toolId.replace('system:sandbox:', '');
+
+                          return (
+                            <div key={toolId} className="flex items-start space-x-2">
+                              <Checkbox
+                                id={`system-tool-${toolId}`}
+                                checked={formData.enabledSystemTools.includes(toolId)}
+                                onCheckedChange={(checked) =>
+                                  handleSystemToolToggle(toolId, checked as boolean)
+                                }
+                              />
+                              <div className="grid gap-1 leading-none">
+                                <label
+                                  htmlFor={`system-tool-${toolId}`}
+                                  className="text-sm font-medium leading-none"
+                                >
+                                  {toolName}
+                                </label>
+                                {toolInfo?.description && (
+                                  <p className="text-xs text-muted-foreground line-clamp-2">
+                                    {toolInfo.description}
+                                  </p>
+                                )}
+                              </div>
+                            </div>
+                          );
+                        })}
+                      </div>
+                    </div>
+                  </div>
+
+                  {/* MCP工具组 */}
+                  {tools.filter((tool) => tool.source === "mcp").length > 0 && (
+                    <div className="space-y-2">
+                      <span className="text-sm font-medium">MCP 工具</span>
+                      <div className="border rounded-md p-3 max-h-[200px] overflow-y-auto">
+                        <div className="space-y-3">
+                          {tools
+                            .filter((tool) => tool.source === "mcp")
+                            .map((tool) => (
+                              <div key={tool.id} className="flex items-start space-x-2">
+                                <Checkbox
+                                  id={`mcp-tool-${tool.id}`}
+                                  checked={formData.toolIds.includes(tool.id)}
+                                  onCheckedChange={(checked) =>
+                                    handleToolToggle(tool.id, checked as boolean)
+                                  }
+                                  disabled={!tool.isAvailable}
+                                />
+                                <div className="grid gap-1 leading-none">
+                                  <label
+                                    htmlFor={`mcp-tool-${tool.id}`}
+                                    className={`text-sm font-medium leading-none peer-disabled:cursor-not-allowed peer-disabled:opacity-70 ${
+                                      !tool.isAvailable ? "text-muted-foreground" : ""
+                                    }`}
+                                  >
+                                    {tool.name}
+                                    {tool.server && (
+                                      <span className="ml-2 text-xs text-muted-foreground">
+                                        ({tool.server.name})
+                                      </span>
+                                    )}
+                                  </label>
+                                  {tool.description && (
+                                    <p className="text-xs text-muted-foreground line-clamp-2">
+                                      {tool.description}
+                                    </p>
+                                  )}
+                                </div>
+                              </div>
+                            ))}
                         </div>
                       </div>
-                    ))}
-                  </div>
+                    </div>
+                  )}
+
+                  {/* 无 MCP 工具提示 */}
+                  {tools.filter((tool) => tool.source === "mcp").length === 0 && (
+                    <p className="text-sm text-muted-foreground">暂无 MCP 工具</p>
+                  )}
                 </div>
               )}
             </div>
