@@ -616,6 +616,8 @@ export interface Agent {
   system_prompt: string | null;
   model_id: string | null;
   is_public: boolean;
+  // 启用的系统工具ID列表（JSON字符串）
+  enabled_system_tools: string | null;
   created_at: number;
   updated_at: number;
 }
@@ -643,6 +645,8 @@ export interface CreateAgentParams {
   systemPrompt?: string;
   modelId?: string;
   toolIds?: string[];
+  // 启用的系统工具ID列表
+  enabledSystemTools?: string[];
 }
 
 /**
@@ -656,30 +660,31 @@ export interface UpdateAgentParams {
   systemPrompt?: string | null;
   modelId?: string | null;
   toolIds?: string[];
+  // 启用的系统工具ID列表
+  enabledSystemTools?: string[];
 }
 
 /**
  * Agent详情响应类型（包含工具信息）
+ * 注意：enabled_system_tools 在数据库层是 snake_case，API 层转换为 camelCase
  */
-export interface AgentWithTools extends Agent {
+export interface AgentWithTools extends Omit<Agent, 'enabled_system_tools'> {
   tools: Array<{
     id: string;
     name: string;
+    source: 'system' | 'mcp';
     serverName?: string;
   }>;
+  // 启用的系统工具ID列表（已解析为数组）
+  enabledSystemTools: string[];
 }
 
 /**
  * 公开Agent响应类型（包含创建者信息）
  */
-export interface PublicAgentWithCreator extends Agent {
+export interface PublicAgentWithCreator extends AgentWithTools {
   creator?: {
     id: string;
     username: string | null;
   };
-  tools: Array<{
-    id: string;
-    name: string;
-    serverName?: string;
-  }>;
 }
