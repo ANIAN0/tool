@@ -44,6 +44,8 @@ export interface CreateAgentInput {
   systemPrompt?: string;
   modelId?: string;
   toolIds?: string[];
+  // 启用的系统工具ID列表
+  enabledSystemTools?: string[];
 }
 
 /**
@@ -57,6 +59,8 @@ export interface UpdateAgentInput {
   systemPrompt?: string | null;
   modelId?: string | null;
   toolIds?: string[];
+  // 启用的系统工具ID列表
+  enabledSystemTools?: string[];
 }
 
 /**
@@ -135,9 +139,9 @@ export function useAgents(): UseAgentsReturn {
         throw new Error((data as { error?: string }).error || "获取 Agent 列表失败");
       }
 
-      // 更新状态
-      setMyAgents(data.myAgents);
-      setPublicAgents(data.publicAgents);
+      // 更新状态（添加防御性检查，确保始终是数组）
+      setMyAgents(Array.isArray(data.myAgents) ? data.myAgents : []);
+      setPublicAgents(Array.isArray(data.publicAgents) ? data.publicAgents : []);
     } catch (err) {
       // 设置错误信息
       setError(err instanceof Error ? err.message : "获取 Agent 列表失败");
