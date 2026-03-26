@@ -20,8 +20,10 @@ import type {
  */
 interface AgentsListResponse {
   success: boolean;
-  myAgents: AgentWithTools[];
-  publicAgents: PublicAgentWithCreator[];
+  data: {
+    myAgents: AgentWithTools[];
+    publicAgents: PublicAgentWithCreator[];
+  };
 }
 
 /**
@@ -29,7 +31,7 @@ interface AgentsListResponse {
  */
 interface AgentResponse {
   success: boolean;
-  agent: AgentWithTools;
+  data: AgentWithTools;
 }
 
 /**
@@ -140,8 +142,8 @@ export function useAgents(): UseAgentsReturn {
       }
 
       // 更新状态（添加防御性检查，确保始终是数组）
-      setMyAgents(Array.isArray(data.myAgents) ? data.myAgents : []);
-      setPublicAgents(Array.isArray(data.publicAgents) ? data.publicAgents : []);
+      setMyAgents(Array.isArray(data.data?.myAgents) ? data.data.myAgents : []);
+      setPublicAgents(Array.isArray(data.data?.publicAgents) ? data.data.publicAgents : []);
     } catch (err) {
       // 设置错误信息
       setError(err instanceof Error ? err.message : "获取 Agent 列表失败");
@@ -179,9 +181,9 @@ export function useAgents(): UseAgentsReturn {
         }
 
         // 将新 Agent 添加到列表头部
-        setMyAgents((prev) => [data.agent, ...prev]);
+        setMyAgents((prev) => [data.data, ...prev]);
 
-        return data.agent;
+        return data.data;
       } catch (err) {
         // 设置错误信息
         setError(err instanceof Error ? err.message : "创建 Agent 失败");
@@ -222,22 +224,22 @@ export function useAgents(): UseAgentsReturn {
 
         // 更新本地列表中的 Agent
         setMyAgents((prev) =>
-          prev.map((agent) => (agent.id === id ? data.agent : agent))
+          prev.map((agent) => (agent.id === id ? data.data : agent))
         );
 
         // 如果 Agent 变为公开，更新公开列表
-        if (data.agent.is_public) {
+        if (data.data.is_public) {
           // 更新公开列表中的该 Agent（如果已存在）
           setPublicAgents((prev) => {
             const existingIndex = prev.findIndex((a) => a.id === id);
             if (existingIndex >= 0) {
               // 更新现有的公开 Agent
               const updated = [...prev];
-              updated[existingIndex] = data.agent as PublicAgentWithCreator;
+              updated[existingIndex] = data.data as PublicAgentWithCreator;
               return updated;
             } else {
               // 添加新的公开 Agent
-              return [...prev, data.agent as PublicAgentWithCreator];
+              return [...prev, data.data as PublicAgentWithCreator];
             }
           });
         } else {
@@ -329,20 +331,20 @@ export function useAgents(): UseAgentsReturn {
         setMyAgents((prev) =>
           prev.map((agent) =>
             agent.id === id
-              ? { ...agent, is_public: data.agent.is_public }
+              ? { ...agent, is_public: data.data.is_public }
               : agent
           )
         );
 
         // 更新公开列表
-        if (data.agent.is_public) {
+        if (data.data.is_public) {
           // 添加到公开列表
           setPublicAgents((prev) => {
             // 避免重复添加
             if (prev.some((a) => a.id === id)) {
-              return prev.map((a) => (a.id === id ? (data.agent as PublicAgentWithCreator) : a));
+              return prev.map((a) => (a.id === id ? (data.data as PublicAgentWithCreator) : a));
             }
-            return [...prev, data.agent as PublicAgentWithCreator];
+            return [...prev, data.data as PublicAgentWithCreator];
           });
         } else {
           // 从公开列表移除
