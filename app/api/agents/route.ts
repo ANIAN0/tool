@@ -89,7 +89,16 @@ export async function POST(request: NextRequest) {
   try {
     // 解析请求体
     const body = await request.json();
-    const { name, description, templateId, templateConfig, systemPrompt, modelId, toolIds } = body;
+    const {
+      name,
+      description,
+      templateId,
+      templateConfig,
+      systemPrompt,
+      modelId,
+      toolIds,
+      enabledSystemTools, // 新增：启用的系统工具
+    } = body;
 
     // 验证必填字段：名称
     if (!name || typeof name !== "string" || name.trim() === "") {
@@ -132,6 +141,7 @@ export async function POST(request: NextRequest) {
       systemPrompt: systemPrompt?.trim() || undefined,
       modelId: modelId || undefined,
       toolIds: toolIds || undefined,
+      enabledSystemTools: enabledSystemTools || undefined, // 新增
     });
 
     return NextResponse.json(
