@@ -179,6 +179,17 @@ export async function PUT(
       updateParams.toolIds = body.toolIds;
     }
 
+    // 更新启用的系统工具
+    if (body.enabledSystemTools !== undefined) {
+      if (!Array.isArray(body.enabledSystemTools)) {
+        return NextResponse.json(
+          { success: false, error: "enabledSystemTools必须是数组" },
+          { status: 400 }
+        );
+      }
+      updateParams.enabledSystemTools = body.enabledSystemTools;
+    }
+
     // 执行更新
     const updatedAgent = await updateAgent(userId, id, updateParams);
 
