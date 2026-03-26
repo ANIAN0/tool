@@ -9,6 +9,16 @@ import { useState, useCallback } from "react";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Button } from "@/components/ui/button";
 import { Alert, AlertDescription } from "@/components/ui/alert";
+import {
+  AlertDialog,
+  AlertDialogAction,
+  AlertDialogCancel,
+  AlertDialogContent,
+  AlertDialogDescription,
+  AlertDialogFooter,
+  AlertDialogHeader,
+  AlertDialogTitle,
+} from "@/components/ui/alert-dialog";
 import { Loader2, Plus, RefreshCw, AlertCircle } from "lucide-react";
 import { AgentCard } from "./agent-card";
 import { AgentForm, type AgentFormData } from "./agent-form";
@@ -68,8 +78,10 @@ export function AgentList({
   // 表单提交中状态
   const [isSubmitting, setIsSubmitting] = useState(false);
 
-  // 删除确认状态（存储待删除的Agent ID）
-  const [pendingDeleteId, setPendingDeleteId] = useState<string | null>(null);
+  // 删除确认对话框状态
+  const [deleteDialogOpen, setDeleteDialogOpen] = useState(false);
+  // 待删除的Agent
+  const [agentToDelete, setAgentToDelete] = useState<AgentWithTools | null>(null);
   // 删除操作中状态
   const [isDeleting, setIsDeleting] = useState(false);
 
@@ -121,27 +133,36 @@ export function AgentList({
   );
 
   /**
-   * 处理删除操作（两次点击确认机制）
+   * 打开删除确认对话框
    */
-  const handleDelete = useCallback(
-    async (id: string) => {
-      // 如果不是待确认删除的ID，则进入待确认状态
-      if (pendingDeleteId !== id) {
-        setPendingDeleteId(id);
-        return;
-      }
+  const handleDeleteClick = useCallback((agent: AgentWithTools) => {
+    setAgentToDelete(agent);
+    setDeleteDialogOpen(true);
+  }, []);
 
-      // 第二次点击，执行删除
-      setIsDeleting(true);
-      try {
-        await onDelete(id);
-        setPendingDeleteId(null);
-      } finally {
-        setIsDeleting(false);
-      }
-    },
-    [pendingDeleteId, onDelete]
-  );
+  /**
+   * 确认删除
+   */
+  const confirmDelete = useCallback(async () => {
+    if (!agentToDelete) return;
+
+    setIsDeleting(true);
+    try {
+      await onDelete(agentToDelete.id);
+      setDeleteDialogOpen(false);
+      setAgentToDelete(null);
+    } finally {
+      setIsDeleting(false);
+    }
+  }, [agentToDelete, onDelete]);
+
+  /**
+   * 取消删除
+   */
+  const cancelDelete = useCallback(() => {
+    setDeleteDialogOpen(false);
+    setAgentToDelete(null);
+  }, []);
 
   /**
    * 处理切换公开状态
@@ -157,9 +178,6 @@ export function AgentList({
    * 处理刷新
    */
   const handleRefresh = useCallback(() => {
-    // 清除待删除状态
-    setPendingDeleteId(null);
-    // 调用刷新回调
     onRefresh();
   }, [onRefresh]);
 
@@ -226,7 +244,7 @@ export function AgentList({
             agent={agent}
             isOwner={true}
             onEdit={handleEdit}
-            onDelete={handleDelete}
+            onDelete={handleDeleteClick}
             onTogglePublic={handleTogglePublic}
           />
         ))}
@@ -328,23 +346,29 @@ export function AgentList({
         </TabsContent>
       </Tabs>
 
-      {/* 删除确认提示 */}
-      {pendingDeleteId && (
-        <Alert className="fixed bottom-4 left-1/2 -translate-x-1/2 w-auto max-w-md z-50">
-          <AlertCircle className="h-4 w-4" />
-          <AlertDescription className="flex items-center gap-2">
-            <span>再次点击删除按钮确认删除</span>
-            <Button
-              variant="ghost"
-              size="sm"
-              onClick={() => setPendingDeleteId(null)}
-              disabled={isDeleting}
-            >
+      {/* 删除确认对话框 */}
+      <AlertDialog open={deleteDialogOpen} onOpenChange={setDeleteDialogOpen}>
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle>确认删除</AlertDialogTitle>
+            <AlertDialogDescription>
+              确定要删除 Agent "{agentToDelete?.name}" 吗？此操作无法撤销。
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel onClick={cancelDelete} disabled={isDeleting}>
               取消
-            </Button>
-          </AlertDescription>
-        </Alert>
-      )}
+            </AlertDialogCancel>
+            <AlertDialogAction
+              onClick={confirmDelete}
+              disabled={isDeleting}
+              className="bg-destructive text-destructive-foreground hover:bg-destructive/90"
+            >
+              {isDeleting ? "删除中..." : "删除"}
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
 
       {/* Agent表单对话框 */}
       <AgentForm

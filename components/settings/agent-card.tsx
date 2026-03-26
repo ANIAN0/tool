@@ -23,7 +23,7 @@ interface AgentCardProps {
   agent: AgentWithTools;
   isOwner: boolean;
   onEdit: (agent: AgentWithTools) => void;
-  onDelete: (id: string) => void;
+  onDelete: (agent: AgentWithTools) => void;
   onTogglePublic: (id: string, isPublic: boolean) => void;
 }
 
@@ -150,7 +150,7 @@ export function AgentCard({
                 {/* 删除 */}
                 <DropdownMenuItem
                   className="text-destructive"
-                  onClick={() => onDelete(agent.id)}
+                  onClick={() => onDelete(agent)}
                 >
                   <Trash2 className="mr-2 h-4 w-4" />
                   删除
