@@ -13,6 +13,12 @@ import {
   type PublicAgentWithCreator,
   type McpTool,
 } from "./schema";
+import {
+  getDefaultSystemTools,
+  parseSystemTools,
+  serializeSystemTools,
+  isSystemToolId,
+} from "@/lib/constants/system-tools";
 
 // ==================== 辅助函数 ====================
 
@@ -30,8 +36,42 @@ function mapRowToAgent(row: Record<string, unknown>): Agent {
     system_prompt: row.system_prompt as string | null,
     model_id: row.model_id as string | null,
     is_public: (row.is_public as number) === 1,
+    enabled_system_tools: row.enabled_system_tools as string | null,
     created_at: row.created_at as number,
     updated_at: row.updated_at as number,
+  };
+}
+
+/**
+ * 将 Agent 数据库记录转换为 AgentWithTools 响应格式
+ * @param agent - Agent 数据库记录
+ * @param mcpTools - MCP工具列表
+ * @returns AgentWithTools 格式的对象
+ */
+function buildAgentWithTools(
+  agent: Agent,
+  mcpTools: Array<{ id: string; name: string; serverName?: string }>
+): AgentWithTools {
+  // 解析系统工具
+  const enabledSystemTools = parseSystemTools(agent.enabled_system_tools);
+
+  // 构建工具列表：合并 MCP 工具和启用的系统工具
+  // 系统工具需要标记 source 字段
+  const systemToolsWithSource = enabledSystemTools.map((id) => ({
+    id,
+    name: id.replace('system:sandbox:', ''),
+    source: 'system' as const,
+  }));
+
+  const mcpToolsWithSource = mcpTools.map((t) => ({
+    ...t,
+    source: 'mcp' as const,
+  }));
+
+  return {
+    ...agent,
+    enabledSystemTools,
+    tools: [...systemToolsWithSource, ...mcpToolsWithSource],
   };
 }
 
@@ -122,6 +162,7 @@ async function getAgentsToolsBatch(agentIds: string[]): Promise<
 
 /**
  * 插入Agent工具关联
+ * 注意：只存储MCP工具的关联，系统工具（ID以'system:'开头）不需要存储
  */
 async function insertAgentTools(
   agentId: string,
@@ -129,11 +170,15 @@ async function insertAgentTools(
 ): Promise<void> {
   if (toolIds.length === 0) return;
 
+  // 过滤掉系统工具（ID以'system:'开头），只保留MCP工具
+  const mcpToolIds = toolIds.filter((id) => !id.startsWith("system:"));
+  if (mcpToolIds.length === 0) return;
+
   const db = getDb();
   const now = Date.now();
 
   // 批量插入工具关联
-  for (const toolId of toolIds) {
+  for (const toolId of mcpToolIds) {
     await db.execute({
       sql: `INSERT OR IGNORE INTO agent_tools (id, agent_id, tool_id, created_at)
             VALUES (?, ?, ?, ?)`,
@@ -173,11 +218,17 @@ export async function createAgent(params: CreateAgentParams): Promise<Agent> {
     ? JSON.stringify(params.templateConfig)
     : null;
 
+  // 序列化enabledSystemTools为JSON字符串
+  // 未提供时使用默认值（所有系统工具）
+  const enabledSystemToolsJson = serializeSystemTools(
+    params.enabledSystemTools || getDefaultSystemTools()
+  );
+
   // 插入Agent记录
   await db.execute({
     sql: `INSERT INTO agents
-          (id, user_id, name, description, template_id, template_config, system_prompt, model_id, is_public, created_at, updated_at)
-          VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+          (id, user_id, name, description, template_id, template_config, system_prompt, model_id, is_public, enabled_system_tools, created_at, updated_at)
+          VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
     args: [
       params.id,
       params.userId,
@@ -188,6 +239,7 @@ export async function createAgent(params: CreateAgentParams): Promise<Agent> {
       params.systemPrompt ?? null,
       params.modelId ?? null,
       0, // 默认私有
+      enabledSystemToolsJson,
       now,
       now,
     ],
@@ -208,6 +260,7 @@ export async function createAgent(params: CreateAgentParams): Promise<Agent> {
     system_prompt: params.systemPrompt ?? null,
     model_id: params.modelId ?? null,
     is_public: false,
+    enabled_system_tools: enabledSystemToolsJson,
     created_at: now,
     updated_at: now,
   };
@@ -239,13 +292,10 @@ export async function getAgentById(
     return null;
   }
 
-  // 获取关联的工具
-  const tools = await getAgentTools(agentId);
+  // 获取关联的 MCP 工具
+  const mcpTools = await getAgentTools(agentId);
 
-  return {
-    ...agent,
-    tools,
-  };
+  return buildAgentWithTools(agent, mcpTools);
 }
 
 /**
@@ -272,10 +322,8 @@ export async function getAgentsByUserId(userId: string): Promise<AgentWithTools[
   // 组装结果
   return result.rows.map((row) => {
     const agent = mapRowToAgent(row);
-    return {
-      ...agent,
-      tools: toolsMap.get(agent.id) || [],
-    };
+    const mcpTools = toolsMap.get(agent.id) || [];
+    return buildAgentWithTools(agent, mcpTools);
   });
 }
 
@@ -310,19 +358,21 @@ export async function getPublicAgents(
   // 提取所有Agent ID
   const agentIds = result.rows.map((row) => row.id as string);
 
-  // 批量获取所有Agent的工具信息（一次性查询）
+  // 批量获取工具信息
   const toolsMap = await getAgentsToolsBatch(agentIds);
 
   // 组装结果
   return result.rows.map((row) => {
     const agent = mapRowToAgent(row);
+    const mcpTools = toolsMap.get(agent.id) || [];
+    const agentWithTools = buildAgentWithTools(agent, mcpTools);
+
     return {
-      ...agent,
+      ...agentWithTools,
       creator: {
         id: agent.user_id,
         username: row.creator_username as string | null,
       },
-      tools: toolsMap.get(agent.id) || [],
     };
   });
 }
@@ -372,6 +422,11 @@ export async function updateAgent(
   if (params.modelId !== undefined) {
     updates.push("model_id = ?");
     args.push(params.modelId);
+  }
+  // 更新启用的系统工具
+  if (params.enabledSystemTools !== undefined) {
+    updates.push("enabled_system_tools = ?");
+    args.push(serializeSystemTools(params.enabledSystemTools));
   }
 
   // 总是更新updated_at
