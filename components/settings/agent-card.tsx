@@ -83,12 +83,28 @@ export function AgentCard({
           </div>
 
           {/* 工具数量 */}
-          {agent.tools.length > 0 && (
+          {(agent.enabledSystemTools?.length ?? 0) > 0 || agent.tools.length > 0 ? (
             <div className="flex items-center gap-2">
               <span className="text-muted-foreground">工具:</span>
-              <span>{agent.tools.length} 个</span>
+              <span className="text-xs">
+                {/* 区分系统工具和 MCP 工具 */}
+                {(() => {
+                  const systemCount = agent.enabledSystemTools?.length ?? 0;
+                  const mcpCount = agent.tools.filter(t => t.source === 'mcp').length;
+
+                  const parts = [];
+                  if (systemCount > 0) {
+                    parts.push(`${systemCount} 个系统工具`);
+                  }
+                  if (mcpCount > 0) {
+                    parts.push(`${mcpCount} 个 MCP 工具`);
+                  }
+
+                  return parts.join(' · ') || '无工具';
+                })()}
+              </span>
             </div>
-          )}
+          ) : null}
 
           {/* 创建时间 */}
           <div className="text-xs text-muted-foreground">
