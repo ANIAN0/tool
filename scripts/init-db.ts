@@ -25,6 +25,10 @@ import {
   CREATE_USER_MCP_SERVERS_TABLE,
   CREATE_MCP_TOOLS_TABLE,
   CREATE_MCP_SERVERS_INDEXES,
+  // Agent相关表Schema
+  CREATE_AGENTS_TABLE,
+  CREATE_AGENT_TOOLS_TABLE,
+  CREATE_AGENTS_INDEXES,
 } from "../lib/db/schema";
 
 /**
@@ -94,6 +98,16 @@ async function initDatabase(db: Client): Promise<void> {
   await db.execute(CREATE_MCP_TOOLS_TABLE);
   console.log("✅ mcp_tools 表创建成功");
 
+  // 9. 创建 agents 表（Agent配置）
+  console.log("创建 agents 表...");
+  await db.execute(CREATE_AGENTS_TABLE);
+  console.log("✅ agents 表创建成功");
+
+  // 10. 创建 agent_tools 表（Agent工具关联）
+  console.log("创建 agent_tools 表...");
+  await db.execute(CREATE_AGENT_TOOLS_TABLE);
+  console.log("✅ agent_tools 表创建成功");
+
   console.log("\n");
 }
 
@@ -140,6 +154,16 @@ async function createIndexes(db: Client): Promise<void> {
       console.log(`✅ MCP索引创建成功: ${sql.substring(0, 60)}...`);
     } catch (error) {
       console.log(`⚠️ MCP索引创建跳过: ${sql.substring(0, 60)}...`);
+    }
+  }
+
+  // 创建Agent相关索引
+  for (const sql of CREATE_AGENTS_INDEXES) {
+    try {
+      await db.execute(sql);
+      console.log(`✅ Agent索引创建成功: ${sql.substring(0, 60)}...`);
+    } catch (error) {
+      console.log(`⚠️ Agent索引创建跳过: ${sql.substring(0, 60)}...`);
     }
   }
 
@@ -270,6 +294,38 @@ async function migrateDatabase(db: Client): Promise<void> {
     }
   }
 
+  // 迁移9: 创建 agents 表（如果不存在）
+  if (!(await tableExists(db, "agents"))) {
+    console.log("创建 agents 表...");
+    await db.execute(CREATE_AGENTS_TABLE);
+    console.log("✅ agents 表创建成功");
+  } else {
+    console.log("✅ agents 表已存在，跳过迁移");
+  }
+
+  // 迁移10: 创建 agent_tools 表（如果不存在）
+  if (!(await tableExists(db, "agent_tools"))) {
+    console.log("创建 agent_tools 表...");
+    await db.execute(CREATE_AGENT_TOOLS_TABLE);
+    console.log("✅ agent_tools 表创建成功");
+  } else {
+    console.log("✅ agent_tools 表已存在，跳过迁移");
+  }
+
+  // 迁移11: 添加 enabled_system_tools 字段到 agents 表
+  // 用于存储 Agent 启用的系统工具ID列表（JSON格式）
+  if (await tableExists(db, "agents")) {
+    if (!(await columnExists(db, "agents", "enabled_system_tools"))) {
+      console.log("添加 enabled_system_tools 字段到 agents 表...");
+      await db.execute(
+        "ALTER TABLE agents ADD COLUMN enabled_system_tools TEXT"
+      );
+      console.log("✅ enabled_system_tools 字段添加成功");
+    } else {
+      console.log("✅ enabled_system_tools 字段已存在，跳过迁移");
+    }
+  }
+
   console.log("\n");
 }
 
@@ -288,6 +344,8 @@ async function showDatabaseStatus(db: Client): Promise<void> {
     "user_models",
     "user_mcp_servers",
     "mcp_tools",
+    "agents",
+    "agent_tools",
   ];
 
   for (const table of tables) {
