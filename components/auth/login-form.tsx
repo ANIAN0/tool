@@ -97,7 +97,7 @@ export function LoginForm({ onSuccess, onSwitchToRegister }: LoginFormProps) {
       if (onSuccess) {
         onSuccess();
       } else {
-        router.push("/chat");
+        router.push("/agent-chat");
       }
     } catch (err) {
       setError("登录失败，请稍后重试");

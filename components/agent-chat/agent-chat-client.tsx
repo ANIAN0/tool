@@ -38,7 +38,7 @@ import { useRouter } from "next/navigation";
 import { dbMessageToUIMessage, isToolPart, isStepStartPart } from "@/lib/agent-chat";
 
 /**
- * ChatClientProps
+ * AgentChatClient 组件的 Props
  */
 interface AgentChatClientProps {
   id: string;

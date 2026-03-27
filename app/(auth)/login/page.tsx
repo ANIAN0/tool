@@ -27,7 +27,7 @@ export default function LoginPage() {
       {/* 登录表单卡片 */}
       <div className="rounded-lg border border-border bg-card p-6 shadow-sm">
         <LoginForm
-          onSuccess={() => router.push("/chat")}
+          onSuccess={() => router.push("/agent-chat")}
           onSwitchToRegister={() => router.push("/register")}
         />
       </div>
@@ -35,7 +35,7 @@ export default function LoginPage() {
       {/* 游客访问 */}
       <div className="text-center">
         <Link
-          href="/chat"
+          href="/agent-chat"
           className="text-sm text-muted-foreground hover:text-foreground transition-colors"
         >
           以游客身份继续
