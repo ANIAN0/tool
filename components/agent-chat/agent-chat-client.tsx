@@ -26,7 +26,7 @@ import {
 } from "@/components/ai-elements/tool";
 import { DbAgentSelector } from "./db-agent-selector";
 import { AgentChatSidebar } from "./sidebar";
-import { PromptSection } from "@/components/chat/prompt-section";
+import { PromptSection } from "./prompt-section";
 import { UserMenu } from "@/components/auth/user-menu";
 import { getAnonId } from "@/lib/anon-id";
 import type { Conversation as ConversationType } from "@/lib/db/schema";
