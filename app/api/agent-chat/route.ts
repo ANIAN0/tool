@@ -11,7 +11,7 @@
  * 流式响应（使用 toUIMessageStreamResponse）
  */
 
-import { createOpenRouter } from "@openrouter/ai-sdk-provider";
+import { createOpenAICompatible } from "@ai-sdk/openai-compatible";
 import {
   convertToModelMessages,
   UIMessage,
@@ -25,22 +25,47 @@ import {
   getAgentById,
   getUserModelById,
   getDefaultUserModel,
+  type UserModel,
 } from "@/lib/db";
 import { nanoid } from "nanoid";
 import { wrapModelWithDevTools } from "@/lib/ai";
 import { ToolLoopAgent, stepCountIs } from "ai";
 import { getSandboxToolsWithContext } from "@/lib/sandbox";
-
-// 创建 OpenRouter provider 实例
-const openrouter = createOpenRouter({
-  apiKey: process.env.OPENROUTER_API_KEY,
-});
-
-// 默认模型（免费模型）
-const DEFAULT_MODEL = "arcee-ai/trinity-large-preview:free";
+import { decryptApiKey } from "@/lib/encryption";
+import {
+  createAgentMcpRuntimeTools,
+  type McpRuntimeDiagnostic,
+} from "@/lib/agents/mcp-runtime";
+import { mergeAgentToolSets } from "@/lib/agents/toolset-merge";
 
 // 设置最大响应时间为 60 秒
 export const maxDuration = 60;
+
+/**
+ * 根据用户模型配置构建聊天模型
+ * 当前仅支持 provider=openai（OpenAI-Compatible 协议）
+ */
+function buildChatModelFromUserModel(userModel: UserModel) {
+  // 校验 provider，确保与文档和前端能力一致
+  if (userModel.provider !== "openai") {
+    throw new Error("当前仅支持 OpenAI-Compatible（provider=openai）");
+  }
+
+  // 解密数据库中存储的密文 API Key
+  const decryptedApiKey = decryptApiKey(userModel.api_key);
+  // 使用用户填写的 base_url；未填写时回退到 OpenAI 官方端点
+  const baseURL = userModel.base_url || "https://api.openai.com/v1";
+
+  // 创建 OpenAI-Compatible provider
+  const provider = createOpenAICompatible({
+    name: "user-openai-compatible",
+    baseURL,
+    apiKey: decryptedApiKey,
+  });
+
+  // 返回具体聊天模型实例
+  return provider.chatModel(userModel.model);
+}
 
 /**
  * 从Agent的steps构建UIMessage parts
@@ -133,6 +158,28 @@ function extractTitle(content: string): string {
 }
 
 /**
+ * 统计 MCP 运行时诊断摘要（按 code 聚合）
+ */
+function buildDiagnosticsSummary(
+  diagnostics: McpRuntimeDiagnostic[]
+): Record<string, number> {
+  // 预置所有诊断码，保证日志结构稳定可解析
+  const summary: Record<string, number> = {
+    SERVER_DISABLED: 0,
+    SERVER_CONNECT_FAILED: 0,
+    REMOTE_TOOLS_FETCH_FAILED: 0,
+    TOOL_NOT_FOUND_ON_SERVER: 0,
+    TOOL_MAPPED: 0,
+  };
+  // 按诊断码累加计数
+  for (const diagnostic of diagnostics) {
+    summary[diagnostic.code] = (summary[diagnostic.code] ?? 0) + 1;
+  }
+  // 返回聚合结果
+  return summary;
+}
+
+/**
  * Agent对话API路由
  */
 export async function POST(req: Request) {
@@ -190,11 +237,11 @@ export async function POST(req: Request) {
     }
 
     // 获取模型配置
-    let modelName = DEFAULT_MODEL;
+    let modelName = "";
     let chatModel;
 
     if (agent.model_id) {
-      // 使用Agent关联的模型
+      // 优先使用 Agent 绑定模型（使用创建者的模型池）
       const modelConfig = await getUserModelById(agent.user_id, agent.model_id);
       if (!modelConfig) {
         return new Response(
@@ -203,36 +250,47 @@ export async function POST(req: Request) {
         );
       }
 
-      // 使用创建者的模型配置
-      if (modelConfig.provider === "openrouter") {
-        const agentOpenrouter = createOpenRouter({
-          apiKey: modelConfig.api_key,
-        });
-        chatModel = agentOpenrouter.chat(modelConfig.model);
-      } else {
-        // 其他provider待实现
+      try {
+        // 按文档仅支持 openai provider，统一走 OpenAI-Compatible
+        chatModel = buildChatModelFromUserModel(modelConfig);
+        modelName = modelConfig.model;
+      } catch (modelError) {
         return new Response(
-          JSON.stringify({ error: "暂不支持的模型提供商" }),
+          JSON.stringify({
+            error:
+              modelError instanceof Error
+                ? modelError.message
+                : "模型配置无效，请检查后重试",
+          }),
           { status: 400, headers: { "Content-Type": "application/json" } }
         );
       }
-      modelName = modelConfig.model;
     } else {
-      // Agent未配置模型，使用用户默认模型
+      // Agent 未绑定模型时，必须使用当前用户默认模型
       const defaultModel = await getDefaultUserModel(userId);
-      if (defaultModel) {
-        if (defaultModel.provider === "openrouter") {
-          const userOpenrouter = createOpenRouter({
-            apiKey: defaultModel.api_key,
-          });
-          chatModel = userOpenrouter.chat(defaultModel.model);
-          modelName = defaultModel.model;
-        } else {
-          chatModel = openrouter.chat(DEFAULT_MODEL);
-        }
-      } else {
-        // 使用默认OpenRouter模型
-        chatModel = openrouter.chat(DEFAULT_MODEL);
+      if (!defaultModel) {
+        return new Response(
+          JSON.stringify({
+            error: "请先在设置页配置并设为默认模型（OpenAI-Compatible）",
+          }),
+          { status: 400, headers: { "Content-Type": "application/json" } }
+        );
+      }
+
+      try {
+        // 使用当前用户默认模型构建聊天模型
+        chatModel = buildChatModelFromUserModel(defaultModel);
+        modelName = defaultModel.model;
+      } catch (modelError) {
+        return new Response(
+          JSON.stringify({
+            error:
+              modelError instanceof Error
+                ? modelError.message
+                : "默认模型配置无效，请重新设置默认模型",
+          }),
+          { status: 400, headers: { "Content-Type": "application/json" } }
+        );
       }
     }
 
@@ -305,61 +363,159 @@ export async function POST(req: Request) {
       ignoreIncompleteToolCalls: true,
     });
 
-    // TODO: 创建工具（如果Agent有关联的工具）
-    // 目前暂不支持工具调用，后续实现需要：
-    // 1. 声明变量: let tools: Record<string, unknown> = {}; let cleanup: (() => Promise<void>) | null = null;
-    // 2. 取消注释以下代码块
-    // if (agent.tools && agent.tools.length > 0) {
-    //   const toolsResult = await createToolsFromMcpTools(agent.tools);
-    //   tools = toolsResult.tools;
-    //   cleanup = toolsResult.cleanup;
-    // }
-    // 3. 在 ToolLoopAgent 配置中添加 tools 参数
-
     // 创建沙盒工具（绑定会话上下文）
     const sandboxTools = getSandboxToolsWithContext({
       conversationId: currentConversationId!,
       userId: userId,
     });
 
+    // 初始化运行时工具集合，默认仅包含系统工具（sandbox）
+    let runtimeTools: ToolSet = sandboxTools;
+    // 初始化 MCP 运行时清理函数，用于请求结束统一释放连接
+    let mcpRuntimeCleanup: (() => Promise<void>) | null = null;
+    // 初始化诊断明细，用于日志可观测性
+    let mcpDiagnostics: McpRuntimeDiagnostic[] = [];
+    // 初始化 MCP 已映射工具数量（用于摘要日志）
+    let mcpMappedToolCount = 0;
+
+    try {
+      // 按 Agent 绑定关系构建 MCP 运行时工具（best-effort）
+      const mcpRuntime = await createAgentMcpRuntimeTools({
+        agentId: agent.id,
+        agentOwnerUserId: agent.user_id,
+      });
+      // 保存 MCP 清理函数，后续在流式结束时关闭客户端
+      mcpRuntimeCleanup = mcpRuntime.cleanup;
+      // 保存诊断明细，后续用于聚合日志与问题定位
+      mcpDiagnostics = mcpRuntime.diagnostics;
+      // 记录 MCP 映射工具数，便于运行时挂载可观测
+      mcpMappedToolCount = Object.keys(mcpRuntime.tools).length;
+      // 合并系统工具与 MCP 工具，保持系统工具优先
+      runtimeTools = mergeAgentToolSets({
+        systemTools: sandboxTools,
+        mcpTools: mcpRuntime.tools,
+      });
+    } catch (mcpBuildError) {
+      // MCP 构建失败时降级为仅系统工具，不阻断整次对话
+      console.error("构建Agent MCP运行时工具失败，已降级为仅系统工具:", mcpBuildError);
+    }
+
+    // 统计诊断码摘要，便于快速观察挂载质量
+    const diagnosticsSummary = buildDiagnosticsSummary(mcpDiagnostics);
+    // 提取可定位的诊断明细，满足“服务/工具级”排障要求
+    const diagnosticsDetails = mcpDiagnostics.map((diagnostic) => {
+      const context = diagnostic.context ?? {};
+      return {
+        code: diagnostic.code,
+        serverId:
+          typeof context.serverId === "string" ? context.serverId : undefined,
+        serverName:
+          typeof context.serverName === "string"
+            ? context.serverName
+            : undefined,
+        toolName:
+          typeof context.toolName === "string"
+            ? context.toolName
+            : typeof context.sourceToolName === "string"
+            ? context.sourceToolName
+            : undefined,
+        message: diagnostic.message,
+      };
+    });
+    // 计算 MCP 相关 server 数量，辅助判断是否完全未挂载
+    const mcpServerCount = new Set(
+      diagnosticsDetails
+        .map((detail) => detail.serverId)
+        .filter((serverId): serverId is string => Boolean(serverId))
+    ).size;
+
+    // 输出结构化摘要日志（用于线上排障与验收核对）
+    console.log(
+      "Agent MCP运行时挂载摘要:",
+      JSON.stringify({
+        agentId: agent.id,
+        conversationId: currentConversationId,
+        mcpServerCount,
+        mcpMappedToolCount,
+        diagnosticsSummary,
+        diagnosticsDetails,
+      })
+    );
+
+    // 定义统一清理函数，确保 MCP 连接在请求结束后释放
+    const safeCleanupMcpRuntime = async () => {
+      // 没有 MCP 清理函数时直接返回
+      if (!mcpRuntimeCleanup) return;
+      try {
+        // 执行 MCP 客户端关闭流程
+        await mcpRuntimeCleanup();
+      } catch (cleanupError) {
+        // 清理失败仅记录告警，不影响主响应
+        console.warn("MCP运行时清理失败:", cleanupError);
+      }
+    };
+
     // 创建ToolLoopAgent实例
     const systemPrompt = agent.system_prompt || "你是一个有帮助的AI助手。";
     const agentInstance = new ToolLoopAgent({
       model: wrappedModel,
       instructions: systemPrompt,
-      tools: sandboxTools, // 添加沙盒工具
+      tools: runtimeTools, // 挂载“系统工具 + MCP工具”的合并结果
       stopWhen: stepCountIs(10),
     });
 
     // 执行流式响应
-    const result = await agentInstance.stream({
-      messages: modelMessages,
-      onFinish: async ({ text, finishReason, steps }) => {
-        if (finishReason !== "error") {
-          try {
-            const messageId = nanoid();
-            const parts = steps.length > 0 ? buildPartsFromSteps(steps) : [{ type: "text" as const, text }];
+    const result = await (async () => {
+      try {
+        // 启动流式执行，正常结束时写入消息并回收 MCP 连接
+        return await agentInstance.stream({
+          messages: modelMessages,
+          onFinish: async ({ text, finishReason, steps }) => {
+            try {
+              if (finishReason !== "error") {
+                try {
+                  // 生成 assistant 消息ID
+                  const messageId = nanoid();
+                  // 优先使用 steps 还原工具调用与文本片段
+                  const parts =
+                    steps.length > 0
+                      ? buildPartsFromSteps(steps)
+                      : [{ type: "text" as const, text }];
 
-            const fullMessage: UIMessage = {
-              id: messageId,
-              role: "assistant",
-              parts,
-            };
+                  // 组装完整 assistant 消息对象
+                  const fullMessage: UIMessage = {
+                    id: messageId,
+                    role: "assistant",
+                    parts,
+                  };
 
-            await createMessage({
-              id: messageId,
-              conversationId: currentConversationId!,
-              role: "assistant",
-              content: JSON.stringify(fullMessage),
-            });
+                  // 持久化 assistant 消息
+                  await createMessage({
+                    id: messageId,
+                    conversationId: currentConversationId!,
+                    role: "assistant",
+                    content: JSON.stringify(fullMessage),
+                  });
 
-            await touchConversation(currentConversationId!);
-          } catch (saveError) {
-            console.error("保存消息失败:", saveError);
-          }
-        }
-      },
-    });
+                  // 刷新会话更新时间
+                  await touchConversation(currentConversationId!);
+                } catch (saveError) {
+                  // 消息落库失败只记录日志，不影响流式返回
+                  console.error("保存消息失败:", saveError);
+                }
+              }
+            } finally {
+              // 无论成功或失败都执行 MCP 客户端清理
+              await safeCleanupMcpRuntime();
+            }
+          },
+        });
+      } catch (streamError) {
+        // 启动流式过程失败时也要执行清理，避免连接泄漏
+        await safeCleanupMcpRuntime();
+        throw streamError;
+      }
+    })();
 
     return result.toUIMessageStreamResponse({
       sendSources: true,

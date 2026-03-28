@@ -26,8 +26,7 @@ class NsjailSandbox:
 
     def _build_command(
         self,
-        script_path: str,
-        workdir: str,
+        script_name: str,
         language: str,
         timeout: int,
         user_hash: str
@@ -36,8 +35,7 @@ class NsjailSandbox:
         构建 nsjail 命令
 
         Args:
-            script_path: 脚本文件路径
-            workdir: 工作目录
+            script_name: 脚本文件名（不含路径）
             language: 语言类型
             timeout: 超时秒数
             user_hash: 用户哈希（用于动态挂载）
@@ -49,18 +47,20 @@ class NsjailSandbox:
             self.nsjail_path,
             "--config", self.config_path,
             "--time_limit", str(timeout),
-            "--cwd", "/workspace",
-            # 动态绑定用户工作空间
-            "--bindmount", f"/var/lib/sandbox/users/{user_hash}/workspace:/workspace:rw",
+            # 动态绑定用户工作空间（读写模式）
+            "-B", f"/var/lib/sandbox/users/{user_hash}/workspace:/workspace",
         ]
+
+        # 沙盒内路径：工作区已通过 -B 挂载为 /workspace，禁止传宿主机绝对路径（否则报 No such file）
+        jail_script = f"/workspace/{script_name}"
 
         # 根据语言选择执行器
         if language == "bash":
-            cmd.extend(["--", "/bin/bash", script_path])
+            cmd.extend(["--", "/bin/bash", jail_script])
         elif language == "python":
-            cmd.extend(["--", "/usr/bin/python3", script_path])
+            cmd.extend(["--", "/usr/bin/python3", jail_script])
         elif language == "node":
-            cmd.extend(["--", "/usr/bin/node", script_path])
+            cmd.extend(["--", "/usr/bin/node", jail_script])
         else:
             raise ValueError(f"Unsupported language: {language}")
 
@@ -101,11 +101,14 @@ class NsjailSandbox:
             f.write(code)
             script_path = f.name
 
+        # 临时文件默认 0600；user namespace 映射后进程在宿主上常为 65534，无法读 root 的 600 文件 → Permission denied
+        os.chmod(script_path, 0o644)
+
         try:
-            # 构建 nsjail 命令
+            # 仅传文件名；nsjail 内可见路径为 /workspace/<文件名>（与 -B 挂载一致）
+            script_basename = os.path.basename(script_path)
             cmd = self._build_command(
-                script_path=script_path,
-                workdir=workdir,
+                script_name=script_basename,
                 language=language,
                 timeout=timeout,
                 user_hash=user_hash

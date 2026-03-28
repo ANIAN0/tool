@@ -568,3 +568,82 @@ export async function getAgentMcpTools(agentId: string): Promise<McpTool[]> {
     updated_at: row.updated_at as number,
   }));
 }
+
+/**
+ * Agent MCP 运行时配置
+ * 用于运行时按 server 分组建连并筛选白名单工具
+ */
+export interface AgentMcpRuntimeToolConfig {
+  // MCP 服务ID（对应 user_mcp_servers.id）
+  serverId: string;
+  // MCP 服务名称（用于日志和诊断）
+  serverName: string;
+  // MCP 服务URL（用于 createMCPClient）
+  serverUrl: string;
+  // MCP 服务自定义请求头（由数据库JSON反序列化）
+  serverHeaders: Record<string, string>;
+  // MCP 服务启用状态（false 时运行时应跳过）
+  serverEnabled: boolean;
+  // Agent 勾选的 MCP 工具名（远端工具白名单）
+  toolName: string;
+}
+
+/**
+ * 获取 Agent MCP 运行时工具配置
+ * 数据来源：agent_tools + mcp_tools + user_mcp_servers
+ */
+export async function getAgentMcpRuntimeToolConfigs(
+  agentId: string,
+  agentOwnerUserId: string
+): Promise<AgentMcpRuntimeToolConfig[]> {
+  // 获取数据库连接
+  const db = getDb();
+  // 查询 Agent 绑定的 MCP 工具与所属服务配置
+  const result = await db.execute({
+    sql: `
+      SELECT
+        s.id AS server_id,
+        s.name AS server_name,
+        s.url AS server_url,
+        s.headers AS server_headers,
+        s.is_enabled AS server_enabled,
+        t.name AS tool_name
+      FROM agent_tools at
+      JOIN mcp_tools t ON at.tool_id = t.id
+      JOIN user_mcp_servers s ON t.server_id = s.id
+      WHERE at.agent_id = ?
+        AND s.user_id = ?
+      ORDER BY s.id, t.name
+    `,
+    args: [agentId, agentOwnerUserId],
+  });
+
+  // 映射为运行时配置结构，供 mcp-runtime 使用
+  return result.rows.map((row) => {
+    // 解析服务headers，数据库中为空串时回退为空对象
+    const headersText = row.server_headers ? String(row.server_headers) : "";
+    let parsedHeaders: Record<string, string> = {};
+    try {
+      // 尝试解析JSON headers，失败时安全回退为空对象
+      parsedHeaders = headersText ? (JSON.parse(headersText) as Record<string, string>) : {};
+    } catch {
+      // headers 格式异常时不抛错，运行时按无headers继续
+      parsedHeaders = {};
+    }
+
+    return {
+      // 返回服务ID
+      serverId: String(row.server_id),
+      // 返回服务名称，空值时给默认名用于日志可读性
+      serverName: row.server_name ? String(row.server_name) : "unnamed-mcp-server",
+      // 返回服务URL
+      serverUrl: String(row.server_url),
+      // 返回解析后的headers
+      serverHeaders: parsedHeaders,
+      // 返回启用状态
+      serverEnabled: Number(row.server_enabled) === 1,
+      // 返回工具名称
+      toolName: String(row.tool_name),
+    };
+  });
+}

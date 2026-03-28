@@ -15,7 +15,7 @@ export default function AuthLayout({
     <div className="min-h-screen flex flex-col bg-background">
       {/* 顶部导航 */}
       <header className="h-16 shrink-0 border-b border-border flex items-center px-6">
-        <Link href="/chat" className="flex items-center gap-2 text-foreground hover:opacity-80 transition-opacity">
+        <Link href="/agent-chat" className="flex items-center gap-2 text-foreground hover:opacity-80 transition-opacity">
           <MessageSquare className="w-6 h-6" />
           <span className="font-semibold">AI 对话助手</span>
         </Link>

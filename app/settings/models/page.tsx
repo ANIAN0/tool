@@ -36,7 +36,7 @@ export default function ModelsSettingsPage() {
         <div>
           <h1 className="text-2xl font-bold tracking-tight">模型设置</h1>
           <p className="text-muted-foreground mt-1">
-            管理您的自定义 LLM 模型配置，支持 OpenAI、Anthropic、Google 等多种 Provider
+            管理您的自定义 LLM 模型配置，当前仅支持 OpenAI-Compatible（provider=openai）
           </p>
         </div>
         <div className="flex items-center justify-center py-12">
@@ -52,7 +52,7 @@ export default function ModelsSettingsPage() {
       <div>
         <h1 className="text-2xl font-bold tracking-tight">模型设置</h1>
         <p className="text-muted-foreground mt-1">
-          管理您的自定义 LLM 模型配置，支持 OpenAI、Anthropic、Google 等多种 Provider
+          管理您的自定义 LLM 模型配置，当前仅支持 OpenAI-Compatible（provider=openai）
         </p>
       </div>
 

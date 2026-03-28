@@ -9,7 +9,7 @@ Type=simple
 User=root
 WorkingDirectory=/opt/sandbox-service
 Environment="PATH=/opt/sandbox-service/venv/bin"
-ExecStart=/opt/sandbox-service/venv/bin/uvicorn src.main:app --host 0.0.0.0 --port 8443 --ssl-keyfile /etc/sandbox/ssl/key.pem --ssl-certfile /etc/sandbox/ssl/cert.pem
+ExecStart=/opt/sandbox-service/venv/bin/uvicorn src.main:app --host 0.0.0.0 --port 8443
 Restart=always
 RestartSec=5
 
@@ -21,6 +21,7 @@ CapabilityBoundingSet=CAP_SYS_ADMIN CAP_SYS_CHROOT CAP_SETUID CAP_SETGID CAP_KIL
 ProtectSystem=strict
 ProtectHome=true
 PrivateTmp=true
+ReadWritePaths=/var/lib/sandbox /var/log/sandbox
 
 [Install]
 WantedBy=multi-user.target

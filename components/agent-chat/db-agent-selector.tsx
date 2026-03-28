@@ -76,39 +76,32 @@ export function DbAgentSelector({
 
       setIsLoading(true);
       try {
-        // 并行请求我的Agent和公开Agent
-        const [myRes, publicRes] = await Promise.all([
-          fetch("/api/agents", {
-            headers: { "X-User-Id": anonId },
-          }),
-          fetch("/api/agents/public", {
-            headers: { "X-User-Id": anonId },
-          }),
-        ]);
+        // 调用 /api/agents 获取我的Agent和公开Agent
+        const res = await fetch("/api/agents", {
+          headers: { "X-User-Id": anonId },
+        });
 
-        if (myRes.ok) {
-          const data = await myRes.json();
+        if (res.ok) {
+          const data = await res.json();
           // 转换为AgentBrief格式
-          const agents = (data.agents || []).map((a: { id: string; name: string; description: string | null; is_public: boolean }) => ({
+          // 我的Agent列表
+          const myAgentsList = (data.data?.myAgents || []).map((a: { id: string; name: string; description: string | null; is_public: boolean }) => ({
             id: a.id,
             name: a.name,
             description: a.description,
             isPublic: a.is_public,
           }));
-          setMyAgents(agents);
-        }
+          setMyAgents(myAgentsList);
 
-        if (publicRes.ok) {
-          const data = await publicRes.json();
-          // 转换为AgentBrief格式（含创建者信息）
-          const agents = (data.agents || []).map((a: { id: string; name: string; description: string | null; is_public: boolean; creator?: { id: string; username: string | null } }) => ({
+          // 公开Agent列表（含创建者信息）
+          const publicAgentsList = (data.data?.publicAgents || []).map((a: { id: string; name: string; description: string | null; is_public: boolean; creator?: { id: string; username: string | null } }) => ({
             id: a.id,
             name: a.name,
             description: a.description,
             isPublic: a.is_public,
             creator: a.creator,
           }));
-          setPublicAgents(agents);
+          setPublicAgents(publicAgentsList);
         }
       } catch (error) {
         console.error("获取Agent列表失败:", error);

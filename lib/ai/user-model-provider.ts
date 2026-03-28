@@ -1,6 +1,6 @@
 /**
  * AI SDK Provider 工厂
- * 根据用户模型配置创建兼容 OpenAI 的 Provider
+ * 根据用户模型配置创建 OpenAI-Compatible Provider
  */
 
 import { createOpenAICompatible } from "@ai-sdk/openai-compatible";
@@ -9,15 +9,9 @@ import { decryptApiKey } from "@/lib/encryption";
 
 /**
  * 支持的 Provider 类型
+ * 当前仅支持 openai（代表 OpenAI-Compatible 协议）
  */
-export type SupportedProvider =
-  | "openai"
-  | "anthropic"
-  | "google"
-  | "deepseek"
-  | "openrouter"
-  | "siliconflow"
-  | "custom";
+export type SupportedProvider = "openai";
 
 /**
  * Provider 默认配置
@@ -28,31 +22,7 @@ const PROVIDER_DEFAULTS: Record<
 > = {
   openai: {
     baseURL: "https://api.openai.com/v1",
-    name: "OpenAI",
-  },
-  anthropic: {
-    baseURL: "https://api.anthropic.com/v1",
-    name: "Anthropic",
-  },
-  google: {
-    baseURL: "https://generativelanguage.googleapis.com/v1beta",
-    name: "Google",
-  },
-  deepseek: {
-    baseURL: "https://api.deepseek.com/v1",
-    name: "DeepSeek",
-  },
-  openrouter: {
-    baseURL: "https://openrouter.ai/api/v1",
-    name: "OpenRouter",
-  },
-  siliconflow: {
-    baseURL: "https://api.siliconflow.cn/v1",
-    name: "SiliconFlow",
-  },
-  custom: {
-    baseURL: "",
-    name: "Custom",
+    name: "OpenAI-Compatible",
   },
 };
 
@@ -74,6 +44,11 @@ export interface ProviderConfig {
  */
 export function createProviderConfig(userModel: UserModel): ProviderConfig {
   try {
+    // 仅允许 openai，防止其他 provider 混入运行时
+    if (userModel.provider !== "openai") {
+      throw new Error("当前仅支持 OpenAI-Compatible（provider=openai）");
+    }
+
     // 解密 API Key
     const apiKey = decryptApiKey(userModel.api_key);
 
@@ -84,11 +59,7 @@ export function createProviderConfig(userModel: UserModel): ProviderConfig {
       baseURL = userModel.base_url;
     } else {
       // 使用 Provider 默认值
-      const defaults = PROVIDER_DEFAULTS[userModel.provider as SupportedProvider];
-      if (!defaults) {
-        throw new Error(`未知的 Provider: ${userModel.provider}`);
-      }
-      baseURL = defaults.baseURL;
+      baseURL = PROVIDER_DEFAULTS.openai.baseURL;
     }
 
     // 验证配置
@@ -100,14 +71,10 @@ export function createProviderConfig(userModel: UserModel): ProviderConfig {
       throw new Error("API Key 无效或为空");
     }
 
-    const providerName =
-      PROVIDER_DEFAULTS[userModel.provider as SupportedProvider]?.name ||
-      userModel.provider;
-
     return {
       baseURL,
       apiKey,
-      name: providerName,
+      name: PROVIDER_DEFAULTS.openai.name,
     };
   } catch (error) {
     console.error("创建 Provider 配置失败:", error);
@@ -151,9 +118,8 @@ export function createUserModelProvider(userModel: UserModel) {
 export function getProviderDefaultBaseURL(
   provider: SupportedProvider | string
 ): string {
-  return (
-    PROVIDER_DEFAULTS[provider as SupportedProvider]?.baseURL || ""
-  );
+  // 非 openai 直接返回空字符串，前端会按“仅支持 openai”处理
+  return provider === "openai" ? PROVIDER_DEFAULTS.openai.baseURL : "";
 }
 
 /**
@@ -165,9 +131,8 @@ export function getProviderDefaultBaseURL(
 export function getProviderDisplayName(
   provider: SupportedProvider | string
 ): string {
-  return (
-    PROVIDER_DEFAULTS[provider as SupportedProvider]?.name || provider
-  );
+  // 仅 openai 显示 OpenAI-Compatible，其他值原样返回便于调试
+  return provider === "openai" ? PROVIDER_DEFAULTS.openai.name : provider;
 }
 
 /**
@@ -180,11 +145,14 @@ export function getSupportedProviders(): Array<{
   name: string;
   baseURL: string;
 }> {
-  return Object.entries(PROVIDER_DEFAULTS).map(([id, config]) => ({
-    id: id as SupportedProvider,
-    name: config.name,
-    baseURL: config.baseURL,
-  }));
+  // 仅返回单一 provider，确保前端表单与后端能力一致
+  return [
+    {
+      id: "openai",
+      name: PROVIDER_DEFAULTS.openai.name,
+      baseURL: PROVIDER_DEFAULTS.openai.baseURL,
+    },
+  ];
 }
 
 /**

@@ -15,6 +15,7 @@ import { User } from "lucide-react";
 // 设置页面导航项
 const settingsNavItems = [
   { href: "/settings/models", label: "模型设置", icon: "🤖" },
+  { href: "/settings/agents", label: "Agent 配置", icon: "🧠" },
   { href: "/settings/tools", label: "工具管理", icon: "🔧" },
   { href: "/settings/mcp", label: "MCP 服务器", icon: "🔌" },
 ];

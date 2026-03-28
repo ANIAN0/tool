@@ -41,7 +41,8 @@ export class SandboxSessionManager {
       method,
       headers: {
         'Content-Type': 'application/json',
-        'X-API-Key': this.apiKey,
+        // 使用 Bearer 认证格式，与服务端 auth.py 保持一致
+        'Authorization': `Bearer ${this.apiKey}`,
       },
       // 如果有请求体，序列化为JSON
       body: body ? JSON.stringify(body) : undefined,

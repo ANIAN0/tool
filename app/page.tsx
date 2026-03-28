@@ -40,7 +40,7 @@ export default function Home() {
             {/* 开始聊天按钮 */}
             <Link
               className="flex h-12 w-full items-center justify-center gap-2 rounded-md bg-primary px-6 text-primary-foreground transition-all hover:bg-primary/90 sm:w-[160px]"
-              href="/chat"
+              href="/agent-chat"
             >
               开始聊天
             </Link>

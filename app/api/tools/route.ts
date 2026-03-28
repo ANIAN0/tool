@@ -1,12 +1,13 @@
 /**
  * 统一工具列表API路由
- * 提供MCP工具的列表
+ * 提供系统工具和MCP工具的合并列表
  */
 
 import { type NextRequest, NextResponse } from "next/server";
 import { getDb } from "@/lib/db/client";
 import { authenticateRequestOptional } from "@/lib/auth/middleware";
 import type { Tool } from "@/lib/db/schema";
+import { SYSTEM_TOOLS_META } from "@/lib/constants/system-tools";
 
 /**
  * 获取所有可用工具
@@ -26,6 +27,9 @@ export async function GET(request: NextRequest) {
   const client = getDb();
 
   try {
+    // 构建系统工具列表（直接使用常量，isAvailable 始终为 true）
+    const systemTools = [...SYSTEM_TOOLS_META];
+
     // 从数据库获取MCP工具（包含服务器信息）
     const mcpToolsResult = await client.execute({
       sql: `
@@ -75,18 +79,22 @@ export async function GET(request: NextRequest) {
       };
     });
 
-    // 按名称排序
+    // 合并工具列表：系统工具优先，然后是 MCP 工具
+    // MCP 工具按 name 排序
     mcpTools.sort((a, b) => a.name.localeCompare(b.name));
+    const tools = [...systemTools, ...mcpTools];
+
+    // 计算统计数据
+    const stats = {
+      total: tools.length,
+      system: systemTools.length,
+      mcp: mcpTools.length,
+      available: systemTools.length + mcpTools.filter((t) => t.isAvailable).length,
+    };
 
     return NextResponse.json({
-      tools: mcpTools,
-      // 统计信息
-      stats: {
-        total: mcpTools.length,
-        system: 0,
-        mcp: mcpTools.length,
-        available: mcpTools.filter((t) => t.isAvailable).length,
-      },
+      tools,
+      stats,
     });
   } catch (error) {
     console.error("获取工具列表失败:", error);

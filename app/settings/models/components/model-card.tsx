@@ -80,7 +80,7 @@ export function ModelCard({
           <div>
             <CardTitle className="text-lg">{model.name}</CardTitle>
             <CardDescription className="mt-1">
-              {model.provider} / {model.model}
+              OpenAI-Compatible / {model.model}
             </CardDescription>
           </div>
           <div className="flex gap-1">

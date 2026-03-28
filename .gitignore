@@ -49,10 +49,8 @@ next-env.d.ts
 
 public/uploads
 
-# 本地文档默认不提交；设计/计划规格纳入版本库便于协作
-docs/**
-!docs/superpowers/
-!docs/superpowers/**
+# 本地文档默认不提交；
+docs/
 
 .claude/
 

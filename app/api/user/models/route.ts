@@ -4,7 +4,7 @@
  * POST: 创建新模型
  */
 
-import { NextRequest, NextResponse } from "next/server";
+import { NextResponse } from "next/server";
 import { withOptionalAuth } from "@/lib/auth/middleware";
 import {
   getUserModels,
@@ -74,6 +74,17 @@ export const POST = withOptionalAuth(async (request, context): Promise<NextRespo
         {
           success: false,
           error: "Provider 是必填项",
+        },
+        { status: 400 }
+      );
+    }
+
+    // 强制仅允许 openai，确保与系统能力一致
+    if (body.provider.trim() !== "openai") {
+      return NextResponse.json(
+        {
+          success: false,
+          error: "当前仅支持 OpenAI-Compatible（provider=openai）",
         },
         { status: 400 }
       );

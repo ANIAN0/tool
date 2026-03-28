@@ -28,6 +28,24 @@ class SessionManager:
         self.data_root = data_root
         self.sessions: dict[str, Session] = {}
         self.idle_timeout = 30 * 60  # 30分钟
+        # 顶层 users 若为 700，nsjail 以 65534 校验路径时无法进入，需在服务启动时统一放宽为可穿越
+        if os.path.isdir(self.data_root):
+            os.chmod(self.data_root, 0o711)
+
+    def _ensure_bind_source_traversable(self, user_dir: str, workspace_dir: str) -> None:
+        """
+        nsjail 做 bind mount 时，源路径在宿主侧会以 uid/gid 映射中的 outside 身份校验；
+        目录若为 700，nobody(65534) 无法穿越，挂载失败。
+
+        权限说明：
+        - user_dir: 711 仅开放路径穿越位（不暴露其他用户的目录列表）
+        - workspace_dir: 777 允许所有人读写执行（容器内 root 映射为宿主 nobody，
+          对 nobody 拥有的目录只是"其他人"，需要 others 有写权限才能创建文件/目录）
+        """
+        os.chmod(user_dir, 0o711)
+        if os.path.isdir(workspace_dir):
+            # 工作空间需要 777：容器内进程映射为 nobody，对 nobody 拥有的目录只是"其他人"
+            os.chmod(workspace_dir, 0o777)
 
     def _hash_user_id(self, user_id: str) -> str:
         """对用户ID进行哈希处理"""
@@ -49,6 +67,8 @@ class SessionManager:
                     f"Session {session_id} does not belong to user {user_id}"
                 )
             session.last_activity = now
+            ws = os.path.join(session.user_dir, "workspace")
+            self._ensure_bind_source_traversable(session.user_dir, ws)
             return session
 
         # 创建新会话
@@ -58,7 +78,7 @@ class SessionManager:
 
         # 确保目录存在
         os.makedirs(workspace_dir, exist_ok=True)
-        os.chmod(user_dir, 0o700)
+        self._ensure_bind_source_traversable(user_dir, workspace_dir)
 
         session = Session(
             id=session_id,

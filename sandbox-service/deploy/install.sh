@@ -22,41 +22,43 @@ fi
 echo -e "${YELLOW}[1/6] 安装系统依赖...${NC}"
 apt update
 apt install -y \
-    build-essential \
-    pkg-config \
-    libprotobuf-dev \
-    protobuf-compiler \
-    libnl-route-3-dev \
-    libcap-dev \
+    docker.io \
     python3 \
     python3-pip \
-    python3-venv
+    python3-venv \
+    curl
 
-# 2. 编译安装 nsjail
-echo -e "${YELLOW}[2/6] 安装 nsjail...${NC}"
+# 2. 安装 uv（快速的 Python 包管理器）
+echo -e "${YELLOW}[2/6] 安装 uv...${NC}"
+if ! command -v uv &> /dev/null; then
+    curl -LsSf https://astral.sh/uv/install.sh | sh
+    export PATH="$HOME/.local/bin:$PATH"
+fi
+echo -e "${GREEN}✓ uv 安装完成${NC}"
+
+# 3. 从 Docker 镜像安装 nsjail
+echo -e "${YELLOW}[3/6] 安装 nsjail...${NC}"
 if ! command -v nsjail &> /dev/null; then
-    cd /tmp
-    git clone https://github.com/google/nsjail.git
-    cd nsjail
-    make
-    cp nsjail /usr/local/bin/
+    docker pull ghcr.io/google/nsjail/nsjail:latest
+    docker create --name temp-nsjail ghcr.io/google/nsjail/nsjail:latest
+    docker cp temp-nsjail:/usr/bin/nsjail /usr/local/bin/nsjail
+    docker rm temp-nsjail
     chmod +x /usr/local/bin/nsjail
-    cd /
-    rm -rf /tmp/nsjail
 fi
 echo -e "${GREEN}✓ nsjail 安装完成${NC}"
 
-# 3. 创建目录结构
-echo -e "${YELLOW}[3/6] 创建目录结构...${NC}"
+# 4. 创建目录结构
+echo -e "${YELLOW}[4/6] 创建目录结构...${NC}"
 mkdir -p /var/lib/sandbox/{rootfs,users}
 mkdir -p /var/lib/sandbox/rootfs/{bin,usr/bin,usr/lib,lib/x86_64-linux-gnu,lib64,tmp,var}
 mkdir -p /var/lib/sandbox/rootfs/etc/ssl/certs
 mkdir -p /etc/sandbox/ssl
 mkdir -p /var/log/sandbox
-chmod 700 /var/lib/sandbox/users
+# 711：允许非属主沿路径进入子目录（nsjail bind 源校验常用 outside uid 65534，700 会导致挂载失败）
+chmod 711 /var/lib/sandbox/users
 
-# 4. 创建最小化 rootfs
-echo -e "${YELLOW}[4/6] 创建 rootfs...${NC}"
+# 5. 创建最小化 rootfs
+echo -e "${YELLOW}[5/6] 创建 rootfs...${NC}"
 
 # 复制必要的 shell 和基础工具
 cp /bin/bash /var/lib/sandbox/rootfs/bin/
@@ -97,22 +99,24 @@ done
 # 移除 setuid 二进制
 find /var/lib/sandbox/rootfs -perm -4000 -exec chmod -s {} \; 2>/dev/null || true
 
-# 5. 安装 Python 服务
-echo -e "${YELLOW}[5/6] 安装 sandbox-service...${NC}"
+# 6. 安装 Python 服务（使用 uv）
+echo -e "${YELLOW}[6/6] 安装 sandbox-service...${NC}"
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 SERVICE_SRC="$SCRIPT_DIR/.."
 
-python3 -m venv /opt/sandbox-service/venv
+# 使用 uv 创建虚拟环境并安装依赖
+uv venv /opt/sandbox-service/venv
 source /opt/sandbox-service/venv/bin/activate
-pip install -r "$SERVICE_SRC/deploy/requirements.txt"
+uv pip install -r "$SERVICE_SRC/deploy/requirements.txt"
+
 cp -r "$SERVICE_SRC/src" /opt/sandbox-service/
 cp -r "$SERVICE_SRC/config" /etc/sandbox/
 cp "$SERVICE_SRC/.env.example" /opt/sandbox-service/.env
 
 deactivate
 
-# 6. 安装 systemd 服务
-echo -e "${YELLOW}[6/6] 安装 systemd 服务...${NC}"
+# 安装 systemd 服务
+echo -e "${YELLOW}安装 systemd 服务...${NC}"
 cp "$SCRIPT_DIR/sandbox-service.service" /etc/systemd/system/
 systemctl daemon-reload
 systemctl enable sandbox-service

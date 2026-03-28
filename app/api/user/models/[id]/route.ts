@@ -5,7 +5,7 @@
  * DELETE: 删除模型
  */
 
-import { NextRequest, NextResponse } from "next/server";
+import { NextResponse } from "next/server";
 import { withOptionalAuth } from "@/lib/auth/middleware";
 import {
   getUserModelById,
@@ -14,11 +14,6 @@ import {
   type UpdateUserModelParams,
 } from "@/lib/db";
 import { encryptApiKey } from "@/lib/encryption";
-
-// 定义路由参数类型
-interface RouteParams {
-  params: Promise<{ id: string }>;
-}
 
 /**
  * GET 处理函数 - 获取单个模型
@@ -119,6 +114,16 @@ export const PUT = withOptionalAuth(async (request, context): Promise<NextRespon
     }
 
     if (body.provider !== undefined) {
+      // 仅允许 openai，防止绕过前端写入其他 provider
+      if (body.provider.trim() !== "openai") {
+        return NextResponse.json(
+          {
+            success: false,
+            error: "当前仅支持 OpenAI-Compatible（provider=openai）",
+          },
+          { status: 400 }
+        );
+      }
       updateParams.provider = body.provider.trim();
     }
 

@@ -170,6 +170,7 @@ export function ModelList({
 
       {/* 添加/编辑表单 */}
       <ModelForm
+        key={`${editingModel?.id ?? "new"}-${isFormOpen ? "open" : "closed"}`}
         isOpen={isFormOpen}
         onClose={handleClose}
         onSubmit={handleSubmit}

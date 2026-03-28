@@ -7,7 +7,7 @@
  * - 支持批量导入多个模型
  */
 
-import { NextRequest, NextResponse } from "next/server";
+import { NextResponse } from "next/server";
 import { withAuth } from "@/lib/auth/middleware";
 import {
   getUserModels,
@@ -82,6 +82,15 @@ export const POST = withAuth(async (request, context): Promise<NextResponse> => 
           continue;
         }
 
+        // 强制仅允许 openai，防止通过同步接口写入其他 provider
+        if (modelData.provider.trim() !== "openai") {
+          results.failed.push({
+            name: modelData.name || "unknown",
+            error: "当前仅支持 OpenAI-Compatible（provider=openai）",
+          });
+          continue;
+        }
+
         // 检查是否已存在同名模型
         if (existingNames.has(modelData.name.toLowerCase())) {
           results.skipped.push({
@@ -99,7 +108,8 @@ export const POST = withAuth(async (request, context): Promise<NextResponse> => 
           id: nanoid(),
           userId: context.userId,
           name: modelData.name.trim(),
-          provider: modelData.provider.trim(),
+          // 这里保持显式写入 openai，确保入库数据与系统能力一致
+          provider: "openai",
           model: modelData.model.trim(),
           apiKey: encryptedApiKey,
           baseUrl: modelData.baseUrl?.trim() || undefined,
