@@ -12,12 +12,16 @@ import { cn } from "@/lib/utils";
 import { useAuthContext } from "@/components/auth/auth-provider";
 import { User } from "lucide-react";
 
-// 设置页面导航项
+// 设置页面导航项配置
+// showForAnonymous: 表示匿名用户是否可见该菜单项
 const settingsNavItems = [
-  { href: "/settings/models", label: "模型设置", icon: "🤖" },
-  { href: "/settings/agents", label: "Agent 配置", icon: "🧠" },
-  { href: "/settings/tools", label: "工具管理", icon: "🔧" },
-  { href: "/settings/mcp", label: "MCP 服务器", icon: "🔌" },
+  { href: "/settings/models", label: "模型设置", icon: "🤖", showForAnonymous: false },
+  { href: "/settings/agents", label: "Agent 配置", icon: "🧠", showForAnonymous: true }, // 匿名用户可用Agent
+  { href: "/settings/skills", label: "Skill 管理", icon: "📝", showForAnonymous: false },
+  { href: "/settings/tools", label: "工具管理", icon: "🔧", showForAnonymous: false },
+  { href: "/settings/mcp", label: "MCP 服务器", icon: "🔌", showForAnonymous: false },
+  { href: "/settings/api-keys", label: "API Key", icon: "🔑", showForAnonymous: false },
+  { href: "/settings/files", label: "文件管理", icon: "📁", showForAnonymous: false }, // 新增：沙盒文件管理入口
 ];
 
 interface SettingsLayoutProps {
@@ -30,6 +34,12 @@ interface SettingsLayoutProps {
 export default function SettingsLayout({ children }: SettingsLayoutProps) {
   const { user, isAuthenticated } = useAuthContext();
   const pathname = usePathname();
+
+  // 根据认证状态过滤菜单项
+  // 已登录用户可以看到所有菜单，匿名用户只能看到 showForAnonymous 为 true 的菜单
+  const visibleNavItems = settingsNavItems.filter(
+    (item) => isAuthenticated || item.showForAnonymous
+  );
 
   return (
     <div className="flex min-h-[calc(100vh-64px)]">
@@ -55,7 +65,8 @@ export default function SettingsLayout({ children }: SettingsLayoutProps) {
 
           <h2 className="mb-4 text-lg font-semibold">设置</h2>
           <nav className="space-y-1">
-            {settingsNavItems.map((item) => (
+            {/* 渲染过滤后的菜单项 */}
+            {visibleNavItems.map((item) => (
               <Link
                 key={item.href}
                 href={item.href}
