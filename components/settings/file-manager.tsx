@@ -33,6 +33,8 @@ interface FileManagerProps {
 
 /**
  * 解析 ls -la 输出为文件条目数组
+ * 格式：权限 链接数 用户 组 大小 月 日 时间/年份 名称
+ * 注意：文件名可能包含空格，使用正则精确捕获
  * @param lsOutput ls -la 命令的输出文本
  * @param currentPath 当前目录路径
  */
@@ -40,18 +42,22 @@ function parseLsOutput(lsOutput: string, currentPath: string): FileEntry[] {
   const lines = lsOutput.split("\n").filter((line) => line.trim());
   const entries: FileEntry[] = [];
 
-  // 遍历每一行（跳过第一行 total 信息）
-  for (let i = 1; i < lines.length; i++) {
-    const line = lines[i];
-    // ls -la 输出格式：权限 链接数 用户 组 大小 月 日 时间/年份 文件名
-    const parts = line.match(/^(\S+)\s+\d+\s+\S+\s+\S+\s+(\d+)\s+(\S+\s+\d+\s+\S+)\s+(.+)$/);
+  // 遍历每一行
+  for (const line of lines) {
+    // 跳过 total 行（第一行通常是 total 信息）
+    if (line.startsWith("total ")) continue;
+
+    // 使用正则分割，精确匹配权限并保留文件名中的空格
+    // ls -la 格式示例：drwxr-xr-x 2 user group 4096 Mar 29 10:00 folder name
+    // 正则说明：[drwx-]{10} 精确匹配10位权限，(.+)$ 保留文件名中的空格
+    const parts = line.match(/^([drwx-]{10})\s+\d+\s+\S+\s+\S+\s+(\d+)\s+(\S+\s+\d+\s+\S+)\s+(.+)$/);
 
     if (!parts) continue;
 
-    const permissions = parts[1];
-    const size = parseInt(parts[2], 10);
-    const modifiedTime = parts[3];
-    const name = parts[4].trim();
+    const permissions = parts[1];  // 权限字符串（10位）
+    const size = parseInt(parts[2], 10);  // 文件大小
+    const modifiedTime = parts[3];  // 修改时间
+    const name = parts[4].trim();  // 文件名（可能包含空格）
 
     // 跳过 . 和 .. 目录
     if (name === "." || name === "..") continue;
