@@ -19,6 +19,7 @@ import {
   parseSystemTools,
   serializeSystemTools,
   isSystemToolId,
+  type SystemToolId,
 } from "@/lib/constants/system-tools";
 
 // ==================== 辅助函数 ====================
@@ -666,11 +667,6 @@ export async function getAgentMcpRuntimeToolConfigs(
 }
 
 // ==================== Agent Skill 关联操作 ====================
-
-/**
- * 系统工具 ID 类型（与 system-tools 常量保持一致）
- */
-type SystemToolId = string;
 
 /**
  * 获取 Agent 关联的 Skill 简要信息
