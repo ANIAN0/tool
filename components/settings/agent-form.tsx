@@ -36,7 +36,58 @@ import {
   type TemplateConfigField,
 } from "@/lib/agents/templates";
 import type { AgentWithTools } from "@/lib/db/schema";
-import { getDefaultSystemTools, SYSTEM_TOOL_IDS } from "@/lib/constants/system-tools";
+import { getDefaultSystemTools, SYSTEM_TOOL_IDS, type SystemToolId, validateSystemToolIds } from "@/lib/constants/system-tools";
+import { SkillSelector } from "./skill-selector";
+import { SkillPresetPreview } from "./skill-preset-preview";
+
+// ==================== 类型扩展 ====================
+
+/**
+ * 扩展 AgentWithTools 类型以包含 skills 属性
+ * 用于编辑 Agent 时正确获取关联的 Skill 信息
+ */
+interface AgentWithSkills extends AgentWithTools {
+  skills?: Array<{ id: string; name: string; description: string }>;
+}
+
+// ==================== 系统工具联动逻辑 ====================
+
+/**
+ * 当选择 Skill 时，自动启用并锁定必要的系统工具
+ * bash、readFile、writeFile 是 Skill 运行的必要工具
+ */
+const REQUIRED_SKILL_TOOLS: SystemToolId[] = [
+  'system:sandbox:bash',
+  'system:sandbox:readFile',
+  'system:sandbox:writeFile',
+];
+
+/**
+ * 判断某个系统工具是否因 Skill 关联而被强制锁定
+ * @param toolId 工具 ID
+ * @param skillIds 已选择的 Skill ID 列表
+ * @returns 是否被强制锁定
+ */
+function isToolLockedBySkill(toolId: SystemToolId, skillIds: string[]): boolean {
+  // 只有在有 Skill 被选中时，必要工具才会被锁定
+  if (skillIds.length === 0) return false;
+  return REQUIRED_SKILL_TOOLS.includes(toolId);
+}
+
+/**
+ * 根据选择的 Skill 自动更新系统工具列表
+ * @param currentTools 当前启用的系统工具
+ * @param skillIds 已选择的 Skill ID 列表
+ * @returns 更新后的系统工具列表
+ */
+function getUpdatedSystemTools(currentTools: SystemToolId[], skillIds: string[]): SystemToolId[] {
+  if (skillIds.length === 0) {
+    // 没有 Skill 时，返回原始列表（不解锁任何工具，用户可自由选择）
+    return currentTools;
+  }
+  // 有 Skill 时，确保必要工具被包含
+  return [...new Set([...currentTools, ...REQUIRED_SKILL_TOOLS])];
+}
 
 /**
  * Agent表单数据接口
@@ -57,7 +108,9 @@ export interface AgentFormData {
   // MCP工具ID列表
   toolIds: string[];
   // 启用的系统工具ID列表
-  enabledSystemTools: string[];
+  enabledSystemTools: SystemToolId[];
+  // 关联的 Skill ID 列表
+  skillIds: string[];
 }
 
 /**
@@ -88,6 +141,7 @@ const DEFAULT_FORM_DATA: AgentFormData = {
   modelId: "",
   toolIds: [],
   enabledSystemTools: getDefaultSystemTools(), // 默认启用所有系统工具
+  skillIds: [], // 默认不选择任何 Skill
 };
 
 /**
@@ -112,6 +166,37 @@ export function AgentForm({
 
   // 获取模板列表
   const templateList = getTemplateList();
+
+  // 可用的 Skill 列表（用于预置提示词预览）
+  const [availableSkills, setAvailableSkills] = useState<Array<{ id: string; name: string; description: string }>>([]);
+
+  /**
+   * 监听 Skill 选择变化，自动更新系统工具
+   * 当选择 Skill 时，自动启用必要的系统工具
+   */
+  useEffect(() => {
+    if (formData.skillIds.length > 0) {
+      // 有 Skill 被选中，确保必要工具被启用
+      const updatedTools = getUpdatedSystemTools(
+        formData.enabledSystemTools,
+        formData.skillIds
+      );
+      // 使用数组内容比较，检测工具列表是否真正发生变化
+      // 排序后比较，确保顺序不影响判断结果
+      const currentToolsSorted = [...formData.enabledSystemTools].sort();
+      const updatedToolsSorted = [...updatedTools].sort();
+      const toolsChanged = updatedToolsSorted.length !== currentToolsSorted.length ||
+        updatedToolsSorted.some((tool, i) => tool !== currentToolsSorted[i]);
+
+      // 只有当工具列表内容发生变化时才更新状态，避免无限循环
+      if (toolsChanged) {
+        setFormData(prev => ({
+          ...prev,
+          enabledSystemTools: updatedTools,
+        }));
+      }
+    }
+  }, [formData.skillIds, formData.enabledSystemTools]);
 
   /**
    * 当编辑Agent时，初始化表单数据
@@ -140,7 +225,8 @@ export function AgentForm({
           systemPrompt: agent.system_prompt || "",
           modelId: agent.model_id || "",
           toolIds: agent.tools.filter(t => t.source === 'mcp').map((t) => t.id),
-          enabledSystemTools: agent.enabledSystemTools || getDefaultSystemTools(), // 新增
+          enabledSystemTools: validateSystemToolIds(agent.enabledSystemTools || getDefaultSystemTools()), // 使用 validateSystemToolIds 确保类型安全
+          skillIds: (agent as AgentWithSkills).skills?.map((s) => s.id) || [], // 使用扩展类型安全地获取 skills 属性
         });
       } else {
         // 创建模式：重置为默认值
@@ -215,7 +301,7 @@ export function AgentForm({
     setFormData((prev) => ({
       ...prev,
       enabledSystemTools: checked
-        ? [...prev.enabledSystemTools, toolId]
+        ? [...prev.enabledSystemTools, toolId as SystemToolId]
         : prev.enabledSystemTools.filter((id) => id !== toolId),
     }));
   }, []);
@@ -467,35 +553,53 @@ export function AgentForm({
                   {/* 系统工具组 - 使用常量渲染所有可用系统工具 */}
                   <div className="space-y-2">
                     <div className="flex items-center justify-between">
-                      <span className="text-sm font-medium">系统工具（沙盒环境）</span>
-                      {formData.enabledSystemTools.length === 0 && (
-                        <span className="text-xs text-amber-600">
-                          禁用所有系统工具可能导致 Agent 无法正常执行任务
-                        </span>
-                      )}
-                    </div>
+                          <span className="text-sm font-medium">系统工具（沙盒环境）</span>
+                          {/* Skill 关联提示：当有 Skill 选中时显示 */}
+                          {formData.skillIds.length > 0 && (
+                            <span className="text-xs text-blue-600">
+                              已关联 Skill，部分工具已自动启用
+                            </span>
+                          )}
+                          {/* 全部禁用警告：当所有工具禁用时显示（且没有 Skill 关联） */}
+                          {formData.enabledSystemTools.length === 0 && formData.skillIds.length === 0 && (
+                            <span className="text-xs text-amber-600">
+                              禁用所有系统工具可能导致 Agent 无法正常执行任务
+                            </span>
+                          )}
+                        </div>
                     <div className="border rounded-md p-3 bg-muted/30">
                       <div className="space-y-3">
                         {SYSTEM_TOOL_IDS.map((toolId) => {
                           // 从 tools 数组获取工具详情（描述等）
                           const toolInfo = tools.find((t) => t.id === toolId);
                           const toolName = toolId.replace('system:sandbox:', '');
+                          // 判断该工具是否因 Skill 关联而被锁定
+                          const isLocked = isToolLockedBySkill(toolId, formData.skillIds);
+                          // 判断该工具是否被选中
+                          const isChecked = formData.enabledSystemTools.includes(toolId);
 
                           return (
                             <div key={toolId} className="flex items-start space-x-2">
                               <Checkbox
                                 id={`system-tool-${toolId}`}
-                                checked={formData.enabledSystemTools.includes(toolId)}
+                                checked={isChecked}
                                 onCheckedChange={(checked) =>
                                   handleSystemToolToggle(toolId, checked as boolean)
                                 }
+                                disabled={isLocked} // Skill 关联的工具禁用取消
                               />
                               <div className="grid gap-1 leading-none">
                                 <label
                                   htmlFor={`system-tool-${toolId}`}
-                                  className="text-sm font-medium leading-none"
+                                  className={`text-sm font-medium leading-none ${
+                                    isLocked ? 'text-muted-foreground cursor-not-allowed' : 'cursor-pointer'
+                                  }`}
                                 >
                                   {toolName}
+                                  {/* 显示 "(Skill 必需)" 标识 */}
+                                  {isLocked && (
+                                    <span className="ml-2 text-xs text-blue-500">(Skill 必需)</span>
+                                  )}
                                 </label>
                                 {toolInfo?.description && (
                                   <p className="text-xs text-muted-foreground line-clamp-2">
@@ -562,6 +666,27 @@ export function AgentForm({
                 </div>
               )}
             </div>
+
+            {/* Skill 选择 */}
+            <div className="space-y-2">
+              <Label>关联 Skill</Label>
+              <p className="text-xs text-muted-foreground">
+                选择 Skill 后，系统将自动启用沙盒工具（bash、readFile、writeFile）
+              </p>
+              <SkillSelector
+                selectedSkillIds={formData.skillIds}
+                onChange={(skillIds) => setFormData((prev) => ({ ...prev, skillIds }))}
+                onSkillsLoaded={setAvailableSkills}
+              />
+            </div>
+
+            {/* Skill 预置提示词预览 */}
+            {formData.skillIds.length > 0 && (
+              <SkillPresetPreview
+                skillIds={formData.skillIds}
+                availableSkills={availableSkills}
+              />
+            )}
           </div>
         </ScrollArea>
 
