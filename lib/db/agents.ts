@@ -21,6 +21,7 @@ import {
   isSystemToolId,
   type SystemToolId,
 } from "@/lib/constants/system-tools";
+import { getAgentsSkillsBatch, setAgentSkills } from "./skills";
 
 // ==================== 辅助函数 ====================
 
@@ -322,7 +323,7 @@ export async function getAgentsByUserId(userId: string): Promise<AgentWithTools[
   const toolsMap = await getAgentsToolsBatch(agentIds);
 
   // 批量获取所有Agent的Skill信息（一次性查询）
-  const { getAgentsSkillsBatch } = await import("./skills");
+  // 使用静态导入的函数，避免运行时动态导入开销
   const skillsMap = await getAgentsSkillsBatch(agentIds);
 
   // 组装结果
@@ -374,7 +375,7 @@ export async function getPublicAgents(
   const toolsMap = await getAgentsToolsBatch(agentIds);
 
   // 批量获取Skill信息
-  const { getAgentsSkillsBatch } = await import("./skills");
+  // 使用静态导入的函数，避免运行时动态导入开销
   const skillsMap = await getAgentsSkillsBatch(agentIds);
 
   // 组装结果
@@ -727,7 +728,7 @@ export async function createAgentWithSkills(
 
   // 创建 Skill 关联
   if (skillIds && skillIds.length > 0) {
-    const { setAgentSkills } = await import("./skills");
+    // 使用静态导入的函数，避免运行时动态导入开销
     await setAgentSkills(agent.id, skillIds);
   }
 
@@ -770,7 +771,7 @@ export async function updateAgentWithSkills(
 
   // 更新 Skill 关联
   if (skillIds !== undefined) {
-    const { setAgentSkills } = await import("./skills");
+    // 使用静态导入的函数，避免运行时动态导入开销
     await setAgentSkills(agentId, skillIds);
   }
 
