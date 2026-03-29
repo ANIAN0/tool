@@ -647,6 +647,8 @@ export interface CreateAgentParams {
   toolIds?: string[];
   // 启用的系统工具ID列表
   enabledSystemTools?: string[];
+  // 关联的 Skill ID 列表
+  skillIds?: string[];
 }
 
 /**
@@ -662,6 +664,8 @@ export interface UpdateAgentParams {
   toolIds?: string[];
   // 启用的系统工具ID列表
   enabledSystemTools?: string[];
+  // 关联的 Skill ID 列表
+  skillIds?: string[];
 }
 
 /**
@@ -677,6 +681,12 @@ export interface AgentWithTools extends Omit<Agent, 'enabled_system_tools'> {
   }>;
   // 启用的系统工具ID列表（已解析为数组）
   enabledSystemTools: string[];
+  // 关联的 Skill 列表
+  skills?: Array<{
+    id: string;
+    name: string;
+    description: string;
+  }>;
 }
 
 /**
@@ -687,4 +697,204 @@ export interface PublicAgentWithCreator extends AgentWithTools {
     id: string;
     username: string | null;
   };
+}
+
+/**
+ * 迁移SQL：为现有 user_skills 表添加 file_count 字段
+ * 用于存储 Skill 目录中的文件数量
+ */
+export const MIGRATION_ADD_SKILL_FILE_COUNT = `
+ALTER TABLE user_skills ADD COLUMN file_count INTEGER DEFAULT 1;
+`;
+
+/**
+ * user_skills表 - 存储用户 Skill 元数据
+ * storage_path: Supabase Storage 文件路径
+ * file_hash: 文件 SHA256，用于版本检测
+ * file_size: 文件大小（字节）
+ */
+export const CREATE_USER_SKILLS_TABLE = `
+CREATE TABLE IF NOT EXISTS user_skills (
+  id TEXT PRIMARY KEY,
+  user_id TEXT NOT NULL,
+  name TEXT NOT NULL,
+  description TEXT NOT NULL,
+  metadata TEXT,           -- 完整元数据 JSON（含 frontmatter）
+  storage_path TEXT,       -- Supabase Storage 文件路径
+  file_hash TEXT,          -- 文件 SHA256，用于版本检测
+  file_size INTEGER,       -- 文件大小（字节）
+  file_count INTEGER DEFAULT 1, -- 文件数量（目录中的文件总数）
+  created_at INTEGER NOT NULL,
+  updated_at INTEGER NOT NULL,
+  FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE CASCADE
+);
+`;
+
+/**
+ * agent_skills表 - Agent 与 Skill 多对多关联
+ */
+export const CREATE_AGENT_SKILLS_TABLE = `
+CREATE TABLE IF NOT EXISTS agent_skills (
+  id TEXT PRIMARY KEY,
+  agent_id TEXT NOT NULL,
+  skill_id TEXT NOT NULL,
+  created_at INTEGER NOT NULL,
+  FOREIGN KEY (agent_id) REFERENCES agents(id) ON DELETE CASCADE,
+  FOREIGN KEY (skill_id) REFERENCES user_skills(id) ON DELETE CASCADE,
+  UNIQUE(agent_id, skill_id)
+);
+`;
+
+// ==================== API Key 管理相关表结构 ====================
+
+/**
+ * user_api_keys表 - 存储用户 API Key
+ * key_hash: API Key 的 SHA256 哈希
+ * key_prefix: Key 前缀（用于展示，如 sk_live_xxx）
+ */
+export const CREATE_USER_API_KEYS_TABLE = `
+CREATE TABLE IF NOT EXISTS user_api_keys (
+  id TEXT PRIMARY KEY,
+  user_id TEXT NOT NULL,
+  name TEXT NOT NULL,           -- Key 名称（便于用户识别）
+  key_hash TEXT NOT NULL,       -- API Key 的 SHA256 哈希
+  key_prefix TEXT NOT NULL,     -- Key 前缀（用于展示）
+  last_used_at INTEGER,         -- 最后使用时间
+  created_at INTEGER NOT NULL,
+  FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE CASCADE
+);
+`;
+
+/**
+ * Skill 相关索引
+ */
+export const CREATE_SKILLS_INDEXES = [
+  // 按用户 ID 查询 Skill
+  `CREATE INDEX IF NOT EXISTS idx_user_skills_user_id ON user_skills(user_id);`,
+  // 按用户和名称唯一索引（防止同名 Skill）
+  `CREATE UNIQUE INDEX IF NOT EXISTS idx_user_skills_name_user ON user_skills(user_id, name);`,
+  // 按 Agent ID 查询关联的 Skill
+  `CREATE INDEX IF NOT EXISTS idx_agent_skills_agent_id ON agent_skills(agent_id);`,
+  // 按 Skill ID 查询关联的 Agent
+  `CREATE INDEX IF NOT EXISTS idx_agent_skills_skill_id ON agent_skills(skill_id);`,
+];
+
+/**
+ * API Key 相关索引
+ */
+export const CREATE_API_KEYS_INDEXES = [
+  // 按用户 ID 查询 API Key
+  `CREATE INDEX IF NOT EXISTS idx_user_api_keys_user_id ON user_api_keys(user_id);`,
+  // 按 Key 哈希快速查找（鉴权时使用）
+  `CREATE INDEX IF NOT EXISTS idx_user_api_keys_key_hash ON user_api_keys(key_hash);`,
+];
+
+/**
+ * UserSkill 类型定义
+ * 用户上传的 Skill 元数据
+ */
+export interface UserSkill {
+  id: string;
+  user_id: string;
+  name: string;
+  description: string;
+  metadata: string | null;     // 完整元数据 JSON
+  storage_path: string | null; // Supabase Storage 路径
+  file_hash: string | null;    // 文件 SHA256
+  file_size: number | null;    // 文件大小（字节）
+  file_count: number | null;   // 文件数量（目录中的文件总数）
+  created_at: number;
+  updated_at: number;
+}
+
+/**
+ * AgentSkill 类型定义
+ * Agent 与 Skill 的关联关系
+ */
+export interface AgentSkill {
+  id: string;
+  agent_id: string;
+  skill_id: string;
+  created_at: number;
+}
+
+/**
+ * UserApiKey 类型定义
+ * 用户的 API Key
+ */
+export interface UserApiKey {
+  id: string;
+  user_id: string;
+  name: string;
+  key_hash: string;
+  key_prefix: string;
+  last_used_at: number | null;
+  created_at: number;
+}
+
+/**
+ * 创建 Skill 的参数类型
+ */
+export interface CreateUserSkillParams {
+  id: string;
+  userId: string;
+  name: string;
+  description: string;
+  metadata?: string;
+  storagePath?: string;
+  fileHash?: string;
+  fileSize?: number;
+  fileCount?: number;  // 文件数量
+}
+
+/**
+ * 更新 Skill 的参数类型
+ */
+export interface UpdateUserSkillParams {
+  name?: string;
+  description?: string;
+  metadata?: string;
+  storagePath?: string;
+  fileHash?: string;
+  fileSize?: number;
+}
+
+/**
+ * 创建 API Key 的参数类型
+ */
+export interface CreateUserApiKeyParams {
+  id: string;
+  userId: string;
+  name: string;
+  keyHash: string;
+  keyPrefix: string;
+}
+
+/**
+ * Skill 校验结果类型
+ */
+export interface SkillValidationResult {
+  valid: boolean;
+  name?: string;
+  description?: string;
+  metadata?: string;
+  error?: string;
+}
+
+/**
+ * Skill 详情响应类型（含关联 Agent 数量）
+ */
+export interface UserSkillWithAgentCount extends UserSkill {
+  agentCount: number;
+}
+
+/**
+ * API Key 列表响应类型（不含敏感信息）
+ */
+export interface ApiKeyListItem {
+  id: string;
+  name: string;
+  keyPrefix: string;
+  lastUsedAt: number | null;
+  createdAt: number;
 }

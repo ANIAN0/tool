@@ -29,6 +29,13 @@ import {
   CREATE_AGENTS_TABLE,
   CREATE_AGENT_TOOLS_TABLE,
   CREATE_AGENTS_INDEXES,
+  // Skill相关表Schema
+  CREATE_USER_SKILLS_TABLE,
+  CREATE_AGENT_SKILLS_TABLE,
+  CREATE_SKILLS_INDEXES,
+  // API Key相关表Schema
+  CREATE_USER_API_KEYS_TABLE,
+  CREATE_API_KEYS_INDEXES,
 } from "../lib/db/schema";
 
 /**
@@ -108,6 +115,21 @@ async function initDatabase(db: Client): Promise<void> {
   await db.execute(CREATE_AGENT_TOOLS_TABLE);
   console.log("✅ agent_tools 表创建成功");
 
+  // 11. 创建 user_skills 表（用户 Skill 元数据）
+  console.log("创建 user_skills 表...");
+  await db.execute(CREATE_USER_SKILLS_TABLE);
+  console.log("✅ user_skills 表创建成功");
+
+  // 12. 创建 agent_skills 表（Agent 与 Skill 关联）
+  console.log("创建 agent_skills 表...");
+  await db.execute(CREATE_AGENT_SKILLS_TABLE);
+  console.log("✅ agent_skills 表创建成功");
+
+  // 13. 创建 user_api_keys 表（用户 API Key）
+  console.log("创建 user_api_keys 表...");
+  await db.execute(CREATE_USER_API_KEYS_TABLE);
+  console.log("✅ user_api_keys 表创建成功");
+
   console.log("\n");
 }
 
@@ -164,6 +186,26 @@ async function createIndexes(db: Client): Promise<void> {
       console.log(`✅ Agent索引创建成功: ${sql.substring(0, 60)}...`);
     } catch (error) {
       console.log(`⚠️ Agent索引创建跳过: ${sql.substring(0, 60)}...`);
+    }
+  }
+
+  // 创建 Skill 相关索引
+  for (const sql of CREATE_SKILLS_INDEXES) {
+    try {
+      await db.execute(sql);
+      console.log(`✅ Skill索引创建成功: ${sql.substring(0, 60)}...`);
+    } catch (error) {
+      console.log(`⚠️ Skill索引创建跳过: ${sql.substring(0, 60)}...`);
+    }
+  }
+
+  // 创建 API Key 相关索引
+  for (const sql of CREATE_API_KEYS_INDEXES) {
+    try {
+      await db.execute(sql);
+      console.log(`✅ API Key索引创建成功: ${sql.substring(0, 60)}...`);
+    } catch (error) {
+      console.log(`⚠️ API Key索引创建跳过: ${sql.substring(0, 60)}...`);
     }
   }
 
@@ -326,6 +368,74 @@ async function migrateDatabase(db: Client): Promise<void> {
     }
   }
 
+  // 迁移12: 创建 user_skills 表（如果不存在）
+  if (!(await tableExists(db, "user_skills"))) {
+    console.log("创建 user_skills 表...");
+    await db.execute(CREATE_USER_SKILLS_TABLE);
+    console.log("✅ user_skills 表创建成功");
+  } else {
+    console.log("✅ user_skills 表已存在，跳过迁移");
+  }
+
+  // 迁移13: 创建 agent_skills 表（如果不存在）
+  if (!(await tableExists(db, "agent_skills"))) {
+    console.log("创建 agent_skills 表...");
+    await db.execute(CREATE_AGENT_SKILLS_TABLE);
+    console.log("✅ agent_skills 表创建成功");
+  } else {
+    console.log("✅ agent_skills 表已存在，跳过迁移");
+  }
+
+  // 迁移14: 创建 user_api_keys 表（如果不存在）
+  if (!(await tableExists(db, "user_api_keys"))) {
+    console.log("创建 user_api_keys 表...");
+    await db.execute(CREATE_USER_API_KEYS_TABLE);
+    console.log("✅ user_api_keys 表创建成功");
+  } else {
+    console.log("✅ user_api_keys 表已存在，跳过迁移");
+  }
+
+  // 迁移15: 创建 Skill 相关索引（如果不存在）
+  for (const sql of CREATE_SKILLS_INDEXES) {
+    try {
+      await db.execute(sql);
+      console.log(`✅ Skill索引创建成功: ${sql.substring(0, 60)}...`);
+    } catch (error) {
+      if (String(error).includes("already exists")) {
+        console.log("✅ Skill索引已存在，跳过");
+      } else {
+        console.error("创建 Skill 索引失败:", error);
+      }
+    }
+  }
+
+  // 迁移16: 创建 API Key 相关索引（如果不存在）
+  for (const sql of CREATE_API_KEYS_INDEXES) {
+    try {
+      await db.execute(sql);
+      console.log(`✅ API Key索引创建成功: ${sql.substring(0, 60)}...`);
+    } catch (error) {
+      if (String(error).includes("already exists")) {
+        console.log("✅ API Key索引已存在，跳过");
+      } else {
+        console.error("创建 API Key 索引失败:", error);
+      }
+    }
+  }
+
+  // 迁移17: 添加 file_count 字段到 user_skills 表（用于存储 Skill 目录文件数量）
+  if (await tableExists(db, "user_skills")) {
+    if (!(await columnExists(db, "user_skills", "file_count"))) {
+      console.log("添加 file_count 字段到 user_skills 表...");
+      await db.execute(
+        "ALTER TABLE user_skills ADD COLUMN file_count INTEGER DEFAULT 1"
+      );
+      console.log("✅ file_count 字段添加成功");
+    } else {
+      console.log("✅ file_count 字段已存在，跳过迁移");
+    }
+  }
+
   console.log("\n");
 }
 
@@ -346,6 +456,9 @@ async function showDatabaseStatus(db: Client): Promise<void> {
     "mcp_tools",
     "agents",
     "agent_tools",
+    "user_skills",
+    "agent_skills",
+    "user_api_keys",
   ];
 
   for (const table of tables) {
