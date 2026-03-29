@@ -348,15 +348,10 @@ export async function getAgentsSkillsBatch(
  * 会先删除现有关联，再插入新关联
  */
 export async function setAgentSkills(agentId: string, skillIds: string[]): Promise<void> {
-  console.log("=== [setAgentSkills] 开始 ===");
-  console.log("agentId:", agentId);
-  console.log("skillIds:", skillIds);
-
   const db = getDb();
   const now = Date.now();
 
   // 删除现有关联
-  console.log("删除现有关联...");
   await db.execute({
     sql: "DELETE FROM agent_skills WHERE agent_id = ?",
     args: [agentId],
@@ -364,20 +359,14 @@ export async function setAgentSkills(agentId: string, skillIds: string[]): Promi
 
   // 插入新关联
   if (skillIds.length > 0) {
-    console.log("插入新关联，数量:", skillIds.length);
     for (const skillId of skillIds) {
-      console.log("插入关联:", { agentId, skillId });
       await db.execute({
         sql: `INSERT OR IGNORE INTO agent_skills (id, agent_id, skill_id, created_at)
               VALUES (?, ?, ?, ?)`,
         args: [`${agentId}_${skillId}`, agentId, skillId, now],
       });
     }
-  } else {
-    console.log("skillIds 为空，不插入新关联");
   }
-
-  console.log("=== [setAgentSkills] 完成 ===");
 }
 
 /**

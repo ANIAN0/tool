@@ -12,6 +12,7 @@ import {
   type AgentWithTools,
   type PublicAgentWithCreator,
   type McpTool,
+  type UserSkill,
 } from "./schema";
 import {
   getDefaultSystemTools,
@@ -319,11 +320,21 @@ export async function getAgentsByUserId(userId: string): Promise<AgentWithTools[
   // 批量获取所有Agent的工具信息（一次性查询）
   const toolsMap = await getAgentsToolsBatch(agentIds);
 
+  // 批量获取所有Agent的Skill信息（一次性查询）
+  const { getAgentsSkillsBatch } = await import("./skills");
+  const skillsMap = await getAgentsSkillsBatch(agentIds);
+
   // 组装结果
   return result.rows.map((row) => {
     const agent = mapRowToAgent(row);
     const mcpTools = toolsMap.get(agent.id) || [];
-    return buildAgentWithTools(agent, mcpTools);
+    const skills = skillsMap.get(agent.id) || [];
+    const agentWithTools = buildAgentWithTools(agent, mcpTools);
+    // 添加 skills 字段
+    return {
+      ...agentWithTools,
+      skills,
+    };
   });
 }
 
@@ -361,14 +372,20 @@ export async function getPublicAgents(
   // 批量获取工具信息
   const toolsMap = await getAgentsToolsBatch(agentIds);
 
+  // 批量获取Skill信息
+  const { getAgentsSkillsBatch } = await import("./skills");
+  const skillsMap = await getAgentsSkillsBatch(agentIds);
+
   // 组装结果
   return result.rows.map((row) => {
     const agent = mapRowToAgent(row);
     const mcpTools = toolsMap.get(agent.id) || [];
+    const skills = skillsMap.get(agent.id) || [];
     const agentWithTools = buildAgentWithTools(agent, mcpTools);
 
     return {
       ...agentWithTools,
+      skills,
       creator: {
         id: agent.user_id,
         username: row.creator_username as string | null,
@@ -646,4 +663,120 @@ export async function getAgentMcpRuntimeToolConfigs(
       toolName: String(row.tool_name),
     };
   });
+}
+
+// ==================== Agent Skill 关联操作 ====================
+
+/**
+ * 系统工具 ID 类型（与 system-tools 常量保持一致）
+ */
+type SystemToolId = string;
+
+/**
+ * 获取 Agent 关联的 Skill 简要信息
+ * 用于 Agent 详情响应
+ * 包含 fileHash 字段用于 Skill 运行时加载器检测版本变化
+ */
+export async function getAgentSkillsInfo(agentId: string): Promise<
+  Array<{ id: string; name: string; description: string; storagePath: string | null; fileHash: string | null }>
+> {
+  const db = getDb();
+
+  // 查询 Skill 基本信息，包含 file_hash 用于版本检测
+  const result = await db.execute({
+    sql: `SELECT s.id, s.name, s.description, s.storage_path, s.file_hash
+          FROM user_skills s
+          JOIN agent_skills AS ags ON s.id = ags.skill_id
+          WHERE ags.agent_id = ?
+          ORDER BY s.name`,
+    args: [agentId],
+  });
+
+  return result.rows.map((row) => ({
+    id: row.id as string,
+    name: row.name as string,
+    description: row.description as string,
+    storagePath: row.storage_path as string | null,
+    // fileHash 用于 Skill 运行时加载器检测 Skill 文件版本变化
+    fileHash: row.file_hash as string | null,
+  }));
+}
+
+/**
+ * 创建 Agent 时处理 Skill 关联
+ * 如果有 Skill，强制包含 bash、readFile、writeFile 系统工具
+ */
+export async function createAgentWithSkills(
+  params: CreateAgentParams,
+  skillIds?: string[]
+): Promise<Agent> {
+  // 如果配置了 Skill，强制包含必要的系统工具
+  let enabledSystemTools = params.enabledSystemTools || getDefaultSystemTools();
+
+  if (skillIds && skillIds.length > 0) {
+    const requiredTools: SystemToolId[] = [
+      'system:sandbox:bash',
+      'system:sandbox:readFile',
+      'system:sandbox:writeFile',
+    ];
+    // 合并并去重
+    enabledSystemTools = [...new Set([...enabledSystemTools, ...requiredTools])];
+  }
+
+  // 创建 Agent（带更新后的系统工具列表）
+  const agent = await createAgent({
+    ...params,
+    enabledSystemTools,
+  });
+
+  // 创建 Skill 关联
+  if (skillIds && skillIds.length > 0) {
+    const { setAgentSkills } = await import("./skills");
+    await setAgentSkills(agent.id, skillIds);
+  }
+
+  return agent;
+}
+
+/**
+ * 更新 Agent 时处理 Skill 关联
+ */
+export async function updateAgentWithSkills(
+  userId: string,
+  agentId: string,
+  params: UpdateAgentParams,
+  skillIds?: string[]
+): Promise<AgentWithTools | null> {
+  // 如果配置了 Skill，强制包含必要的系统工具
+  let enabledSystemTools = params.enabledSystemTools;
+
+  if (skillIds && skillIds.length > 0) {
+    const requiredTools: SystemToolId[] = [
+      'system:sandbox:bash',
+      'system:sandbox:readFile',
+      'system:sandbox:writeFile',
+    ];
+    // 获取当前启用的系统工具
+    const currentTools = params.enabledSystemTools || [];
+    // 合并并去重
+    enabledSystemTools = [...new Set([...currentTools, ...requiredTools])];
+  }
+
+  // 更新 Agent
+  const agent = await updateAgent(userId, agentId, {
+    ...params,
+    enabledSystemTools,
+  });
+
+  if (!agent) {
+    return null;
+  }
+
+  // 更新 Skill 关联
+  if (skillIds !== undefined) {
+    const { setAgentSkills } = await import("./skills");
+    await setAgentSkills(agentId, skillIds);
+  }
+
+  return agent;
 }

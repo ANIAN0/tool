@@ -4,7 +4,7 @@
  *
  * 请求格式：
  * POST /api/agent-chat
- * Headers: X-User-Id
+ * Headers: Authorization (JWT) 或 X-Anonymous-Id
  * Body: { messages: UIMessage[], conversationId?: string, agentId: string }
  *
  * 响应格式：
@@ -37,6 +37,11 @@ import {
   type McpRuntimeDiagnostic,
 } from "@/lib/agents/mcp-runtime";
 import { mergeAgentToolSets } from "@/lib/agents/toolset-merge";
+import { loadSkillsToSandbox } from "@/lib/sandbox/skill-loader";
+import { isSandboxEnabled } from "@/lib/sandbox/config";
+import { getAgentSkillsInfo } from "@/lib/db/agents";
+import { authenticateRequestOptional } from "@/lib/auth/middleware";
+import { NextRequest } from "next/server";
 
 // 设置最大响应时间为 60 秒
 export const maxDuration = 60;
@@ -182,7 +187,18 @@ function buildDiagnosticsSummary(
 /**
  * Agent对话API路由
  */
-export async function POST(req: Request) {
+export async function POST(req: NextRequest) {
+  // 使用标准认证中间件验证用户身份
+  const authResult = await authenticateRequestOptional(req);
+  if (!authResult.success) {
+    return new Response(
+      JSON.stringify({ error: authResult.error }),
+      { status: authResult.status, headers: { "Content-Type": "application/json" } }
+    );
+  }
+
+  const userId = authResult.userId;
+
   try {
     // 解析请求体
     const body = await req.json();
@@ -205,15 +221,6 @@ export async function POST(req: Request) {
       return new Response(
         JSON.stringify({ error: "Agent ID不能为空" }),
         { status: 400, headers: { "Content-Type": "application/json" } }
-      );
-    }
-
-    // 获取用户ID
-    const userId = req.headers.get("X-User-Id");
-    if (!userId) {
-      return new Response(
-        JSON.stringify({ error: "用户ID不能为空" }),
-        { status: 401, headers: { "Content-Type": "application/json" } }
       );
     }
 
@@ -363,6 +370,24 @@ export async function POST(req: Request) {
       ignoreIncompleteToolCalls: true,
     });
 
+    // 获取 Agent 关联的 Skill 信息
+    const agentSkills = await getAgentSkillsInfo(agent.id);
+
+    // 加载 Skill 到沙盒（如果沙盒启用且 Agent 有配置 Skill）
+    let skillPresetPrompt = "";
+    if (isSandboxEnabled() && agentSkills.length > 0) {
+      const skillResult = await loadSkillsToSandbox(userId, agent.id, currentConversationId!);
+      if (skillResult.success) {
+        skillPresetPrompt = skillResult.presetPrompt;
+      }
+    }
+
+    // 构建系统提示词（包含 Skill 预置提示词）
+    let systemPrompt = agent.system_prompt || "你是一个有帮助的AI助手。";
+    if (skillPresetPrompt) {
+      systemPrompt = `${systemPrompt}\n\n${skillPresetPrompt}`;
+    }
+
     // 创建沙盒工具（绑定会话上下文）
     const sandboxTools = getSandboxToolsWithContext({
       conversationId: currentConversationId!,
@@ -402,45 +427,12 @@ export async function POST(req: Request) {
 
     // 统计诊断码摘要，便于快速观察挂载质量
     const diagnosticsSummary = buildDiagnosticsSummary(mcpDiagnostics);
-    // 提取可定位的诊断明细，满足“服务/工具级”排障要求
-    const diagnosticsDetails = mcpDiagnostics.map((diagnostic) => {
-      const context = diagnostic.context ?? {};
-      return {
-        code: diagnostic.code,
-        serverId:
-          typeof context.serverId === "string" ? context.serverId : undefined,
-        serverName:
-          typeof context.serverName === "string"
-            ? context.serverName
-            : undefined,
-        toolName:
-          typeof context.toolName === "string"
-            ? context.toolName
-            : typeof context.sourceToolName === "string"
-            ? context.sourceToolName
-            : undefined,
-        message: diagnostic.message,
-      };
-    });
     // 计算 MCP 相关 server 数量，辅助判断是否完全未挂载
     const mcpServerCount = new Set(
       diagnosticsDetails
         .map((detail) => detail.serverId)
         .filter((serverId): serverId is string => Boolean(serverId))
     ).size;
-
-    // 输出结构化摘要日志（用于线上排障与验收核对）
-    console.log(
-      "Agent MCP运行时挂载摘要:",
-      JSON.stringify({
-        agentId: agent.id,
-        conversationId: currentConversationId,
-        mcpServerCount,
-        mcpMappedToolCount,
-        diagnosticsSummary,
-        diagnosticsDetails,
-      })
-    );
 
     // 定义统一清理函数，确保 MCP 连接在请求结束后释放
     const safeCleanupMcpRuntime = async () => {
@@ -455,12 +447,11 @@ export async function POST(req: Request) {
       }
     };
 
-    // 创建ToolLoopAgent实例
-    const systemPrompt = agent.system_prompt || "你是一个有帮助的AI助手。";
+    // 创建ToolLoopAgent实例（使用包含 Skill 预置提示词的 systemPrompt）
     const agentInstance = new ToolLoopAgent({
       model: wrappedModel,
       instructions: systemPrompt,
-      tools: runtimeTools, // 挂载“系统工具 + MCP工具”的合并结果
+      tools: runtimeTools, // 挂载”系统工具 + MCP工具”的合并结果
       stopWhen: stepCountIs(10),
     });
 
