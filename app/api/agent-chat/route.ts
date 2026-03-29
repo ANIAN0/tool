@@ -32,10 +32,7 @@ import { wrapModelWithDevTools } from "@/lib/ai";
 import { ToolLoopAgent, stepCountIs } from "ai";
 import { getSandboxToolsWithContext } from "@/lib/sandbox";
 import { decryptApiKey } from "@/lib/encryption";
-import {
-  createAgentMcpRuntimeTools,
-  type McpRuntimeDiagnostic,
-} from "@/lib/agents/mcp-runtime";
+import { createAgentMcpRuntimeTools } from "@/lib/agents/mcp-runtime";
 import { mergeAgentToolSets } from "@/lib/agents/toolset-merge";
 import { loadSkillsToSandbox } from "@/lib/sandbox/skill-loader";
 import { isSandboxEnabled } from "@/lib/sandbox/config";
@@ -160,28 +157,6 @@ function extractTitle(content: string): string {
   if (!content) return "新对话";
   const title = content.replace(/\n/g, " ").slice(0, 50);
   return title.length < content.length ? `${title}...` : title;
-}
-
-/**
- * 统计 MCP 运行时诊断摘要（按 code 聚合）
- */
-function buildDiagnosticsSummary(
-  diagnostics: McpRuntimeDiagnostic[]
-): Record<string, number> {
-  // 预置所有诊断码，保证日志结构稳定可解析
-  const summary: Record<string, number> = {
-    SERVER_DISABLED: 0,
-    SERVER_CONNECT_FAILED: 0,
-    REMOTE_TOOLS_FETCH_FAILED: 0,
-    TOOL_NOT_FOUND_ON_SERVER: 0,
-    TOOL_MAPPED: 0,
-  };
-  // 按诊断码累加计数
-  for (const diagnostic of diagnostics) {
-    summary[diagnostic.code] = (summary[diagnostic.code] ?? 0) + 1;
-  }
-  // 返回聚合结果
-  return summary;
 }
 
 /**
@@ -398,10 +373,6 @@ export async function POST(req: NextRequest) {
     let runtimeTools: ToolSet = sandboxTools;
     // 初始化 MCP 运行时清理函数，用于请求结束统一释放连接
     let mcpRuntimeCleanup: (() => Promise<void>) | null = null;
-    // 初始化诊断明细，用于日志可观测性
-    let mcpDiagnostics: McpRuntimeDiagnostic[] = [];
-    // 初始化 MCP 已映射工具数量（用于摘要日志）
-    let mcpMappedToolCount = 0;
 
     try {
       // 按 Agent 绑定关系构建 MCP 运行时工具（best-effort）
@@ -411,10 +382,6 @@ export async function POST(req: NextRequest) {
       });
       // 保存 MCP 清理函数，后续在流式结束时关闭客户端
       mcpRuntimeCleanup = mcpRuntime.cleanup;
-      // 保存诊断明细，后续用于聚合日志与问题定位
-      mcpDiagnostics = mcpRuntime.diagnostics;
-      // 记录 MCP 映射工具数，便于运行时挂载可观测
-      mcpMappedToolCount = Object.keys(mcpRuntime.tools).length;
       // 合并系统工具与 MCP 工具，保持系统工具优先
       runtimeTools = mergeAgentToolSets({
         systemTools: sandboxTools,
@@ -424,15 +391,6 @@ export async function POST(req: NextRequest) {
       // MCP 构建失败时降级为仅系统工具，不阻断整次对话
       console.error("构建Agent MCP运行时工具失败，已降级为仅系统工具:", mcpBuildError);
     }
-
-    // 统计诊断码摘要，便于快速观察挂载质量
-    const diagnosticsSummary = buildDiagnosticsSummary(mcpDiagnostics);
-    // 计算 MCP 相关 server 数量，辅助判断是否完全未挂载
-    const mcpServerCount = new Set(
-      diagnosticsDetails
-        .map((detail) => detail.serverId)
-        .filter((serverId): serverId is string => Boolean(serverId))
-    ).size;
 
     // 定义统一清理函数，确保 MCP 连接在请求结束后释放
     const safeCleanupMcpRuntime = async () => {
