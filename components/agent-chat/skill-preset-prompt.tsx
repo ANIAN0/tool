@@ -15,6 +15,8 @@ import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { FileText, ChevronDown, ChevronUp, Sparkles } from "lucide-react";
+// 导入认证 Hook，用于添加认证头
+import { useAuth } from "@/lib/hooks/use-auth";
 
 /**
  * Skill 信息接口
@@ -37,6 +39,8 @@ interface SkillPresetPromptProps {
  * 当用户选择一个配置了 Skill 的 Agent 时，显示该 Agent 配置的 Skill 信息
  */
 export function SkillPresetPrompt({ agentId }: SkillPresetPromptProps) {
+  // 获取带认证的 fetch 函数
+  const { authenticatedFetch } = useAuth();
   // Skill 列表状态
   const [skills, setSkills] = useState<SkillInfo[]>([]);
   // 加载状态
@@ -56,8 +60,8 @@ export function SkillPresetPrompt({ agentId }: SkillPresetPromptProps) {
 
       try {
         setLoading(true);
-        // 获取 Agent 详情，包含关联的 Skills
-        const response = await fetch(`/api/agents/${agentId}`);
+        // 获取 Agent 详情，包含关联的 Skills（使用认证 fetch）
+        const response = await authenticatedFetch(`/api/agents/${agentId}`);
         if (response.ok) {
           const data = await response.json();
           // 设置 Skill 列表（从 Agent 数据中获取）
@@ -71,7 +75,7 @@ export function SkillPresetPrompt({ agentId }: SkillPresetPromptProps) {
     };
 
     loadSkills();
-  }, [agentId]);
+  }, [agentId, authenticatedFetch]);
 
   // 无 Skill 或加载中时不显示组件
   if (loading || skills.length === 0) {
