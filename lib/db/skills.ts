@@ -12,6 +12,11 @@ import {
   type UserSkillWithAgentCount,
 } from "./schema";
 
+// ==================== 常量定义 ====================
+
+// IN 子查询批量大小限制，防止大量 ID 查询导致性能问题
+const MAX_BATCH_SIZE = 100;
+
 // ==================== 辅助函数 ====================
 
 /**
@@ -47,15 +52,30 @@ async function getSkillAgentCount(skillId: string): Promise<number> {
 
 /**
  * 批量获取多个 Skill 的 Agent 关联数量
+ * 支持分批处理，避免 IN 子句过大导致性能问题
  */
 async function getSkillsAgentCountBatch(skillIds: string[]): Promise<Map<string, number>> {
-  const db = getDb();
   const countMap = new Map<string, number>();
 
-  if (skillIds.length === 0) {
+  if (!skillIds || skillIds.length === 0) {
     return countMap;
   }
 
+  // 如果超过批量限制，分批处理
+  if (skillIds.length > MAX_BATCH_SIZE) {
+    for (let i = 0; i < skillIds.length; i += MAX_BATCH_SIZE) {
+      const batch = skillIds.slice(i, i + MAX_BATCH_SIZE);
+      const batchResult = await getSkillsAgentCountBatch(batch);
+      // 合并结果
+      batchResult.forEach((count, skillId) => {
+        countMap.set(skillId, count);
+      });
+    }
+    return countMap;
+  }
+
+  // 单批次查询逻辑
+  const db = getDb();
   const placeholders = skillIds.map(() => "?").join(",");
   const result = await db.execute({
     sql: `SELECT skill_id, COUNT(*) as count FROM agent_skills WHERE skill_id IN (${placeholders}) GROUP BY skill_id`,
@@ -295,6 +315,7 @@ export async function getAgentSkills(agentId: string): Promise<UserSkill[]> {
 /**
  * 批量获取多个 Agent 的 Skill 列表
  * 用于列表查询优化，避免 N+1 问题
+ * 支持分批处理，避免 IN 子句过大导致性能问题
  * @param agentIds - Agent ID 列表
  * @returns Map<agentId, Skill简要信息[]>
  */
@@ -303,10 +324,24 @@ export async function getAgentsSkillsBatch(
 ): Promise<Map<string, Array<{ id: string; name: string; description: string }>>> {
   const skillsMap = new Map<string, Array<{ id: string; name: string; description: string }>>();
 
-  if (agentIds.length === 0) {
+  if (!agentIds || agentIds.length === 0) {
     return skillsMap;
   }
 
+  // 如果超过批量限制，分批处理
+  if (agentIds.length > MAX_BATCH_SIZE) {
+    for (let i = 0; i < agentIds.length; i += MAX_BATCH_SIZE) {
+      const batch = agentIds.slice(i, i + MAX_BATCH_SIZE);
+      const batchResult = await getAgentsSkillsBatch(batch);
+      // 合并结果
+      batchResult.forEach((skills, agentId) => {
+        skillsMap.set(agentId, skills);
+      });
+    }
+    return skillsMap;
+  }
+
+  // 单批次查询逻辑
   const db = getDb();
   const placeholders = agentIds.map(() => "?").join(",");
 
