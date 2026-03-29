@@ -27,6 +27,7 @@ import {
 import { DbAgentSelector } from "./db-agent-selector";
 import { AgentChatSidebar } from "./sidebar";
 import { PromptSection } from "./prompt-section";
+import { SkillPresetPrompt } from "./skill-preset-prompt";
 import { UserMenu } from "@/components/auth/user-menu";
 import { getAnonId } from "@/lib/anon-id";
 import type { Conversation as ConversationType } from "@/lib/db/schema";
@@ -320,6 +321,13 @@ export function AgentChatClient({ id }: AgentChatClientProps) {
             <UserMenu />
           </div>
         </header>
+
+        {/* Skill 预置提示词展示区 */}
+        {selectedAgentId && (
+          <div className="px-6 py-3 border-b border-border/50">
+            <SkillPresetPrompt agentId={selectedAgentId} />
+          </div>
+        )}
 
         {/* 消息区域 */}
         <div className="flex-1 overflow-hidden">
