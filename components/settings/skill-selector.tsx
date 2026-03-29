@@ -5,7 +5,7 @@
 
 "use client";
 
-import { useState, useEffect } from "react";
+import { useState, useEffect, useRef } from "react";
 import { Checkbox } from "@/components/ui/checkbox";
 import { Loader2, FileText } from "lucide-react";
 import { authenticatedFetch } from "@/lib/utils/authenticated-fetch"; // 导入认证请求工具
@@ -27,7 +27,15 @@ export function SkillSelector({ selectedSkillIds, onChange, onSkillsLoaded }: Sk
   const [skills, setSkills] = useState<Skill[]>([]);
   const [loading, setLoading] = useState(true);
 
-  // 加载用户的 Skill 列表
+  // 使用 ref 存储 onSkillsLoaded 回调，避免 useEffect 依赖变化导致的无限重渲染
+  const onSkillsLoadedRef = useRef(onSkillsLoaded);
+
+  // 更新 ref 的值，确保始终使用最新的回调函数
+  useEffect(() => {
+    onSkillsLoadedRef.current = onSkillsLoaded;
+  }, [onSkillsLoaded]);
+
+  // 加载用户的 Skill 列表 - 只在组件挂载时执行一次
   useEffect(() => {
     const loadSkills = async () => {
       try {
@@ -36,8 +44,8 @@ export function SkillSelector({ selectedSkillIds, onChange, onSkillsLoaded }: Sk
           const data = await response.json();
           const loadedSkills = data.skills || [];
           setSkills(loadedSkills);
-          // 新增：通知父组件 Skill 列表已加载
-          onSkillsLoaded?.(loadedSkills);
+          // 使用 ref 调用回调，避免依赖 onSkillsLoaded 导致的重复执行
+          onSkillsLoadedRef.current?.(loadedSkills);
         }
       } catch (error) {
         console.error("加载 Skill 列表失败:", error);
@@ -47,7 +55,7 @@ export function SkillSelector({ selectedSkillIds, onChange, onSkillsLoaded }: Sk
     };
 
     loadSkills();
-  }, [onSkillsLoaded]);
+  }, []); // 空依赖数组，只在组件挂载时执行一次
 
   // 切换 Skill 选择
   const handleToggle = (skillId: string, checked: boolean) => {
