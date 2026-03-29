@@ -7,7 +7,7 @@
 "use client";
 
 import { cn } from "@/lib/utils";
-import { Folder, File, FileText, FileCode, Image, Settings, FolderZip } from "lucide-react";
+import { Folder, File, FileText, FileCode, Image, Settings, Archive } from "lucide-react";
 import type { FileEntry } from "./file-manager";
 // 导入公共文件工具函数
 import { formatFileSize, getFileTypeCategory } from "@/lib/utils/file-utils";
@@ -48,7 +48,7 @@ function getFileIcon(name: string, type: "file" | "directory") {
       return <Image className="h-4 w-4 text-purple-500" />;
     case "archive":
       // 压缩文件图标
-      return <FolderZip className="h-4 w-4 text-yellow-500" />;
+      return <Archive className="h-4 w-4 text-yellow-500" />;
     default:
       // 默认文件图标
       return <File className="h-4 w-4 text-gray-500" />;

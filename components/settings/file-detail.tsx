@@ -31,7 +31,7 @@ import {
   FileCode,
   Image,
   Settings,
-  FolderZip,
+  Archive,
   File,
 } from "lucide-react";
 import type { FileEntry } from "./file-manager";
@@ -69,7 +69,7 @@ function getFileIcon(name: string) {
       return <Image className="h-6 w-6 text-purple-500" />;
     case "archive":
       // 压缩文件图标
-      return <FolderZip className="h-6 w-6 text-yellow-500" />;
+      return <Archive className="h-6 w-6 text-yellow-500" />;
     default:
       // 默认文件图标
       return <File className="h-6 w-6 text-gray-500" />;
