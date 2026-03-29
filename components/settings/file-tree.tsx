@@ -7,8 +7,10 @@
 "use client";
 
 import { cn } from "@/lib/utils";
-import { Folder, File, FileText, FileCode } from "lucide-react";
+import { Folder, File, FileText, FileCode, Image, Settings, FolderZip } from "lucide-react";
 import type { FileEntry } from "./file-manager";
+// 导入公共文件工具函数
+import { formatFileSize, getFileTypeCategory } from "@/lib/utils/file-utils";
 
 // 文件树组件属性
 interface FileTreeProps {
@@ -20,6 +22,7 @@ interface FileTreeProps {
 
 /**
  * 根据文件名判断文件图标类型
+ * 使用公共的 getFileTypeCategory 函数判断文件类型
  */
 function getFileIcon(name: string, type: "file" | "directory") {
   // 目录使用文件夹图标
@@ -27,32 +30,29 @@ function getFileIcon(name: string, type: "file" | "directory") {
     return <Folder className="h-4 w-4 text-blue-500" />;
   }
 
-  // 根据文件扩展名选择图标
-  const ext = name.split(".").pop()?.toLowerCase();
+  // 根据文件类型获取对应图标
+  const category = getFileTypeCategory(name);
 
-  // 代码文件
-  if (["js", "ts", "jsx", "tsx", "py", "rb", "go", "java", "c", "cpp", "h"].includes(ext || "")) {
-    return <FileCode className="h-4 w-4 text-green-500" />;
+  switch (category) {
+    case "code":
+      // 代码文件图标
+      return <FileCode className="h-4 w-4 text-green-500" />;
+    case "text":
+      // 文本文件图标
+      return <FileText className="h-4 w-4 text-orange-500" />;
+    case "config":
+      // 配置文件图标
+      return <Settings className="h-4 w-4 text-blue-500" />;
+    case "image":
+      // 图片文件图标
+      return <Image className="h-4 w-4 text-purple-500" />;
+    case "archive":
+      // 压缩文件图标
+      return <FolderZip className="h-4 w-4 text-yellow-500" />;
+    default:
+      // 默认文件图标
+      return <File className="h-4 w-4 text-gray-500" />;
   }
-
-  // 文本文件
-  if (["md", "txt", "json", "yaml", "yml", "xml", "csv", "log"].includes(ext || "")) {
-    return <FileText className="h-4 w-4 text-orange-500" />;
-  }
-
-  // 默认文件图标
-  return <File className="h-4 w-4 text-gray-500" />;
-}
-
-/**
- * 格式化文件大小显示
- */
-function formatFileSize(size: number): string {
-  if (size === 0) return "0 B";
-  if (size < 1024) return `${size} B`;
-  if (size < 1024 * 1024) return `${(size / 1024).toFixed(1)} KB`;
-  if (size < 1024 * 1024 * 1024) return `${(size / (1024 * 1024)).toFixed(1)} MB`;
-  return `${(size / (1024 * 1024 * 1024)).toFixed(1)} GB`;
 }
 
 /**

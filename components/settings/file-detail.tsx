@@ -29,9 +29,15 @@ import {
   AlertCircle,
   FileText,
   FileCode,
+  Image,
+  Settings,
+  FolderZip,
+  File,
 } from "lucide-react";
 import type { FileEntry } from "./file-manager";
 import { authenticatedFetch } from "@/lib/utils/authenticated-fetch";
+// 导入公共文件工具函数
+import { formatFileSize, isPreviewable, getFileTypeCategory } from "@/lib/utils/file-utils";
 
 // 文件详情组件属性
 interface FileDetailProps {
@@ -41,30 +47,33 @@ interface FileDetailProps {
 }
 
 /**
- * 格式化文件大小显示
+ * 获取文件图标（根据文件类型返回对应的图标组件）
+ * 使用公共的 getFileTypeCategory 函数判断文件类型
  */
-function formatFileSize(size: number): string {
-  if (size === 0) return "0 B";
-  if (size < 1024) return `${size} B`;
-  if (size < 1024 * 1024) return `${(size / 1024).toFixed(1)} KB`;
-  if (size < 1024 * 1024 * 1024) return `${(size / (1024 * 1024)).toFixed(1)} MB`;
-  return `${(size / (1024 * 1024 * 1024)).toFixed(1)} GB`;
-}
+function getFileIcon(name: string) {
+  // 根据文件类型获取对应图标
+  const category = getFileTypeCategory(name);
 
-/**
- * 判断文件是否可预览（文本文件）
- */
-function isPreviewable(name: string): boolean {
-  const ext = name.split(".").pop()?.toLowerCase();
-  // 可预览的文件类型：文本、代码、配置文件等
-  const previewableExtensions = [
-    "md", "txt", "json", "yaml", "yml", "xml", "csv", "log",
-    "js", "ts", "jsx", "tsx", "py", "rb", "go", "java", "c", "cpp", "h",
-    "html", "css", "scss", "sass", "less", "sh", "bash", "zsh",
-    "sql", "env", "gitignore", "dockerignore", "dockerfile",
-    "properties", "ini", "conf", "config", "toml",
-  ];
-  return previewableExtensions.includes(ext || "");
+  switch (category) {
+    case "code":
+      // 代码文件图标
+      return <FileCode className="h-6 w-6 text-green-500" />;
+    case "text":
+      // 文本文件图标
+      return <FileText className="h-6 w-6 text-orange-500" />;
+    case "config":
+      // 配置文件图标
+      return <Settings className="h-6 w-6 text-blue-500" />;
+    case "image":
+      // 图片文件图标
+      return <Image className="h-6 w-6 text-purple-500" />;
+    case "archive":
+      // 压缩文件图标
+      return <FolderZip className="h-6 w-6 text-yellow-500" />;
+    default:
+      // 默认文件图标
+      return <File className="h-6 w-6 text-gray-500" />;
+  }
 }
 
 /**
@@ -84,19 +93,6 @@ export function FileDetail({ file, sessionId, onDeleteSuccess }: FileDetailProps
   const [deleteLoading, setDeleteLoading] = useState(false);
   // 删除错误信息
   const [deleteError, setDeleteError] = useState<string | null>(null);
-
-  /**
-   * 获取文件图标
-   */
-  function getFileIcon(name: string) {
-    const ext = name.split(".").pop()?.toLowerCase();
-    // 代码文件
-    if (["js", "ts", "jsx", "tsx", "py", "rb", "go", "java", "c", "cpp", "h"].includes(ext || "")) {
-      return <FileCode className="h-6 w-6 text-green-500" />;
-    }
-    // 默认文本文件图标
-    return <FileText className="h-6 w-6 text-orange-500" />;
-  }
 
   /**
    * 预览文件内容
