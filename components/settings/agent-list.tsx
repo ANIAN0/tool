@@ -51,6 +51,8 @@ interface AgentListProps {
   onRefresh: () => void;
   // 清除错误回调
   onClearError: () => void;
+  // 查看接口示例回调（可选）
+  onShowDetail?: (agent: AgentWithTools) => void;
 }
 
 /**
@@ -67,6 +69,7 @@ export function AgentList({
   onTogglePublic,
   onRefresh,
   onClearError,
+  onShowDetail, // 查看接口示例回调
 }: AgentListProps) {
   // 当前选中的标签页
   const [activeTab, setActiveTab] = useState<"my" | "public">("my");
@@ -246,6 +249,7 @@ export function AgentList({
             onEdit={handleEdit}
             onDelete={handleDeleteClick}
             onTogglePublic={handleTogglePublic}
+            onShowDetail={onShowDetail} // 传递查看接口示例回调
           />
         ))}
       </div>
@@ -278,6 +282,7 @@ export function AgentList({
             onEdit={() => {}}
             onDelete={() => {}}
             onTogglePublic={() => {}}
+            onShowDetail={onShowDetail} // 传递查看接口示例回调
           />
         ))}
       </div>

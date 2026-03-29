@@ -15,7 +15,7 @@ import {
   DropdownMenuSeparator,
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
-import { Globe, Lock, MoreVertical, Pencil, Trash2 } from "lucide-react";
+import { Globe, Lock, MoreVertical, Pencil, Trash2, Code } from "lucide-react";
 import type { AgentWithTools } from "@/lib/db/schema";
 
 // Agent卡片属性
@@ -25,6 +25,8 @@ interface AgentCardProps {
   onEdit: (agent: AgentWithTools) => void;
   onDelete: (agent: AgentWithTools) => void;
   onTogglePublic: (id: string, isPublic: boolean) => void;
+  // 查看接口示例回调
+  onShowDetail?: (agent: AgentWithTools) => void;
 }
 
 /**
@@ -36,6 +38,7 @@ export function AgentCard({
   onEdit,
   onDelete,
   onTogglePublic,
+  onShowDetail, // 查看接口示例回调
 }: AgentCardProps) {
   // 格式化时间
   const formatDate = (timestamp: number) => {
@@ -112,7 +115,8 @@ export function AgentCard({
           </div>
         </div>
 
-        {/* 操作按钮（仅创建者可见） */}
+        {/* 操作按钮 */}
+        {/* 创建者显示完整下拉菜单 */}
         {isOwner && (
           <div className="mt-4 flex justify-end">
             <DropdownMenu>
@@ -122,6 +126,14 @@ export function AgentCard({
                 </Button>
               </DropdownMenuTrigger>
               <DropdownMenuContent align="end">
+                {/* 查看接口示例 */}
+                {onShowDetail && (
+                  <DropdownMenuItem onClick={() => onShowDetail(agent)}>
+                    <Code className="mr-2 h-4 w-4" />
+                    查看接口示例
+                  </DropdownMenuItem>
+                )}
+
                 {/* 编辑 */}
                 <DropdownMenuItem onClick={() => onEdit(agent)}>
                   <Pencil className="mr-2 h-4 w-4" />
@@ -157,6 +169,20 @@ export function AgentCard({
                 </DropdownMenuItem>
               </DropdownMenuContent>
             </DropdownMenu>
+          </div>
+        )}
+
+        {/* 非创建者显示查看接口示例按钮 */}
+        {!isOwner && onShowDetail && (
+          <div className="mt-4 flex justify-end">
+            <Button
+              variant="outline"
+              size="sm"
+              onClick={() => onShowDetail(agent)}
+            >
+              <Code className="mr-2 h-4 w-4" />
+              查看接口示例
+            </Button>
           </div>
         )}
       </CardContent>

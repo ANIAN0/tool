@@ -5,8 +5,10 @@
 
 "use client";
 
+import { useState } from "react";
 import { useAgents, type CreateAgentInput, type UpdateAgentInput, type AgentWithTools } from "@/lib/hooks/use-agents";
 import { AgentList, type AgentFormData } from "@/components/settings/agent-list";
+import { AgentDetailDialog } from "@/components/settings/agent-detail-dialog";
 import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
 import { Info } from "lucide-react";
 
@@ -14,6 +16,9 @@ import { Info } from "lucide-react";
  * Agent配置管理页面组件
  */
 export default function AgentsSettingsPage() {
+  // Agent详情弹窗状态
+  const [detailDialogAgent, setDetailDialogAgent] = useState<AgentWithTools | null>(null);
+
   // 获取Agent列表和操作函数
   const {
     myAgents,
@@ -27,6 +32,22 @@ export default function AgentsSettingsPage() {
     refreshAgents,
     clearError,
   } = useAgents();
+
+  /**
+   * 处理查看Agent接口示例
+   * 打开详情弹窗
+   * @param agent - Agent信息
+   */
+  const handleShowDetail = (agent: AgentWithTools) => {
+    setDetailDialogAgent(agent);
+  };
+
+  /**
+   * 关闭Agent详情弹窗
+   */
+  const handleCloseDetailDialog = () => {
+    setDetailDialogAgent(null);
+  };
 
   /**
    * 处理创建Agent
@@ -43,6 +64,8 @@ export default function AgentsSettingsPage() {
       systemPrompt: data.systemPrompt || undefined,
       modelId: data.modelId || undefined,
       toolIds: data.toolIds,
+      enabledSystemTools: data.enabledSystemTools, // 传递启用的系统工具
+      skillIds: data.skillIds, // 传递关联的 Skill ID 列表
     };
 
     // 调用创建方法
@@ -56,6 +79,12 @@ export default function AgentsSettingsPage() {
    * @param data - 表单数据
    */
   const handleUpdate = async (id: string, data: AgentFormData): Promise<boolean> => {
+    // 调试日志：查看表单提交的数据
+    console.log("=== [handleUpdate] 表单数据 ===");
+    console.log("data.skillIds:", data.skillIds);
+    console.log("data.enabledSystemTools:", data.enabledSystemTools);
+    console.log("完整 data:", JSON.stringify(data, null, 2));
+
     // 构建更新参数
     const params: UpdateAgentInput = {
       name: data.name,
@@ -65,7 +94,14 @@ export default function AgentsSettingsPage() {
       systemPrompt: data.systemPrompt || null,
       modelId: data.modelId || null,
       toolIds: data.toolIds,
+      enabledSystemTools: data.enabledSystemTools, // 传递启用的系统工具
+      skillIds: data.skillIds, // 传递关联的 Skill ID 列表
     };
+
+    // 调试日志：查看发送给 API 的参数
+    console.log("=== [handleUpdate] API 参数 ===");
+    console.log("params.skillIds:", params.skillIds);
+    console.log("完整 params:", JSON.stringify(params, null, 2));
 
     // 调用更新方法
     return updateAgent(id, params);
@@ -135,6 +171,14 @@ export default function AgentsSettingsPage() {
         onTogglePublic={handleTogglePublic}
         onRefresh={handleRefresh}
         onClearError={handleClearError}
+        onShowDetail={handleShowDetail} // 传递查看接口示例回调
+      />
+
+      {/* Agent详情弹窗 */}
+      <AgentDetailDialog
+        agent={detailDialogAgent}
+        open={!!detailDialogAgent}
+        onClose={handleCloseDetailDialog}
       />
     </div>
   );
