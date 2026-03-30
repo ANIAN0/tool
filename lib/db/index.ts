@@ -17,6 +17,13 @@ import {
   CREATE_AGENTS_TABLE,
   CREATE_AGENT_TOOLS_TABLE,
   CREATE_AGENTS_INDEXES,
+  // Skill相关表Schema
+  CREATE_USER_SKILLS_TABLE,
+  CREATE_AGENT_SKILLS_TABLE,
+  CREATE_SKILLS_INDEXES,
+  // API Key相关表Schema
+  CREATE_USER_API_KEYS_TABLE,
+  CREATE_API_KEYS_INDEXES,
 } from "./schema";
 
 /**
@@ -87,6 +94,33 @@ export async function initDatabase(): Promise<void> {
       await db.execute(sql);
     } catch (error) {
       console.log("Agent索引创建跳过或失败:", error);
+    }
+  }
+
+  // 创建 user_skills 表
+  await db.execute(CREATE_USER_SKILLS_TABLE);
+
+  // 创建 agent_skills 表
+  await db.execute(CREATE_AGENT_SKILLS_TABLE);
+
+  // 创建 user_api_keys 表
+  await db.execute(CREATE_USER_API_KEYS_TABLE);
+
+  // 创建 Skill 相关索引
+  for (const sql of CREATE_SKILLS_INDEXES) {
+    try {
+      await db.execute(sql);
+    } catch (error) {
+      console.log("Skill 索引创建跳过或失败:", error);
+    }
+  }
+
+  // 创建 API Key 相关索引
+  for (const sql of CREATE_API_KEYS_INDEXES) {
+    try {
+      await db.execute(sql);
+    } catch (error) {
+      console.log("API Key 索引创建跳过或失败:", error);
     }
   }
 }
@@ -220,6 +254,56 @@ export async function migrateDatabase(): Promise<void> {
       console.error("数据库迁移失败:", error);
     }
   }
+
+  // 迁移: 创建 user_skills 表
+  try {
+    await db.execute(CREATE_USER_SKILLS_TABLE);
+    console.log("user_skills 表已创建或已存在");
+  } catch (error) {
+    console.error("创建 user_skills 表失败:", error);
+  }
+
+  // 迁移: 创建 agent_skills 表
+  try {
+    await db.execute(CREATE_AGENT_SKILLS_TABLE);
+    console.log("agent_skills 表已创建或已存在");
+  } catch (error) {
+    console.error("创建 agent_skills 表失败:", error);
+  }
+
+  // 迁移: 创建 user_api_keys 表
+  try {
+    await db.execute(CREATE_USER_API_KEYS_TABLE);
+    console.log("user_api_keys 表已创建或已存在");
+  } catch (error) {
+    console.error("创建 user_api_keys 表失败:", error);
+  }
+
+  // 迁移: 创建 Skill 相关索引
+  for (const sql of CREATE_SKILLS_INDEXES) {
+    try {
+      await db.execute(sql);
+    } catch (error) {
+      if (String(error).includes("already exists")) {
+        console.log("Skill 索引已存在，跳过");
+      } else {
+        console.error("创建 Skill 索引失败:", error);
+      }
+    }
+  }
+
+  // 迁移: 创建 API Key 相关索引
+  for (const sql of CREATE_API_KEYS_INDEXES) {
+    try {
+      await db.execute(sql);
+    } catch (error) {
+      if (String(error).includes("already exists")) {
+        console.log("API Key 索引已存在，跳过");
+      } else {
+        console.error("创建 API Key 索引失败:", error);
+      }
+    }
+  }
 }
 
 /**
@@ -268,3 +352,9 @@ export * from "./user-models";
 
 // 导出Agent数据访问方法
 export * from "./agents";
+
+// 导出 Skill 数据访问方法
+export * from "./skills";
+
+// 导出 API Key 数据访问方法
+export * from "./api-keys";

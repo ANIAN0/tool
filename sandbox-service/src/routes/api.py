@@ -8,6 +8,7 @@ from src.middleware.auth import verify_api_key
 from src.services.session import SessionManager
 from src.services.sandbox import NsjailSandbox
 from src.utils.security import validate_path, hash_user_id
+from src.utils.logger import get_logger, log_error
 from src.models import (
     ExecRequest, ExecResponse,
     ReadFileRequest, ReadFileResponse,
@@ -17,6 +18,9 @@ from src.models import (
 from src.config import get_settings
 
 router = APIRouter()
+
+# 日志器
+logger = get_logger("api")
 
 # 会话管理器实例
 session_manager = SessionManager()
@@ -241,20 +245,36 @@ async def write_file(
     try:
         # 确保目录存在
         import os
-        os.makedirs(os.path.dirname(file_path), exist_ok=True)
+        dir_path = os.path.dirname(file_path)
+        logger.info(f"[Write] file_path: {file_path}")
+        logger.info(f"[Write] dir_path: {dir_path}")
+        logger.info(f"[Write] content length: {len(request.content)} bytes")
+
+        # 如果目录路径不为空，创建目录
+        # 注意：目录权限由 Skill Loader 在沙盒内创建时设置（mkdir -m 777）
+        if dir_path:
+            os.makedirs(dir_path, mode=0o777, exist_ok=True)
+            logger.info(f"[Write] 目录已创建/确认: {dir_path}")
 
         with open(file_path, 'w', encoding='utf-8') as f:
             f.write(request.content)
 
+        logger.info(f"[Write] 文件写入成功: {file_path}")
         return WriteFileResponse(success=True)
     except Exception as e:
+        import traceback
+        logger.error(f"[Write] 写入失败: {file_path}")
+        logger.error(f"[Write] 错误类型: {type(e).__name__}")
+        logger.error(f"[Write] 错误信息: {str(e)}")
+        logger.error(f"[Write] 堆栈追踪:\n{traceback.format_exc()}")
         raise HTTPException(
             status_code=500,
             detail={
                 "success": False,
                 "error": {
                     "code": "WRITE_ERROR",
-                    "message": str(e)
+                    "message": str(e),
+                    "type": type(e).__name__
                 }
             }
         )

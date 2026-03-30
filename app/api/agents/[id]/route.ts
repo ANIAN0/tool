@@ -12,8 +12,10 @@ import { authenticateRequestOptional, authenticateRequest } from "@/lib/auth/mid
 import {
   getAgentById,
   updateAgent,
+  updateAgentWithSkills,
   deleteAgent,
   isAgentCreator,
+  getAgentSkillsInfo,
 } from "@/lib/db/agents";
 import { validateTemplateConfig } from "@/lib/agents/templates";
 import type { UpdateAgentParams } from "@/lib/db/schema";
@@ -61,12 +63,16 @@ export async function GET(
       }
     }
 
+    // 获取关联的 Skills
+    const skills = await getAgentSkillsInfo(id);
+
     // 返回Agent详情
     return NextResponse.json({
       success: true,
       data: {
         ...agent,
         template_config: templateConfig,
+        skills, // 新增：关联的 Skill 列表
       },
     });
   } catch (error) {
@@ -111,6 +117,12 @@ export async function PUT(
 
     // 解析请求体
     const body = await request.json();
+
+    // 调试日志：查看 API 收到的请求体
+    console.log("=== [API PUT /api/agents/[id]] 收到的请求体 ===");
+    console.log("body.skillIds:", body.skillIds);
+    console.log("body.enabledSystemTools:", body.enabledSystemTools);
+    console.log("完整 body:", JSON.stringify(body, null, 2));
 
     // 构建更新参数
     const updateParams: UpdateAgentParams = {};
@@ -190,8 +202,11 @@ export async function PUT(
       updateParams.enabledSystemTools = body.enabledSystemTools;
     }
 
-    // 执行更新
-    const updatedAgent = await updateAgent(userId, id, updateParams);
+    // 提取 skillIds（单独处理）
+    const skillIds = body.skillIds;
+
+    // 执行更新（支持 Skill 关联）
+    const updatedAgent = await updateAgentWithSkills(userId, id, updateParams, skillIds);
 
     if (!updatedAgent) {
       return NextResponse.json(

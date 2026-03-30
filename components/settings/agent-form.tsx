@@ -1,6 +1,12 @@
 /**
  * Agent表单组件
  * 用于创建和编辑Agent配置
+ *
+ * 使用 Tabs 组织表单内容，避免内容超出屏幕：
+ * - 基本信息：名称、描述、模板选择
+ * - 提示词：模型选择、系统提示词
+ * - 工具：系统工具、MCP工具
+ * - Skill预览：Skill选择、预置提示词预览
  */
 
 "use client";
@@ -25,15 +31,14 @@ import {
   SelectValue,
 } from "@/components/ui/select";
 import { Checkbox } from "@/components/ui/checkbox";
-import { ScrollArea } from "@/components/ui/scroll-area";
-import { Loader2 } from "lucide-react";
+import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
+import { Loader2, Settings2, MessageSquare, Wrench, FileText } from "lucide-react";
 import { useUserModels } from "@/lib/hooks/use-user-models";
 import { useTools } from "@/lib/hooks/use-tools";
 import {
   getTemplateList,
   getTemplateDefaultConfig,
   getTemplateById,
-  type TemplateConfigField,
 } from "@/lib/agents/templates";
 import type { AgentWithTools } from "@/lib/db/schema";
 import { getDefaultSystemTools, SYSTEM_TOOL_IDS, type SystemToolId, validateSystemToolIds } from "@/lib/constants/system-tools";
@@ -349,6 +354,7 @@ export function AgentForm({
 
   /**
    * 渲染模板配置字段
+   * 根据选择的模板动态显示配置选项
    */
   const renderTemplateConfigFields = () => {
     // 根据模板ID获取完整的模板定义
@@ -359,7 +365,7 @@ export function AgentForm({
     const configFields = template.configFields;
 
     return configFields.map((field) => (
-      <div key={field.key} className="space-y-2">
+      <div key={field.key} className="flex flex-col gap-2">
         <Label htmlFor={field.key}>
           {field.label}
           {field.required && <span className="text-destructive ml-1">*</span>}
@@ -389,308 +395,353 @@ export function AgentForm({
 
   return (
     <Dialog open={open} onOpenChange={(isOpen) => !isOpen && onClose()}>
-      <DialogContent className="sm:max-w-[600px] max-h-[90vh] flex flex-col">
-        <DialogHeader>
+      {/* Dialog 设置最大高度，确保内容不超出屏幕 */}
+      <DialogContent className="sm:max-w-[700px] h-[80vh] flex flex-col">
+        <DialogHeader className="shrink-0">
           <DialogTitle>
             {agent ? "编辑 Agent" : "创建 Agent"}
           </DialogTitle>
         </DialogHeader>
 
-        <ScrollArea className="flex-1 pr-4">
-          <div className="space-y-4 py-4">
-            {/* 名称字段 */}
-            <div className="space-y-2">
-              <Label htmlFor="name">
-                名称
-                <span className="text-destructive ml-1">*</span>
-              </Label>
-              <Input
-                id="name"
-                value={formData.name}
-                onChange={(e) => {
-                  setFormData((prev) => ({ ...prev, name: e.target.value }));
-                  // 清除错误
-                  if (errors.name) {
-                    setErrors((prev) => {
-                      const newErrors = { ...prev };
-                      delete newErrors.name;
-                      return newErrors;
-                    });
+        {/* 使用 Tabs 组织表单内容，避免内容超出屏幕 */}
+        <Tabs defaultValue="basic" className="flex-1 flex flex-col min-h-0">
+          {/* Tabs 导航栏 */}
+          <TabsList className="grid grid-cols-4 w-full shrink-0">
+            {/* 基本信息标签页 */}
+            <TabsTrigger value="basic" className="gap-1.5">
+              <Settings2 data-icon="inline-start" />
+              基本信息
+            </TabsTrigger>
+            {/* 提示词配置标签页 */}
+            <TabsTrigger value="prompt" className="gap-1.5">
+              <MessageSquare data-icon="inline-start" />
+              提示词
+            </TabsTrigger>
+            {/* 工具配置标签页 */}
+            <TabsTrigger value="tools" className="gap-1.5">
+              <Wrench data-icon="inline-start" />
+              工具
+            </TabsTrigger>
+            {/* Skill预览标签页 */}
+            <TabsTrigger value="skills" className="gap-1.5">
+              <FileText data-icon="inline-start" />
+              Skill预览
+            </TabsTrigger>
+          </TabsList>
+
+          {/* ==================== 基本信息页 ==================== */}
+          <TabsContent value="basic" className="flex-1 min-h-0 mt-4 overflow-auto">
+            <div className="flex flex-col gap-4 pr-4">
+              {/* 名称字段 */}
+              <div className="flex flex-col gap-2">
+                <Label htmlFor="name">
+                  名称
+                  <span className="text-destructive ml-1">*</span>
+                </Label>
+                <Input
+                  id="name"
+                  value={formData.name}
+                  onChange={(e) => {
+                    setFormData((prev) => ({ ...prev, name: e.target.value }));
+                    if (errors.name) {
+                      setErrors((prev) => {
+                        const newErrors = { ...prev };
+                        delete newErrors.name;
+                        return newErrors;
+                      });
+                    }
+                  }}
+                  placeholder="输入Agent名称"
+                  className={errors.name ? "border-destructive" : ""}
+                />
+                {errors.name && (
+                  <p className="text-sm text-destructive">{errors.name}</p>
+                )}
+              </div>
+
+              {/* 描述字段 */}
+              <div className="flex flex-col gap-2">
+                <Label htmlFor="description">描述</Label>
+                <Input
+                  id="description"
+                  value={formData.description}
+                  onChange={(e) =>
+                    setFormData((prev) => ({ ...prev, description: e.target.value }))
                   }
-                }}
-                placeholder="输入Agent名称"
-                className={errors.name ? "border-destructive" : ""}
-              />
-              {errors.name && (
-                <p className="text-sm text-destructive">{errors.name}</p>
-              )}
-            </div>
+                  placeholder="输入Agent描述（可选）"
+                />
+              </div>
 
-            {/* 描述字段 */}
-            <div className="space-y-2">
-              <Label htmlFor="description">描述</Label>
-              <Input
-                id="description"
-                value={formData.description}
-                onChange={(e) =>
-                  setFormData((prev) => ({ ...prev, description: e.target.value }))
-                }
-                placeholder="输入Agent描述（可选）"
-              />
-            </div>
-
-            {/* 模板选择 */}
-            <div className="space-y-2">
-              <Label htmlFor="template">
-                模板
-                <span className="text-destructive ml-1">*</span>
-              </Label>
-              <Select
-                value={formData.templateId}
-                onValueChange={handleTemplateChange}
-              >
-                <SelectTrigger
-                  id="template"
-                  className={errors.templateId ? "border-destructive" : ""}
+              {/* 模板选择 */}
+              <div className="flex flex-col gap-2">
+                <Label htmlFor="template">
+                  模板
+                  <span className="text-destructive ml-1">*</span>
+                </Label>
+                <Select
+                  value={formData.templateId}
+                  onValueChange={handleTemplateChange}
                 >
-                  <SelectValue placeholder="选择模板" />
-                </SelectTrigger>
-                <SelectContent>
-                  {templateList.map((template) => (
-                    <SelectItem key={template.id} value={template.id}>
-                      <div className="flex flex-col">
-                        <span>{template.name}</span>
-                        <span className="text-xs text-muted-foreground">
-                          {template.description}
-                        </span>
-                      </div>
-                    </SelectItem>
-                  ))}
-                </SelectContent>
-              </Select>
-              {errors.templateId && (
-                <p className="text-sm text-destructive">{errors.templateId}</p>
-              )}
-            </div>
-
-            {/* 模板配置（动态渲染） */}
-            {renderTemplateConfigFields()}
-
-            {/* 系统提示词 */}
-            <div className="space-y-2">
-              <Label htmlFor="systemPrompt">系统提示词</Label>
-              <Textarea
-                id="systemPrompt"
-                value={formData.systemPrompt}
-                onChange={(e) =>
-                  setFormData((prev) => ({ ...prev, systemPrompt: e.target.value }))
-                }
-                placeholder="输入系统提示词（可选）"
-                rows={4}
-              />
-            </div>
-
-            {/* 模型选择 */}
-            <div className="space-y-2">
-              <Label htmlFor="model">
-                模型
-                <span className="text-destructive ml-1">*</span>
-              </Label>
-              <Select
-                value={formData.modelId}
-                onValueChange={(value) => {
-                  setFormData((prev) => ({ ...prev, modelId: value }));
-                  // 清除错误
-                  if (errors.modelId) {
-                    setErrors((prev) => {
-                      const newErrors = { ...prev };
-                      delete newErrors.modelId;
-                      return newErrors;
-                    });
-                  }
-                }}
-                disabled={isLoadingModels}
-              >
-                <SelectTrigger
-                  id="model"
-                  className={errors.modelId ? "border-destructive" : ""}
-                >
-                  <SelectValue placeholder={isLoadingModels ? "加载中..." : "选择模型"} />
-                </SelectTrigger>
-                <SelectContent>
-                  {models.map((model) => (
-                    <SelectItem key={model.id} value={model.id}>
-                      {model.name}
-                      {"is_default" in model && model.is_default && (
-                        <span className="ml-2 text-xs text-muted-foreground">
-                          (默认)
-                        </span>
-                      )}
-                    </SelectItem>
-                  ))}
-                </SelectContent>
-              </Select>
-              {errors.modelId && (
-                <p className="text-sm text-destructive">{errors.modelId}</p>
-              )}
-              {models.length === 0 && !isLoadingModels && (
-                <p className="text-sm text-muted-foreground">
-                  暂无可用模型，请先添加模型
-                </p>
-              )}
-            </div>
-
-            {/* 工具选择 */}
-            <div className="space-y-2">
-              <Label>工具</Label>
-              {isLoadingTools ? (
-                <div className="flex items-center gap-2 text-sm text-muted-foreground">
-                  <Loader2 className="h-4 w-4 animate-spin" />
-                  加载工具列表中...
-                </div>
-              ) : (
-                <div className="space-y-4">
-                  {/* 系统工具组 - 使用常量渲染所有可用系统工具 */}
-                  <div className="space-y-2">
-                    <div className="flex items-center justify-between">
-                          <span className="text-sm font-medium">系统工具（沙盒环境）</span>
-                          {/* Skill 关联提示：当有 Skill 选中时显示 */}
-                          {formData.skillIds.length > 0 && (
-                            <span className="text-xs text-blue-600">
-                              已关联 Skill，部分工具已自动启用
-                            </span>
-                          )}
-                          {/* 全部禁用警告：当所有工具禁用时显示（且没有 Skill 关联） */}
-                          {formData.enabledSystemTools.length === 0 && formData.skillIds.length === 0 && (
-                            <span className="text-xs text-amber-600">
-                              禁用所有系统工具可能导致 Agent 无法正常执行任务
-                            </span>
-                          )}
+                  <SelectTrigger
+                    id="template"
+                    className={errors.templateId ? "border-destructive" : ""}
+                  >
+                    <SelectValue placeholder="选择模板" />
+                  </SelectTrigger>
+                  <SelectContent>
+                    {templateList.map((template) => (
+                      <SelectItem key={template.id} value={template.id}>
+                        <div className="flex flex-col">
+                          <span>{template.name}</span>
+                          <span className="text-xs text-muted-foreground">
+                            {template.description}
+                          </span>
                         </div>
-                    <div className="border rounded-md p-3 bg-muted/30">
-                      <div className="space-y-3">
-                        {SYSTEM_TOOL_IDS.map((toolId) => {
-                          // 从 tools 数组获取工具详情（描述等）
-                          const toolInfo = tools.find((t) => t.id === toolId);
-                          const toolName = toolId.replace('system:sandbox:', '');
-                          // 判断该工具是否因 Skill 关联而被锁定
-                          const isLocked = isToolLockedBySkill(toolId, formData.skillIds);
-                          // 判断该工具是否被选中
-                          const isChecked = formData.enabledSystemTools.includes(toolId);
+                      </SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+                {errors.templateId && (
+                  <p className="text-sm text-destructive">{errors.templateId}</p>
+                )}
+              </div>
 
-                          return (
-                            <div key={toolId} className="flex items-start space-x-2">
-                              <Checkbox
-                                id={`system-tool-${toolId}`}
-                                checked={isChecked}
-                                onCheckedChange={(checked) =>
-                                  handleSystemToolToggle(toolId, checked as boolean)
-                                }
-                                disabled={isLocked} // Skill 关联的工具禁用取消
-                              />
-                              <div className="grid gap-1 leading-none">
-                                <label
-                                  htmlFor={`system-tool-${toolId}`}
-                                  className={`text-sm font-medium leading-none ${
-                                    isLocked ? 'text-muted-foreground cursor-not-allowed' : 'cursor-pointer'
-                                  }`}
-                                >
-                                  {toolName}
-                                  {/* 显示 "(Skill 必需)" 标识 */}
-                                  {isLocked && (
-                                    <span className="ml-2 text-xs text-blue-500">(Skill 必需)</span>
-                                  )}
-                                </label>
-                                {toolInfo?.description && (
-                                  <p className="text-xs text-muted-foreground line-clamp-2">
-                                    {toolInfo.description}
-                                  </p>
-                                )}
-                              </div>
-                            </div>
-                          );
-                        })}
-                      </div>
-                    </div>
+              {/* 模板配置（动态渲染） */}
+              {renderTemplateConfigFields()}
+            </div>
+          </TabsContent>
+
+          {/* ==================== 提示词配置页 ==================== */}
+          <TabsContent value="prompt" className="flex-1 min-h-0 mt-4 overflow-auto">
+            <div className="flex flex-col gap-4 pr-4">
+              {/* 模型选择 */}
+              <div className="flex flex-col gap-2">
+                <Label htmlFor="model">
+                  模型
+                  <span className="text-destructive ml-1">*</span>
+                </Label>
+                <Select
+                  value={formData.modelId}
+                  onValueChange={(value) => {
+                    setFormData((prev) => ({ ...prev, modelId: value }));
+                    if (errors.modelId) {
+                      setErrors((prev) => {
+                        const newErrors = { ...prev };
+                        delete newErrors.modelId;
+                        return newErrors;
+                      });
+                    }
+                  }}
+                  disabled={isLoadingModels}
+                >
+                  <SelectTrigger
+                    id="model"
+                    className={errors.modelId ? "border-destructive" : ""}
+                  >
+                    <SelectValue placeholder={isLoadingModels ? "加载中..." : "选择模型"} />
+                  </SelectTrigger>
+                  <SelectContent>
+                    {models.map((model) => (
+                      <SelectItem key={model.id} value={model.id}>
+                        {model.name}
+                        {"is_default" in model && model.is_default && (
+                          <span className="ml-2 text-xs text-muted-foreground">
+                            (默认)
+                          </span>
+                        )}
+                      </SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+                {errors.modelId && (
+                  <p className="text-sm text-destructive">{errors.modelId}</p>
+                )}
+                {models.length === 0 && !isLoadingModels && (
+                  <p className="text-sm text-muted-foreground">
+                    暂无可用模型，请先添加模型
+                  </p>
+                )}
+              </div>
+
+              {/* 系统提示词 */}
+              <div className="flex flex-col gap-2">
+                <Label htmlFor="systemPrompt">系统提示词</Label>
+                <Textarea
+                  id="systemPrompt"
+                  value={formData.systemPrompt}
+                  onChange={(e) =>
+                    setFormData((prev) => ({ ...prev, systemPrompt: e.target.value }))
+                  }
+                  placeholder="输入系统提示词（可选）"
+                  rows={8}
+                  className="resize-none"
+                />
+              </div>
+            </div>
+          </TabsContent>
+
+          {/* ==================== 工具配置页 ==================== */}
+          <TabsContent value="tools" className="flex-1 min-h-0 mt-4 overflow-auto">
+            <div className="flex flex-col gap-4 pr-4">
+              {/* 工具选择 */}
+              <div className="flex flex-col gap-2">
+                <Label>工具配置</Label>
+                {isLoadingTools ? (
+                  <div className="flex items-center gap-2 text-sm text-muted-foreground">
+                    <Loader2 className="h-4 w-4 animate-spin" />
+                    加载工具列表中...
                   </div>
+                ) : (
+                  <div className="flex flex-col gap-4">
+                    {/* 系统工具组 */}
+                    <div className="flex flex-col gap-2">
+                      <div className="flex items-center justify-between">
+                        <span className="text-sm font-medium">系统工具（沙盒环境）</span>
+                        {formData.skillIds.length > 0 && (
+                          <span className="text-xs text-blue-600">
+                            已关联 Skill，部分工具已自动启用
+                          </span>
+                        )}
+                        {formData.enabledSystemTools.length === 0 && formData.skillIds.length === 0 && (
+                          <span className="text-xs text-amber-600">
+                            禁用所有系统工具可能导致 Agent 无法正常执行任务
+                          </span>
+                        )}
+                      </div>
+                      <div className="border rounded-md p-3 bg-muted/30">
+                        <div className="flex flex-col gap-3">
+                          {SYSTEM_TOOL_IDS.map((toolId) => {
+                            const toolInfo = tools.find((t) => t.id === toolId);
+                            const toolName = toolId.replace('system:sandbox:', '');
+                            const isLocked = isToolLockedBySkill(toolId, formData.skillIds);
+                            const isChecked = formData.enabledSystemTools.includes(toolId);
 
-                  {/* MCP工具组 */}
-                  {tools.filter((tool) => tool.source === "mcp").length > 0 && (
-                    <div className="space-y-2">
-                      <span className="text-sm font-medium">MCP 工具</span>
-                      <div className="border rounded-md p-3 max-h-[200px] overflow-y-auto">
-                        <div className="space-y-3">
-                          {tools
-                            .filter((tool) => tool.source === "mcp")
-                            .map((tool) => (
-                              <div key={tool.id} className="flex items-start space-x-2">
+                            return (
+                              <div key={toolId} className="flex items-start gap-2">
                                 <Checkbox
-                                  id={`mcp-tool-${tool.id}`}
-                                  checked={formData.toolIds.includes(tool.id)}
+                                  id={`system-tool-${toolId}`}
+                                  checked={isChecked}
                                   onCheckedChange={(checked) =>
-                                    handleToolToggle(tool.id, checked as boolean)
+                                    handleSystemToolToggle(toolId, checked as boolean)
                                   }
-                                  disabled={!tool.isAvailable}
+                                  disabled={isLocked}
                                 />
-                                <div className="grid gap-1 leading-none">
+                                <div className="flex flex-col gap-0.5">
                                   <label
-                                    htmlFor={`mcp-tool-${tool.id}`}
-                                    className={`text-sm font-medium leading-none peer-disabled:cursor-not-allowed peer-disabled:opacity-70 ${
-                                      !tool.isAvailable ? "text-muted-foreground" : ""
+                                    htmlFor={`system-tool-${toolId}`}
+                                    className={`text-sm font-medium leading-none ${
+                                      isLocked ? 'text-muted-foreground cursor-not-allowed' : 'cursor-pointer'
                                     }`}
                                   >
-                                    {tool.name}
-                                    {tool.server && (
-                                      <span className="ml-2 text-xs text-muted-foreground">
-                                        ({tool.server.name})
-                                      </span>
+                                    {toolName}
+                                    {isLocked && (
+                                      <span className="ml-2 text-xs text-blue-500">(Skill 必需)</span>
                                     )}
                                   </label>
-                                  {tool.description && (
+                                  {toolInfo?.description && (
                                     <p className="text-xs text-muted-foreground line-clamp-2">
-                                      {tool.description}
+                                      {toolInfo.description}
                                     </p>
                                   )}
                                 </div>
                               </div>
-                            ))}
+                            );
+                          })}
                         </div>
                       </div>
                     </div>
-                  )}
 
-                  {/* 无 MCP 工具提示 */}
-                  {tools.filter((tool) => tool.source === "mcp").length === 0 && (
-                    <p className="text-sm text-muted-foreground">暂无 MCP 工具</p>
-                  )}
+                    {/* MCP工具组 */}
+                    {tools.filter((tool) => tool.source === "mcp").length > 0 && (
+                      <div className="flex flex-col gap-2">
+                        <span className="text-sm font-medium">MCP 工具</span>
+                        <div className="border rounded-md p-3">
+                          <div className="flex flex-col gap-3">
+                            {tools
+                              .filter((tool) => tool.source === "mcp")
+                              .map((tool) => (
+                                <div key={tool.id} className="flex items-start gap-2">
+                                  <Checkbox
+                                    id={`mcp-tool-${tool.id}`}
+                                    checked={formData.toolIds.includes(tool.id)}
+                                    onCheckedChange={(checked) =>
+                                      handleToolToggle(tool.id, checked as boolean)
+                                    }
+                                    disabled={!tool.isAvailable}
+                                  />
+                                  <div className="flex flex-col gap-0.5">
+                                    <label
+                                      htmlFor={`mcp-tool-${tool.id}`}
+                                      className={`text-sm font-medium leading-none peer-disabled:cursor-not-allowed peer-disabled:opacity-70 ${
+                                        !tool.isAvailable ? "text-muted-foreground" : ""
+                                      }`}
+                                    >
+                                      {tool.name}
+                                      {tool.server && (
+                                        <span className="ml-2 text-xs text-muted-foreground">
+                                          ({tool.server.name})
+                                        </span>
+                                      )}
+                                    </label>
+                                    {tool.description && (
+                                      <p className="text-xs text-muted-foreground line-clamp-2">
+                                        {tool.description}
+                                      </p>
+                                    )}
+                                  </div>
+                                </div>
+                              ))}
+                          </div>
+                        </div>
+                      </div>
+                    )}
+
+                    {/* 无 MCP 工具提示 */}
+                    {tools.filter((tool) => tool.source === "mcp").length === 0 && (
+                      <p className="text-sm text-muted-foreground">暂无 MCP 工具</p>
+                    )}
+                  </div>
+                )}
+              </div>
+            </div>
+          </TabsContent>
+
+          {/* ==================== Skill预览页 ==================== */}
+          <TabsContent value="skills" className="flex-1 min-h-0 mt-4 overflow-auto">
+            <div className="flex flex-col gap-4 pr-4">
+              {/* Skill 选择 */}
+              <div className="flex flex-col gap-2">
+                <Label>关联 Skill</Label>
+                <p className="text-xs text-muted-foreground">
+                  选择 Skill 后，系统将自动启用沙盒工具（bash、readFile、writeFile）
+                </p>
+                <SkillSelector
+                  selectedSkillIds={formData.skillIds}
+                  onChange={(skillIds) => setFormData((prev) => ({ ...prev, skillIds }))}
+                  onSkillsLoaded={setAvailableSkills}
+                />
+              </div>
+
+              {/* Skill 预置提示词预览 */}
+              {formData.skillIds.length > 0 && (
+                <SkillPresetPreview
+                  skillIds={formData.skillIds}
+                  availableSkills={availableSkills}
+                />
+              )}
+
+              {/* 无 Skill 提示 */}
+              {formData.skillIds.length === 0 && (
+                <div className="text-sm text-muted-foreground py-8 text-center border rounded-md bg-muted/30">
+                  请先在上方选择关联的 Skill，以查看预置提示词预览
                 </div>
               )}
             </div>
+          </TabsContent>
+        </Tabs>
 
-            {/* Skill 选择 */}
-            <div className="space-y-2">
-              <Label>关联 Skill</Label>
-              <p className="text-xs text-muted-foreground">
-                选择 Skill 后，系统将自动启用沙盒工具（bash、readFile、writeFile）
-              </p>
-              <SkillSelector
-                selectedSkillIds={formData.skillIds}
-                onChange={(skillIds) => setFormData((prev) => ({ ...prev, skillIds }))}
-                onSkillsLoaded={setAvailableSkills}
-              />
-            </div>
-
-            {/* Skill 预置提示词预览 */}
-            {formData.skillIds.length > 0 && (
-              <SkillPresetPreview
-                skillIds={formData.skillIds}
-                availableSkills={availableSkills}
-              />
-            )}
-          </div>
-        </ScrollArea>
-
-        <DialogFooter>
+        {/* 底部操作按钮 */}
+        <DialogFooter className="mt-4 pt-4 border-t shrink-0">
           <Button variant="outline" onClick={onClose} disabled={isLoading}>
             取消
           </Button>

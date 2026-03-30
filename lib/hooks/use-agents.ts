@@ -48,6 +48,8 @@ export interface CreateAgentInput {
   toolIds?: string[];
   // 启用的系统工具ID列表
   enabledSystemTools?: string[];
+  // 关联的 Skill ID 列表
+  skillIds?: string[];
 }
 
 /**
@@ -63,6 +65,8 @@ export interface UpdateAgentInput {
   toolIds?: string[];
   // 启用的系统工具ID列表
   enabledSystemTools?: string[];
+  // 关联的 Skill ID 列表
+  skillIds?: string[];
 }
 
 /**

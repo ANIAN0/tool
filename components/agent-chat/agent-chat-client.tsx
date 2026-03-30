@@ -27,9 +27,8 @@ import {
 import { DbAgentSelector } from "./db-agent-selector";
 import { AgentChatSidebar } from "./sidebar";
 import { PromptSection } from "./prompt-section";
-import { SkillPresetPrompt } from "./skill-preset-prompt";
 import { UserMenu } from "@/components/auth/user-menu";
-import { getAnonId } from "@/lib/anon-id";
+import { useAuth } from "@/lib/hooks/use-auth";
 import type { Conversation as ConversationType } from "@/lib/db/schema";
 import { useChat } from "@ai-sdk/react";
 import { DefaultChatTransport } from "ai";
@@ -50,6 +49,8 @@ interface AgentChatClientProps {
  */
 export function AgentChatClient({ id }: AgentChatClientProps) {
   const router = useRouter();
+  // 获取认证状态和认证头方法
+  const { getAuthHeader, authenticatedFetch } = useAuth();
 
   // 移动端侧边栏状态
   const [sidebarOpen, setSidebarOpen] = useState(false);
@@ -67,19 +68,17 @@ export function AgentChatClient({ id }: AgentChatClientProps) {
     agentIdRef.current = selectedAgentId;
   }, [selectedAgentId]);
 
-  // 创建transport
+  // 创建transport - 使用标准认证头
   const transport = useMemo(() => {
     return new DefaultChatTransport({
       api: "/api/agent-chat",
-      headers: () => ({
-        "X-User-Id": getAnonId() || "",
-      }),
+      headers: getAuthHeader, // 使用标准认证头方法
       body: () => ({
         conversationId: id,
         agentId: agentIdRef.current,
       }),
     });
-  }, [id]);
+  }, [id, getAuthHeader]);
 
   // useChat hook
   const {
@@ -107,14 +106,10 @@ export function AgentChatClient({ id }: AgentChatClientProps) {
 
   // 获取Agent对话列表
   const fetchConversations = useCallback(async () => {
-    const anonId = getAnonId();
-    if (!anonId) return;
-
     setIsLoadingConversations(true);
     try {
-      const response = await fetch("/api/agent-conversations", {
-        headers: { "X-User-Id": anonId },
-      });
+      // 使用 authenticatedFetch 支持自动刷新 token
+      const response = await authenticatedFetch("/api/agent-conversations");
 
       if (response.ok) {
         const data = await response.json();
@@ -127,7 +122,7 @@ export function AgentChatClient({ id }: AgentChatClientProps) {
       setIsLoadingConversations(false);
     }
     return [];
-  }, []);
+  }, [authenticatedFetch]);
 
   // 初始加载
   useEffect(() => {
@@ -136,17 +131,15 @@ export function AgentChatClient({ id }: AgentChatClientProps) {
 
   // 获取已有对话的消息
   useEffect(() => {
-    const anonId = getAnonId();
-    if (!anonId || window.location.pathname === "/agent-chat") {
+    if (window.location.pathname === "/agent-chat") {
       setMessages([]);
       return;
     }
 
     const fetchMessages = async () => {
       try {
-        const response = await fetch(`/api/conversations/${id}`, {
-          headers: { "X-User-Id": anonId },
-        });
+        // 使用 authenticatedFetch 支持自动刷新 token
+        const response = await authenticatedFetch(`/api/conversations/${id}`);
 
         if (response.ok) {
           const data = await response.json();
@@ -167,7 +160,7 @@ export function AgentChatClient({ id }: AgentChatClientProps) {
     };
 
     fetchMessages();
-  }, [id, setMessages]);
+  }, [id, setMessages, authenticatedFetch]);
 
   // 新建对话
   const handleNewChat = useCallback(() => {
@@ -184,12 +177,9 @@ export function AgentChatClient({ id }: AgentChatClientProps) {
 
   // 删除对话
   const handleDeleteConversation = useCallback(async (deleteId: string) => {
-    const anonId = getAnonId();
-    if (!anonId) return;
-
     try {
-      const response = await fetch(`/api/conversations/${deleteId}`, {
-        headers: { "X-User-Id": anonId },
+      // 使用 authenticatedFetch 支持自动刷新 token
+      const response = await authenticatedFetch(`/api/conversations/${deleteId}`, {
         method: "DELETE",
       });
 
@@ -202,18 +192,15 @@ export function AgentChatClient({ id }: AgentChatClientProps) {
     } catch (error) {
       console.error("删除对话失败:", error);
     }
-  }, [id, router]);
+  }, [id, router, authenticatedFetch]);
 
   // 重命名对话
   const handleRenameConversation = useCallback(async (renameId: string, newTitle: string) => {
-    const anonId = getAnonId();
-    if (!anonId) return;
-
     try {
-      const response = await fetch(`/api/conversations/${renameId}`, {
+      // 使用 authenticatedFetch 支持自动刷新 token
+      const response = await authenticatedFetch(`/api/conversations/${renameId}`, {
         headers: {
           "Content-Type": "application/json",
-          "X-User-Id": anonId,
         },
         body: JSON.stringify({ title: newTitle }),
         method: "PATCH",
@@ -230,7 +217,7 @@ export function AgentChatClient({ id }: AgentChatClientProps) {
     } catch (error) {
       console.error("重命名对话失败:", error);
     }
-  }, []);
+  }, [authenticatedFetch]);
 
   // 发送消息
   const handleSubmit = useCallback(async (message: { text: string }) => {
@@ -321,13 +308,6 @@ export function AgentChatClient({ id }: AgentChatClientProps) {
             <UserMenu />
           </div>
         </header>
-
-        {/* Skill 预置提示词展示区 */}
-        {selectedAgentId && (
-          <div className="px-6 py-3 border-b border-border/50">
-            <SkillPresetPrompt agentId={selectedAgentId} />
-          </div>
-        )}
 
         {/* 消息区域 */}
         <div className="flex-1 overflow-hidden">

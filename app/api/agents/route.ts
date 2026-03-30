@@ -13,6 +13,7 @@ import {
   getAgentsByUserId,
   getPublicAgents,
   createAgent,
+  createAgentWithSkills,
 } from "@/lib/db/agents";
 import { validateTemplateConfig } from "@/lib/agents/templates";
 import { generateId } from "@/lib/utils";
@@ -98,6 +99,7 @@ export async function POST(request: NextRequest) {
       modelId,
       toolIds,
       enabledSystemTools, // 新增：启用的系统工具
+      skillIds, // 新增：关联的 Skill ID 列表
     } = body;
 
     // 验证必填字段：名称
@@ -130,19 +132,22 @@ export async function POST(request: NextRequest) {
     // 生成Agent ID
     const agentId = generateId();
 
-    // 创建Agent
-    const agent = await createAgent({
-      id: agentId,
-      userId,
-      name: name.trim(),
-      description: description?.trim() || undefined,
-      templateId,
-      templateConfig: templateConfig || undefined,
-      systemPrompt: systemPrompt?.trim() || undefined,
-      modelId: modelId || undefined,
-      toolIds: toolIds || undefined,
-      enabledSystemTools: enabledSystemTools || undefined, // 新增
-    });
+    // 创建Agent（支持 Skill 关联）
+    const agent = await createAgentWithSkills(
+      {
+        id: agentId,
+        userId,
+        name: name.trim(),
+        description: description?.trim() || undefined,
+        templateId,
+        templateConfig: templateConfig || undefined,
+        systemPrompt: systemPrompt?.trim() || undefined,
+        modelId: modelId || undefined,
+        toolIds: toolIds || undefined,
+        enabledSystemTools: enabledSystemTools || undefined,
+      },
+      skillIds // 传递 skillIds
+    );
 
     return NextResponse.json(
       {

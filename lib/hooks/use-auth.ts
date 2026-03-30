@@ -294,6 +294,71 @@ export function useAuth() {
     return {};
   }, [state]);
 
+  /**
+   * 带自动刷新的认证请求函数
+   * 当访问令牌过期时（401 + TOKEN_EXPIRED），自动刷新令牌并重试请求
+   * @param url - 请求URL
+   * @param options - fetch选项
+   * @returns fetch响应结果
+   */
+  const authenticatedFetch = useCallback(async (
+    url: string,
+    options: RequestInit = {}
+  ): Promise<Response> => {
+    // 获取认证头
+    const authHeader = getAuthHeader();
+
+    // 合并认证头到请求选项
+    const mergedOptions: RequestInit = {
+      ...options,
+      headers: {
+        ...options.headers,
+        ...authHeader,
+      },
+    };
+
+    // 第一次请求
+    let response = await fetch(url, mergedOptions);
+
+    // 如果返回401，检查是否是令牌过期错误
+    if (response.status === 401) {
+      try {
+        const data = await response.clone().json();
+
+        // 检查是否是令牌过期错误
+        if (data.code === "TOKEN_EXPIRED" || data.error === "访问令牌已过期") {
+          // 尝试刷新令牌
+          const newAccessToken = await refreshAccessToken();
+
+          if (newAccessToken) {
+            // 使用新令牌重新构建请求头
+            const newAuthHeader = { Authorization: `Bearer ${newAccessToken}` };
+            const retryOptions: RequestInit = {
+              ...options,
+              headers: {
+                ...options.headers,
+                ...newAuthHeader,
+              },
+            };
+
+            // 重试请求
+            response = await fetch(url, retryOptions);
+
+            // 更新状态中的accessToken
+            setState(prev => ({
+              ...prev,
+              accessToken: newAccessToken,
+            }));
+          }
+        }
+      } catch {
+        // 解析失败，返回原始响应
+      }
+    }
+
+    return response;
+  }, [getAuthHeader, refreshAccessToken, setState]);
+
   // 检查是否需要登录（用于私有Agent）
   const checkAuth = useCallback((requiresAuth: boolean): boolean => {
     if (!requiresAuth) return true;
@@ -306,6 +371,7 @@ export function useAuth() {
     login,
     logout,
     getAuthHeader,
+    authenticatedFetch,
     checkAuth,
     refreshAccessToken,
   };

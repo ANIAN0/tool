@@ -19,7 +19,6 @@ import {
 } from "@/components/ai-elements/model-selector";
 import { Button } from "@/components/ui/button";
 import { BotIcon, CheckIcon, ChevronDownIcon, GlobeIcon } from "lucide-react";
-import { getAnonId } from "@/lib/anon-id";
 import { useAuth } from "@/lib/hooks/use-auth";
 
 /**
@@ -56,7 +55,8 @@ export function DbAgentSelector({
   onChange,
   disabled = false,
 }: DbAgentSelectorProps) {
-  const { isAuthenticated } = useAuth();
+  // 获取认证状态和认证头方法
+  const { isAuthenticated, getAuthHeader } = useAuth();
 
   // 我的Agent列表
   const [myAgents, setMyAgents] = useState<AgentBrief[]>([]);
@@ -68,17 +68,11 @@ export function DbAgentSelector({
   // 加载Agent列表
   useEffect(() => {
     const fetchAgents = async () => {
-      const anonId = getAnonId();
-      if (!anonId) {
-        setIsLoading(false);
-        return;
-      }
-
       setIsLoading(true);
       try {
-        // 调用 /api/agents 获取我的Agent和公开Agent
+        // 使用正确的认证头调用 /api/agents
         const res = await fetch("/api/agents", {
-          headers: { "X-User-Id": anonId },
+          headers: getAuthHeader(), // 使用标准认证头方法
         });
 
         if (res.ok) {
@@ -111,7 +105,7 @@ export function DbAgentSelector({
     };
 
     fetchAgents();
-  }, [isAuthenticated]);
+  }, [isAuthenticated, getAuthHeader]); // 添加 getAuthHeader 到依赖数组
 
   // 获取当前选中的Agent
   const allAgents = [...myAgents, ...publicAgents];

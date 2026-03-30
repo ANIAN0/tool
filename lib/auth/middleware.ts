@@ -48,6 +48,7 @@ export async function getAuthContext(
   if (token) {
     // 验证JWT令牌
     const result = verifyAccessToken(token);
+    console.log("[getAuthContext] JWT 验证结果:", JSON.stringify(result));
     if (result.valid && result.payload) {
       return {
         userId: result.payload.userId,
@@ -268,6 +269,31 @@ export async function isPrivateAgent(agentId: string): Promise<boolean> {
 export async function authenticateRequestOptional(
   request: NextRequest
 ): Promise<AuthRequestResult> {
+  // 先检查是否有 JWT token，如果有但过期了需要返回 TOKEN_EXPIRED
+  const authHeader = request.headers.get("Authorization");
+  const token = extractAccessToken(authHeader);
+
+  if (token) {
+    // 有 token，验证它
+    const result = verifyAccessToken(token);
+    if (result.valid && result.payload) {
+      return {
+        success: true,
+        userId: result.payload.userId,
+      };
+    }
+    // token 验证失败，返回具体错误（让前端可以刷新 token）
+    if (result.error === "访问令牌已过期") {
+      return {
+        success: false,
+        error: "访问令牌已过期",
+        status: 401,
+      };
+    }
+    // 其他 token 错误，继续尝试匿名认证
+  }
+
+  // 尝试匿名认证
   const context = await getAuthContext(request);
 
   if (!context.userId) {

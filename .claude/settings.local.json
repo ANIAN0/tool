@@ -32,7 +32,17 @@
       "mcp__plugin_context7_context7__resolve-library-id",
       "mcp__plugin_context7_context7__query-docs",
       "Bash(cd:*)",
-      "Bash(find . -type f \\\\\\(-name *.ts -o -name *.tsx -o -name *.js \\\\\\) -path */lib/*)"
+      "Bash(find . -type f \\\\\\(-name *.ts -o -name *.tsx -o -name *.js \\\\\\) -path */lib/*)",
+      "mcp__plugin_postgres-best-practices_supabase__search_docs",
+      "mcp__plugin_supabase_supabase__list_projects",
+      "mcp__plugin_supabase_supabase__execute_sql",
+      "Bash(head -c 500 \"H:\\\\hucar\\\\hugit\\\\hu_coding\\\\code\\\\nianian\\\\my-app\\\\components\\\\settings\\\\agent-form.tsx\")",
+      "WebFetch(domain:ui.shadcn.com)",
+      "WebFetch(domain:raw.githubusercontent.com)",
+      "Bash(curl -s -w \"\\\\nHTTP Status: %{http_code}\\\\n\" \"http://localhost:3000/api/sandbox/files?sessionId=test&path=/&action=list\" -H \"Authorization: Bearer test\")",
+      "Bash(curl -s \"http://localhost:3000/api/sandbox/files?sessionId=NRtWqihRn0XBN5e-bgvjq&path=/workspace&action=list\" -H 'Authorization: Bearer eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJ1c2VySWQiOiJ0ZXN0IiwiaWF0IjoxNjAwMDAwMDAwLCJleHAiOjE5MDAwMDAwMDB9.test')",
+      "Bash(rm:*)",
+      "Skill(code-review:code-review)"
     ]
   }
 }
