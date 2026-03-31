@@ -42,7 +42,9 @@
       "Bash(curl -s -w \"\\\\nHTTP Status: %{http_code}\\\\n\" \"http://localhost:3000/api/sandbox/files?sessionId=test&path=/&action=list\" -H \"Authorization: Bearer test\")",
       "Bash(curl -s \"http://localhost:3000/api/sandbox/files?sessionId=NRtWqihRn0XBN5e-bgvjq&path=/workspace&action=list\" -H 'Authorization: Bearer eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJ1c2VySWQiOiJ0ZXN0IiwiaWF0IjoxNjAwMDAwMDAwLCJleHAiOjE5MDAwMDAwMDB9.test')",
       "Bash(rm:*)",
-      "Skill(code-review:code-review)"
+      "Skill(code-review:code-review)",
+      "Bash(npm info:*)",
+      "Bash(grep -r onFinish node_modules/ai/dist/*.d.ts)"
     ]
   }
 }

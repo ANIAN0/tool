@@ -64,7 +64,6 @@
     "lodash.throttle": "^4.1.1",
     "lucide-react": "^0.575.0",
     "media-chrome": "^4.18.0",
-    "mem0ai": "^2.2.3",
     "motion": "^12.34.3",
     "nanoid": "^5.1.6",
     "next": "16.1.6",

@@ -16,7 +16,7 @@ import {
   convertToModelMessages,
   UIMessage,
 } from "ai";
-import type { ToolSet, StepResult } from "ai";
+import type { ToolSet } from "ai";
 import {
   createConversation,
   createMessage,
@@ -67,87 +67,6 @@ function buildChatModelFromUserModel(userModel: UserModel) {
 
   // 返回具体聊天模型实例
   return provider.chatModel(userModel.model);
-}
-
-/**
- * 从Agent的steps构建UIMessage parts
- * 包括文本、工具调用和步骤分隔符
- */
-function buildPartsFromSteps<TOOLS extends ToolSet>(steps: StepResult<TOOLS>[]): UIMessage["parts"] {
-  const parts: UIMessage["parts"] = [];
-
-  for (let i = 0; i < steps.length; i++) {
-    const step = steps[i];
-
-    // 添加步骤分隔符（从第二个步骤开始）
-    if (i > 0) {
-      parts.push({ type: "step-start" });
-    }
-
-    // 添加文本内容
-    if (step.text) {
-      parts.push({ type: "text", text: step.text });
-    }
-
-    // 添加工具调用
-    for (const toolCall of step.toolCalls) {
-      const isDynamic = "dynamic" in toolCall && toolCall.dynamic;
-
-      // 查找对应的工具结果
-      const toolCallId = (toolCall as { toolCallId: string }).toolCallId;
-      const result = step.toolResults.find(
-        (r) => {
-          const rId = (r as { toolCallId?: string }).toolCallId;
-          return rId === toolCallId;
-        }
-      );
-
-      // 获取工具名称
-      const toolName = (toolCall as { toolName: string }).toolName;
-      const input = (toolCall as { input: unknown }).input;
-
-      // 确定工具状态
-      let state: "input-streaming" | "input-available" | "output-available" | "output-error" = "input-available";
-      let output: unknown = undefined;
-      let errorText: string | undefined = undefined;
-
-      if (result) {
-        const resultOutput = (result as { output?: unknown; error?: unknown }).output;
-        const resultError = (result as { output?: unknown; error?: unknown }).error;
-
-        if (resultError) {
-          state = "output-error";
-          errorText = String(resultError);
-        } else {
-          state = "output-available";
-          output = resultOutput;
-        }
-      }
-
-      if (isDynamic) {
-        parts.push({
-          type: "dynamic-tool",
-          toolName,
-          toolCallId,
-          input,
-          output,
-          state,
-          errorText,
-        } as UIMessage["parts"][number]);
-      } else {
-        parts.push({
-          type: `tool-${toolName}` as `tool-${string}`,
-          toolCallId,
-          input,
-          output,
-          state,
-          errorText,
-        } as UIMessage["parts"][number]);
-      }
-    }
-  }
-
-  return parts;
 }
 
 /**
@@ -419,45 +338,6 @@ export async function POST(req: NextRequest) {
         // 启动流式执行，正常结束时写入消息并回收 MCP 连接
         return await agentInstance.stream({
           messages: modelMessages,
-          onFinish: async ({ text, finishReason, steps }) => {
-            try {
-              if (finishReason !== "error") {
-                try {
-                  // 生成 assistant 消息ID
-                  const messageId = nanoid();
-                  // 优先使用 steps 还原工具调用与文本片段
-                  const parts =
-                    steps.length > 0
-                      ? buildPartsFromSteps(steps)
-                      : [{ type: "text" as const, text }];
-
-                  // 组装完整 assistant 消息对象
-                  const fullMessage: UIMessage = {
-                    id: messageId,
-                    role: "assistant",
-                    parts,
-                  };
-
-                  // 持久化 assistant 消息
-                  await createMessage({
-                    id: messageId,
-                    conversationId: currentConversationId!,
-                    role: "assistant",
-                    content: JSON.stringify(fullMessage),
-                  });
-
-                  // 刷新会话更新时间
-                  await touchConversation(currentConversationId!);
-                } catch (saveError) {
-                  // 消息落库失败只记录日志，不影响流式返回
-                  console.error("保存消息失败:", saveError);
-                }
-              }
-            } finally {
-              // 无论成功或失败都执行 MCP 客户端清理
-              await safeCleanupMcpRuntime();
-            }
-          },
         });
       } catch (streamError) {
         // 启动流式过程失败时也要执行清理，避免连接泄漏
@@ -469,6 +349,42 @@ export async function POST(req: NextRequest) {
     return result.toUIMessageStreamResponse({
       sendSources: true,
       sendReasoning: true,
+      onFinish: async ({ responseMessage, finishReason }) => {
+        try {
+          if (finishReason !== "error" && currentConversationId) {
+            try {
+              // 生成 assistant 消息ID
+              const messageId = nanoid();
+              // 从返回的 responseMessage 中提取内容
+              const parts = responseMessage?.parts || [];
+
+              // 组装完整 assistant 消息对象
+              const fullMessage: UIMessage = {
+                id: messageId,
+                role: "assistant",
+                parts,
+              };
+
+              // 持久化 assistant 消息
+              await createMessage({
+                id: messageId,
+                conversationId: currentConversationId,
+                role: "assistant",
+                content: JSON.stringify(fullMessage),
+              });
+
+              // 刷新会话更新时间
+              await touchConversation(currentConversationId);
+            } catch (saveError) {
+              // 消息落库失败只记录日志，不影响流式返回
+              console.error("保存消息失败:", saveError);
+            }
+          }
+        } finally {
+          // 无论成功或失败都执行 MCP 客户端清理
+          await safeCleanupMcpRuntime();
+        }
+      },
     });
   } catch (error) {
     console.error("Agent对话API错误:", error);
