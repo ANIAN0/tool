@@ -320,6 +320,14 @@ CREATE TABLE IF NOT EXISTS user_models (
 `;
 
 /**
+ * 迁移SQL：为 user_models 表添加 context_limit 字段
+ * 用于存储模型上下文上限（token数）
+ */
+export const MIGRATION_ADD_CONTEXT_LIMIT = `
+ALTER TABLE user_models ADD COLUMN context_limit INTEGER DEFAULT 32000;
+`;
+
+/**
  * 个人模型设置索引
  */
 export const CREATE_USER_MODEL_INDEXES = [
@@ -327,6 +335,33 @@ export const CREATE_USER_MODEL_INDEXES = [
   `CREATE INDEX IF NOT EXISTS idx_user_models_user_id ON user_models(user_id);`,
   // 按默认模型查询
   `CREATE INDEX IF NOT EXISTS idx_user_models_is_default ON user_models(is_default);`,
+];
+
+/**
+ * deleted_messages表 - 存储被撤回的消息归档
+ * 用于消息撤回功能，保持主表查询性能
+ */
+export const CREATE_DELETED_MESSAGES_TABLE = `
+CREATE TABLE IF NOT EXISTS deleted_messages (
+  id TEXT PRIMARY KEY,                 -- 原消息ID
+  conversation_id TEXT NOT NULL,       -- 原对话ID
+  role TEXT NOT NULL,                  -- 原消息角色（user/assistant）
+  content TEXT NOT NULL,               -- 原消息内容（JSON格式）
+  original_created_at INTEGER NOT NULL, -- 原创建时间
+  deleted_at INTEGER NOT NULL,         -- 删除时间戳
+  deleted_reason TEXT,                 -- 删除原因：'user-delete' 或 'edit-regenerate'
+  deleted_by TEXT NOT NULL             -- 删除操作者（用户ID）
+);
+`;
+
+/**
+ * 归档表索引
+ */
+export const CREATE_DELETED_MESSAGES_INDEXES = [
+  // 按对话ID查询归档消息
+  `CREATE INDEX IF NOT EXISTS idx_deleted_messages_conversation_id ON deleted_messages(conversation_id);`,
+  // 按删除时间查询
+  `CREATE INDEX IF NOT EXISTS idx_deleted_messages_deleted_at ON deleted_messages(deleted_at);`,
 ];
 
 /**
@@ -342,6 +377,7 @@ export interface UserModel {
   api_key: string;
   base_url: string | null;
   is_default: boolean;
+  context_limit: number; // 模型上下文上限（token数）
   created_at: number;
   updated_at: number;
 }
@@ -358,6 +394,7 @@ export interface CreateUserModelParams {
   apiKey: string;
   baseUrl?: string;
   isDefault?: boolean;
+  contextLimit?: number; // 上下文上限，默认 32000
 }
 
 /**
@@ -370,6 +407,7 @@ export interface UpdateUserModelParams {
   apiKey?: string;
   baseUrl?: string | null;
   isDefault?: boolean;
+  contextLimit?: number;
 }
 
 // ==================== MCP 服务器管理相关表结构 ====================
@@ -897,4 +935,34 @@ export interface ApiKeyListItem {
   keyPrefix: string;
   lastUsedAt: number | null;
   createdAt: number;
+}
+
+// ==================== 消息撤回相关类型定义 ====================
+
+/**
+ * DeletedMessage 类型定义
+ * 被撤回的消息归档记录
+ */
+export interface DeletedMessage {
+  id: string;
+  conversation_id: string;
+  role: "user" | "assistant";
+  content: string;
+  original_created_at: number;
+  deleted_at: number;
+  deleted_reason: "user-delete" | "edit-regenerate" | null;
+  deleted_by: string;
+}
+
+/**
+ * 创建归档消息的参数类型
+ */
+export interface CreateDeletedMessageParams {
+  id: string;
+  conversationId: string;
+  role: "user" | "assistant";
+  content: string;
+  originalCreatedAt: number;
+  deletedReason?: "user-delete" | "edit-regenerate";
+  deletedBy: string;
 }
