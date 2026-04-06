@@ -312,6 +312,28 @@ export function AgentForm({
   }, []);
 
   /**
+   * 检测MCP工具名称是否重复
+   * @returns 重复的工具名称列表
+   */
+  const getDuplicateToolNames = useCallback((): string[] => {
+    // 获取已选MCP工具的名称
+    const mcpTools = tools.filter(
+      (t) => t.source === 'mcp' && formData.toolIds.includes(t.id)
+    );
+
+    // 统计名称出现次数
+    const nameCount = new Map<string, number>();
+    for (const tool of mcpTools) {
+      nameCount.set(tool.name, (nameCount.get(tool.name) || 0) + 1);
+    }
+
+    // 返回重复的名称
+    return Array.from(nameCount.entries())
+      .filter(([, count]) => count > 1)
+      .map(([name]) => name);
+  }, [tools, formData.toolIds]);
+
+  /**
    * 验证表单
    */
   const validateForm = useCallback((): boolean => {
@@ -332,9 +354,15 @@ export function AgentForm({
       newErrors.modelId = "请选择模型";
     }
 
+    // 验证工具名称唯一性
+    const duplicates = getDuplicateToolNames();
+    if (duplicates.length > 0) {
+      newErrors.toolIds = `工具名称重复: ${duplicates.join(', ')}`;
+    }
+
     setErrors(newErrors);
     return Object.keys(newErrors).length === 0;
-  }, [formData]);
+  }, [formData, getDuplicateToolNames]);
 
   /**
    * 处理表单提交
@@ -654,7 +682,17 @@ export function AgentForm({
                     {/* MCP工具组 */}
                     {tools.filter((tool) => tool.source === "mcp").length > 0 && (
                       <div className="flex flex-col gap-2">
-                        <span className="text-sm font-medium">MCP 工具</span>
+                        <div className="flex items-center justify-between">
+                          <span className="text-sm font-medium">MCP 工具</span>
+                          {getDuplicateToolNames().length > 0 && (
+                            <span className="text-xs text-destructive">
+                              存在重复的工具名称
+                            </span>
+                          )}
+                        </div>
+                        {errors.toolIds && (
+                          <p className="text-sm text-destructive">{errors.toolIds}</p>
+                        )}
                         <div className="border rounded-md p-3">
                           <div className="flex flex-col gap-3">
                             {tools
@@ -745,7 +783,10 @@ export function AgentForm({
           <Button variant="outline" onClick={onClose} disabled={isLoading}>
             取消
           </Button>
-          <Button onClick={handleSubmit} disabled={isLoading}>
+          <Button
+            onClick={handleSubmit}
+            disabled={isLoading || getDuplicateToolNames().length > 0}
+          >
             {isLoading && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
             {agent ? "保存" : "创建"}
           </Button>
