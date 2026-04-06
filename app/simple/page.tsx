@@ -3,6 +3,8 @@
  * 展示 TipTap 富文本编辑器功能
  */
 
+"use client";
+
 import dynamic from "next/dynamic";
 
 // 🚀 性能优化：动态导入 SimpleEditor，减少初始 bundle 大小约 100KB

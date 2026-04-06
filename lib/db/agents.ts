@@ -341,7 +341,7 @@ export const getAgentsByUserId = cache(async (userId: string): Promise<AgentWith
       skills,
     };
   });
-}
+});
 
 /**
  * 获取所有公开的Agent（排除指定用户的）
@@ -398,7 +398,7 @@ export const getPublicAgents = cache(async (
       },
     };
   });
-}
+});
 
 /**
  * 更新Agent

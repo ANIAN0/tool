@@ -153,7 +153,7 @@ export const getConversation = cache(async (id: string): Promise<Conversation | 
   }
 
   return rowToConversation(result.rows[0]);
-}
+});
 
 /**
  * 更新对话信息
