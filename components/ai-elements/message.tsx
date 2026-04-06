@@ -24,10 +24,10 @@ import {
   createContext,
   memo,
   useCallback,
-  useContext,
   useEffect,
   useMemo,
   useState,
+  use,
 } from "react";
 import { Streamdown } from "streamdown";
 
@@ -127,8 +127,9 @@ const MessageBranchContext = createContext<MessageBranchContextType | null>(
   null
 );
 
+// 🚀 React 19: 使用 use() API 替代 useContext
 const useMessageBranch = () => {
-  const context = useContext(MessageBranchContext);
+  const context = use(MessageBranchContext);
 
   if (!context) {
     throw new Error(
