@@ -51,6 +51,9 @@ export async function GET(request: NextRequest, { params }: RouteParams) {
   const userId = authResult.userId;
 
   try {
+    // 🚀 性能优化：提前启动 agents 查询（只需要 id，不依赖 skill 结果）
+    const agentsPromise = getSkillAgents(id);
+
     // 获取 Skill 详情
     const skill = await getUserSkillById(id);
     if (!skill) {
@@ -62,16 +65,18 @@ export async function GET(request: NextRequest, { params }: RouteParams) {
       return errorResponse("FORBIDDEN", "无权访问此 Skill", 403);
     }
 
-    // 获取关联的 Agent 列表
-    const agentIds = await getSkillAgents(id);
+    // 🚀 性能优化：并行获取关联 Agent 列表和下载文件目录
+    const [agentIds, downloadResult] = await Promise.all([
+      agentsPromise, // 使用提前启动的 Promise
+      skill.storage_path
+        ? downloadSkillDirectory(skill.user_id, skill.name)
+        : Promise.resolve({ success: false, files: [] }),
+    ]);
 
-    // 下载 Skill 目录内容（用于展示）
+    // 处理下载结果
     let files: Array<{ path: string; content: string }> = [];
-    if (skill.storage_path) {
-      const downloadResult = await downloadSkillDirectory(skill.user_id, skill.name);
-      if (downloadResult.success && downloadResult.files) {
-        files = downloadResult.files;
-      }
+    if (downloadResult.success && downloadResult.files) {
+      files = downloadResult.files;
     }
 
     return NextResponse.json({
