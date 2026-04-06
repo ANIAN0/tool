@@ -11,6 +11,7 @@
  * 流式响应（使用 toUIMessageStreamResponse）
  */
 
+import { after } from "next/server";
 import { createOpenAICompatible } from "@ai-sdk/openai-compatible";
 import {
   convertToModelMessages,
@@ -440,17 +441,25 @@ export async function POST(req: NextRequest) {
                 total_tokens: usage?.totalTokens,
               });
 
-              // 更新对话的 token 汇总
+              // 🚀 性能优化：使用 after() 执行非关键操作，不阻塞响应
+              // 更新对话的 token 汇总和刷新会话更新时间可以延迟执行
               if (usage) {
-                await updateConversationTokenTotals(currentConversationId, {
-                  inputTokens: usage.inputTokens || 0,
-                  outputTokens: usage.outputTokens || 0,
-                  totalTokens: usage.totalTokens || 0,
+                after(async () => {
+                  await updateConversationTokenTotals(currentConversationId, {
+                    inputTokens: usage.inputTokens || 0,
+                    outputTokens: usage.outputTokens || 0,
+                    totalTokens: usage.totalTokens || 0,
+                  });
+
+                  // 刷新会话更新时间
+                  await touchConversation(currentConversationId);
+                });
+              } else {
+                // 即使没有 usage，也需要更新会话时间
+                after(async () => {
+                  await touchConversation(currentConversationId);
                 });
               }
-
-              // 刷新会话更新时间
-              await touchConversation(currentConversationId);
             } catch (saveError) {
               // 消息落库失败只记录日志，不影响流式返回
               console.error("保存消息失败:", saveError);
