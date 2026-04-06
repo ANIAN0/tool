@@ -174,8 +174,8 @@ export async function createAgentMcpRuntimeTools(params: {
         continue;
       }
 
-      // 注入名采用固定前缀，避免和系统工具（bash/readFile/writeFile）冲突
-      const injectedToolName = buildInjectedToolName(server.serverId, selectedToolName, usedInjectedNames);
+      // 注入名直接使用工具名（唯一性由Agent配置时保证）
+      const injectedToolName = buildInjectedToolName(selectedToolName, usedInjectedNames);
       tools[injectedToolName] = remoteTool;
       diagnostics.push({
         level: "info",
@@ -225,27 +225,30 @@ export async function createAgentMcpRuntimeTools(params: {
 
 /**
  * 构建注入到 Agent 的工具名
- * 规则：mcp__{serverIdShort}__{toolName}，并保证最终唯一
+ * 新规则：直接返回原始工具名（唯一性由Agent配置时保证）
+ * 保留 usedInjectedNames 检查作为运行时兜底
  */
 function buildInjectedToolName(
-  serverId: string,
   toolName: string,
   usedInjectedNames: Set<string>
 ): string {
-  // 清洗 serverId，减少非法字符带来的工具名兼容风险
-  const sanitizedServerId = sanitizeName(serverId).slice(0, 12) || "server";
+  // 清洗 toolName，减少非法字符带来的工具名兼容风险
   const sanitizedToolName = sanitizeName(toolName) || "tool";
-  const baseName = `mcp__${sanitizedServerId}__${sanitizedToolName}`;
 
-  // 若存在重名则追加递增后缀，确保 ToolSet key 唯一
-  let finalName = baseName;
-  let suffix = 2;
-  while (usedInjectedNames.has(finalName)) {
-    finalName = `${baseName}_${suffix}`;
-    suffix += 1;
+  // 保留运行时兜底检查，防止意外冲突
+  if (usedInjectedNames.has(sanitizedToolName)) {
+    // 运行时冲突，添加后缀（理论上不应发生）
+    let finalName = sanitizedToolName;
+    let suffix = 2;
+    while (usedInjectedNames.has(finalName)) {
+      finalName = `${sanitizedToolName}_${suffix}`;
+      suffix += 1;
+    }
+    usedInjectedNames.add(finalName);
+    return finalName;
   }
-  usedInjectedNames.add(finalName);
-  return finalName;
+  usedInjectedNames.add(sanitizedToolName);
+  return sanitizedToolName;
 }
 
 /**
