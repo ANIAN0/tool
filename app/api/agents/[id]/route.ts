@@ -42,6 +42,9 @@ export async function GET(
   const { id } = await params;
 
   try {
+    // 🚀 性能优化：提前启动 skills Promise（使用 id，不依赖 agent 查询结果）
+    const skillsPromise = getAgentSkillsInfo(id);
+
     // 获取Agent详情，getAgentById会自动检查权限
     // 公开Agent所有人可见，私有Agent仅创建者可见
     const agent = await getAgentById(id, userId);
@@ -53,7 +56,7 @@ export async function GET(
       );
     }
 
-    // 解析template_config JSON字符串
+    // 解析template_config JSON字符串（同步操作）
     let templateConfig = null;
     if (agent.template_config) {
       try {
@@ -63,8 +66,8 @@ export async function GET(
       }
     }
 
-    // 获取关联的 Skills
-    const skills = await getAgentSkillsInfo(id);
+    // 等待 skills Promise 完成（可能已在 agent 查询期间完成）
+    const skills = await skillsPromise;
 
     // 返回Agent详情
     return NextResponse.json({
