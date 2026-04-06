@@ -126,6 +126,12 @@ export async function POST(req: NextRequest) {
       );
     }
 
+    // 🚀 性能优化：Early-start pattern - 提前启动独立 Promise
+    // 1. 提前启动默认模型查询（如果 agent 未绑定模型将使用此结果）
+    const defaultModelPromise = getDefaultUserModel(userId);
+    // 2. 提前启动 Skills 信息查询（不依赖 agent 查询结果，只需要 agentId）
+    const agentSkillsPromise = getAgentSkillsInfo(agentId);
+
     // 获取Agent配置（验证访问权限）
     const agent = await getAgentById(agentId, userId);
     if (!agent) {
@@ -178,8 +184,9 @@ export async function POST(req: NextRequest) {
         );
       }
     } else {
+      // 🚀 性能优化：使用提前启动的 defaultModelPromise（可能已在 agent 查询期间完成）
       // Agent 未绑定模型时，必须使用当前用户默认模型
-      const defaultModel = await getDefaultUserModel(userId);
+      const defaultModel = await defaultModelPromise;
       if (!defaultModel) {
         return new Response(
           JSON.stringify({
@@ -306,8 +313,8 @@ export async function POST(req: NextRequest) {
     // 合并历史消息和当前新消息
     const messagesForLLM = [...historyMessages, message];
 
-    // 获取 Agent 关联的 Skill 信息
-    const agentSkills = await getAgentSkillsInfo(agent.id);
+    // 🚀 性能优化：等待提前启动的 Skills Promise 完成（可能已在之前操作期间完成）
+    const agentSkills = await agentSkillsPromise;
 
     // 加载 Skill 到沙盒（如果沙盒启用且 Agent 有配置 Skill）
     let skillPresetPrompt = "";
