@@ -3,6 +3,8 @@
  * 提供UserModel的CRUD操作
  */
 
+import { cache } from "react";
+import { unstable_cache } from "next/cache";
 import { getDb } from "./client";
 import {
   type UserModel,
@@ -12,11 +14,12 @@ import {
 
 /**
  * 根据ID获取单个模型
+ * 🚀 性能优化：使用 React.cache() 缓存查询结果
  */
-export async function getUserModelById(
+export const getUserModelById = cache(async (
   userId: string,
   modelId: string
-): Promise<UserModel | null> {
+): Promise<UserModel | null> => {
   const db = getDb();
   const result = await db.execute({
     sql: "SELECT * FROM user_models WHERE id = ? AND user_id = ?",
@@ -28,12 +31,13 @@ export async function getUserModelById(
   }
 
   return rowToUserModel(result.rows[0]);
-}
+});
 
 /**
  * 获取用户的所有模型
+ * 🚀 性能优化：使用 React.cache() 缓存查询结果
  */
-export async function getUserModels(userId: string): Promise<UserModel[]> {
+export const getUserModels = cache(async (userId: string): Promise<UserModel[]> => {
   const db = getDb();
   const result = await db.execute({
     sql: `SELECT * FROM user_models
@@ -43,26 +47,30 @@ export async function getUserModels(userId: string): Promise<UserModel[]> {
   });
 
   return result.rows.map(rowToUserModel);
-}
+});
 
 /**
  * 获取用户的默认模型
+ * 🚀 性能优化：使用 unstable_cache() 实现跨请求缓存，减少数据库查询
+ * 缓存时间：60秒，标签：user-models
  */
-export async function getDefaultUserModel(
-  userId: string
-): Promise<UserModel | null> {
-  const db = getDb();
-  const result = await db.execute({
-    sql: "SELECT * FROM user_models WHERE user_id = ? AND is_default = 1 LIMIT 1",
-    args: [userId],
-  });
+export const getDefaultUserModel = unstable_cache(
+  async (userId: string): Promise<UserModel | null> => {
+    const db = getDb();
+    const result = await db.execute({
+      sql: "SELECT * FROM user_models WHERE user_id = ? AND is_default = 1 LIMIT 1",
+      args: [userId],
+    });
 
-  if (result.rows.length === 0) {
-    return null;
-  }
+    if (result.rows.length === 0) {
+      return null;
+    }
 
-  return rowToUserModel(result.rows[0]);
-}
+    return rowToUserModel(result.rows[0]);
+  },
+  ["default-user-model"],
+  { revalidate: 60, tags: ["user-models"] }
+);
 
 /**
  * 创建新模型
