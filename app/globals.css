@@ -252,3 +252,27 @@
 .ProseMirror-focused {
   @apply outline-none;
 }
+
+/* 🚀 性能优化：长列表渲染优化 - content-visibility */
+.list-item-container {
+  content-visibility: auto;
+  contain-intrinsic-size: 0 100px;
+}
+
+/* 消息列表项优化 */
+.message-list-item {
+  content-visibility: auto;
+  contain-intrinsic-size: 0 150px;
+}
+
+/* 对话列表项优化 */
+.conversation-list-item {
+  content-visibility: auto;
+  contain-intrinsic-size: 0 60px;
+}
+
+/* Agent 卡片优化 */
+.agent-card-container {
+  content-visibility: auto;
+  contain-intrinsic-size: 0 200px;
+}
