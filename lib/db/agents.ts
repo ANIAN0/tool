@@ -3,6 +3,7 @@
  * 提供Agent的CRUD操作和工具关联管理
  */
 
+import { cache } from "react";
 import { getDb } from "./client";
 import {
   type Agent,
@@ -271,11 +272,12 @@ export async function createAgent(params: CreateAgentParams): Promise<Agent> {
 
 /**
  * 根据ID获取Agent详情（包含工具信息）
+ * 🚀 性能优化：使用 React.cache() 缓存查询结果，同一请求中避免重复查询
  */
-export async function getAgentById(
+export const getAgentById = cache(async (
   agentId: string,
   userId?: string
-): Promise<AgentWithTools | null> {
+): Promise<AgentWithTools | null> => {
   const db = getDb();
 
   // 查询Agent
@@ -299,13 +301,14 @@ export async function getAgentById(
   const mcpTools = await getAgentTools(agentId);
 
   return buildAgentWithTools(agent, mcpTools);
-}
+});
 
 /**
  * 获取用户的所有Agent
  * 使用批量查询优化，避免N+1问题
+ * 🚀 性能优化：使用 React.cache() 缓存查询结果
  */
-export async function getAgentsByUserId(userId: string): Promise<AgentWithTools[]> {
+export const getAgentsByUserId = cache(async (userId: string): Promise<AgentWithTools[]> => {
   const db = getDb();
 
   // 查询用户的所有Agent
@@ -344,10 +347,11 @@ export async function getAgentsByUserId(userId: string): Promise<AgentWithTools[
  * 获取所有公开的Agent（排除指定用户的）
  * 用于发现/市场页面
  * 使用批量查询优化，避免N+1问题
+ * 🚀 性能优化：使用 React.cache() 缓存查询结果
  */
-export async function getPublicAgents(
+export const getPublicAgents = cache(async (
   excludeUserId?: string
-): Promise<PublicAgentWithCreator[]> {
+): Promise<PublicAgentWithCreator[]> => {
   const db = getDb();
 
   // 查询公开的Agent，可选择排除某用户

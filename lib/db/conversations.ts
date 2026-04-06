@@ -1,3 +1,4 @@
+import { cache } from "react";
 import { getDb } from "./client";
 import type { Conversation, CreateConversationParams, CompressionCache } from "./schema";
 import { DEFAULT_AGENT_ID } from "../agents/config";
@@ -84,10 +85,11 @@ export async function createConversation(
 
 /**
  * 获取用户的所有对话列表
+ * 🚀 性能优化：使用 React.cache() 缓存查询结果
  * @param userId - 用户ID
  * @returns 对话列表，按更新时间倒序排列
  */
-export async function getConversations(userId: string): Promise<Conversation[]> {
+export const getConversations = cache(async (userId: string): Promise<Conversation[]> => {
   const db = getDb();
 
   const result = await db.execute({
@@ -98,18 +100,19 @@ export async function getConversations(userId: string): Promise<Conversation[]> 
   });
 
   return result.rows.map(rowToConversation);
-}
+});
 
 /**
  * 获取用户的所有对话列表（支持source过滤）
+ * 🚀 性能优化：使用 React.cache() 缓存查询结果
  * @param userId - 用户ID
  * @param options - 可选的过滤选项
  * @returns 对话列表，按更新时间倒序排列
  */
-export async function getConversationsWithFilter(
+export const getConversationsWithFilter = cache(async (
   userId: string,
   options?: { source?: string }
-): Promise<Conversation[]> {
+): Promise<Conversation[]> => {
   const db = getDb();
 
   // 构建SQL查询
@@ -129,14 +132,15 @@ export async function getConversationsWithFilter(
 
   const result = await db.execute({ sql, args });
   return result.rows.map(rowToConversation);
-}
+});
 
 /**
  * 获取单个对话详情
+ * 🚀 性能优化：使用 React.cache() 缓存查询结果
  * @param id - 对话ID
  * @returns 对话记录，不存在则返回null
  */
-export async function getConversation(id: string): Promise<Conversation | null> {
+export const getConversation = cache(async (id: string): Promise<Conversation | null> => {
   const db = getDb();
 
   const result = await db.execute({
