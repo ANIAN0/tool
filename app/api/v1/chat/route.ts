@@ -110,6 +110,14 @@ export async function POST(request: Request) {
       );
     }
 
+    // 🚀 性能优化：Early-start pattern - 提前启动独立 Promise
+    // 1. 提前启动默认模型查询
+    const defaultModelPromise = getDefaultUserModel(userId);
+    // 2. 提前启动 Skills 信息查询（只需要 agentId）
+    const agentSkillsPromise = getAgentSkillsInfo(agentId);
+    // 3. 如果提供了 conversationId，提前启动会话查询
+    const conversationPromise = conversationId ? getConversation(conversationId) : null;
+
     // 获取 Agent 配置
     const agent = await getAgentById(agentId, userId);
     if (!agent) {
@@ -124,8 +132,8 @@ export async function POST(request: Request) {
 
     // 如果提供了 conversationId，验证会话权限
     if (currentConversationId) {
-      // 查询会话是否存在
-      const existingConversation = await getConversation(currentConversationId);
+      // 🚀 性能优化：使用提前启动的 conversationPromise（可能已在 agent 查询期间完成）
+      const existingConversation = await conversationPromise;
       // 会话不存在，返回 404
       if (!existingConversation) {
         return new Response(
@@ -160,8 +168,9 @@ export async function POST(request: Request) {
     if (agent.model_id) {
       userModel = await getUserModelById(userId, agent.model_id);
     }
+    // 🚀 性能优化：使用提前启动的 defaultModelPromise（可能已在之前操作期间完成）
     if (!userModel) {
-      userModel = await getDefaultUserModel(userId);
+      userModel = await defaultModelPromise;
     }
     if (!userModel) {
       return new Response(
@@ -180,8 +189,8 @@ export async function POST(request: Request) {
       contextLimit,
     });
 
-    // 获取 Agent 关联的 Skill 信息
-    const agentSkills = await getAgentSkillsInfo(agentId);
+    // 🚀 性能优化：等待提前启动的 Skills Promise 完成（可能已在之前操作期间完成）
+    const agentSkills = await agentSkillsPromise;
 
     // 加载 Skill 到沙盒
     let skillPresetPrompt = "";
