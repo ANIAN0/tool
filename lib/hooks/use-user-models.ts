@@ -26,6 +26,7 @@ export interface ApiUserModel {
   model: string;
   base_url: string | null;
   is_default: boolean;
+  context_limit: number; // 新增：上下文上限
   created_at: number;
   updated_at: number;
 }
@@ -41,6 +42,7 @@ export interface CreateModelParams {
   apiKey: string;
   baseUrl?: string;
   isDefault?: boolean;
+  contextLimit?: number; // 新增：上下文上限
 }
 
 // 更新模型的参数
@@ -51,6 +53,7 @@ export interface UpdateModelParams {
   apiKey?: string;
   baseUrl?: string;
   isDefault?: boolean;
+  contextLimit?: number; // 新增：上下文上限
 }
 
 // Hook 返回类型

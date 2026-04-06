@@ -8,9 +8,16 @@ function rowToMessage(row: Record<string, unknown>): Message {
   return {
     id: row.id as string,
     conversation_id: row.conversation_id as string,
-    role: row.role as "user" | "assistant",
+    // 支持 system 类型（checkpoint 消息使用）
+    role: row.role as "user" | "assistant" | "system",
     content: row.content as string,
     created_at: row.created_at as number,
+    // Token统计字段（仅assistant消息有值）
+    input_tokens: row.input_tokens as number | undefined,
+    output_tokens: row.output_tokens as number | undefined,
+    total_tokens: row.total_tokens as number | undefined,
+    // 消息类型字段（normal/checkpoint）
+    type: (row.type as "normal" | "checkpoint") ?? "normal",
   };
 }
 
@@ -23,11 +30,20 @@ export async function createMessage(params: CreateMessageParams): Promise<Messag
   const db = getDb();
   const now = Date.now();
 
-  // 插入消息记录
+  // 插入消息记录（支持 token 统计字段）
   await db.execute({
-    sql: `INSERT INTO messages (id, conversation_id, role, content, created_at)
-          VALUES (?, ?, ?, ?, ?)`,
-    args: [params.id, params.conversationId, params.role, params.content, now],
+    sql: `INSERT INTO messages (id, conversation_id, role, content, created_at, input_tokens, output_tokens, total_tokens)
+          VALUES (?, ?, ?, ?, ?, ?, ?, ?)`,
+    args: [
+      params.id,
+      params.conversationId,
+      params.role,
+      params.content,
+      now,
+      params.input_tokens ?? null,
+      params.output_tokens ?? null,
+      params.total_tokens ?? null,
+    ],
   });
 
   // 返回创建的消息
@@ -37,6 +53,9 @@ export async function createMessage(params: CreateMessageParams): Promise<Messag
     role: params.role,
     content: params.content,
     created_at: now,
+    input_tokens: params.input_tokens,
+    output_tokens: params.output_tokens,
+    total_tokens: params.total_tokens,
   };
 }
 
@@ -84,3 +103,6 @@ export async function deleteMessagesByConversation(
 
   return count;
 }
+
+
+

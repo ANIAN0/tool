@@ -1,5 +1,5 @@
 import { getDb } from "./client";
-import type { Conversation, CreateConversationParams } from "./schema";
+import type { Conversation, CreateConversationParams, CompressionCache } from "./schema";
 import { DEFAULT_AGENT_ID } from "../agents/config";
 
 /**
@@ -19,6 +19,12 @@ function rowToConversation(row: Record<string, unknown>): Conversation {
     source: (row.source as string) || 'chat',
     created_at: row.created_at as number,
     updated_at: row.updated_at as number,
+    // Token汇总字段
+    total_input_tokens: (row.total_input_tokens as number) ?? 0,
+    total_output_tokens: (row.total_output_tokens as number) ?? 0,
+    total_tokens: (row.total_tokens as number) ?? 0,
+    // 压缩缓存字段
+    compression_cache: row.compression_cache as string | null ?? null,
   };
 }
 
@@ -67,6 +73,12 @@ export async function createConversation(
     source,
     created_at: now,
     updated_at: now,
+    // Token汇总字段初始化为0
+    total_input_tokens: 0,
+    total_output_tokens: 0,
+    total_tokens: 0,
+    // 压缩缓存初始化为 null
+    compression_cache: null,
   };
 }
 
@@ -211,5 +223,69 @@ export async function touchConversation(id: string): Promise<void> {
   await db.execute({
     sql: `UPDATE conversations SET updated_at = ? WHERE id = ?`,
     args: [Date.now(), id],
+  });
+}
+
+/**
+ * 更新对话的 token 汇总
+ * 每次助手回复后累加 token 使用量
+ * @param conversationId - 对话ID
+ * @param usage - token 使用统计
+ */
+export async function updateConversationTokenTotals(
+  conversationId: string,
+  usage: { inputTokens: number; outputTokens: number; totalTokens: number }
+): Promise<void> {
+  const db = getDb();
+
+  await db.execute({
+    sql: `UPDATE conversations
+          SET total_input_tokens = total_input_tokens + ?,
+              total_output_tokens = total_output_tokens + ?,
+              total_tokens = total_tokens + ?
+          WHERE id = ?`,
+    args: [
+      usage.inputTokens || 0,
+      usage.outputTokens || 0,
+      usage.totalTokens || 0,
+      conversationId,
+    ],
+  });
+}
+
+/**
+ * 更新对话的压缩缓存
+ * 压缩完成后存储压缩后的消息快照
+ * @param conversationId - 对话ID
+ * @param cache - 压缩缓存数据
+ */
+export async function updateCompressionCache(
+  conversationId: string,
+  cache: CompressionCache
+): Promise<void> {
+  const db = getDb();
+
+  // 将缓存对象序列化为 JSON 字符串存储
+  const cacheJson = JSON.stringify(cache);
+
+  await db.execute({
+    sql: `UPDATE conversations SET compression_cache = ? WHERE id = ?`,
+    args: [cacheJson, conversationId],
+  });
+}
+
+/**
+ * 清除对话的压缩缓存
+ * 用户手动删除消息后需要清除缓存，下次请求重新计算
+ * @param conversationId - 对话ID
+ */
+export async function clearCompressionCache(
+  conversationId: string
+): Promise<void> {
+  const db = getDb();
+
+  await db.execute({
+    sql: `UPDATE conversations SET compression_cache = NULL WHERE id = ?`,
+    args: [conversationId],
   });
 }

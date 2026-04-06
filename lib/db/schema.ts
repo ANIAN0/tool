@@ -114,6 +114,14 @@ export interface User {
 
 /**
  * Conversation类型定义
+ *
+ * Token汇总字段：
+ * - total_input_tokens: 对话累计输入token
+ * - total_output_tokens: 对话累计输出token
+ * - total_tokens: 对话累计总token
+ *
+ * 压缩缓存字段：
+ * - compression_cache: 会话压缩缓存（JSON字符串）
  */
 export interface Conversation {
   id: string;
@@ -128,6 +136,12 @@ export interface Conversation {
   source: string;
   created_at: number;
   updated_at: number;
+  // Token汇总字段
+  total_input_tokens: number;
+  total_output_tokens: number;
+  total_tokens: number;
+  // 压缩缓存（JSON: CompressionCache）
+  compression_cache: string | null;
 }
 
 /**
@@ -135,13 +149,27 @@ export interface Conversation {
  * content字段可以是：
  * - 纯文本字符串（历史数据兼容）
  * - JSON字符串，包含完整的UIMessage结构
+ *
+ * Token统计字段（仅assistant消息有值）：
+ * - input_tokens: 输入token数
+ * - output_tokens: 输出token数
+ * - total_tokens: 总token数
+ *
+ * 消息类型：
+ * - type: 'normal' - 普通消息，'checkpoint' - 压缩检查点
  */
 export interface Message {
   id: string;
   conversation_id: string;
-  role: "user" | "assistant";
+  role: "user" | "assistant" | "system";
   content: string;
   created_at: number;
+  // Token统计字段（仅assistant消息有值）
+  input_tokens?: number;
+  output_tokens?: number;
+  total_tokens?: number;
+  // 消息类型：normal 或 checkpoint
+  type?: "normal" | "checkpoint";
 }
 
 /**
@@ -196,6 +224,10 @@ export interface CreateMessageParams {
   conversationId: string;
   role: "user" | "assistant";
   content: string;
+  // Token统计字段（可选，仅assistant消息使用）
+  input_tokens?: number;
+  output_tokens?: number;
+  total_tokens?: number;
 }
 
 // ==================== 文档编辑页相关表结构 ====================
@@ -326,6 +358,92 @@ CREATE TABLE IF NOT EXISTS user_models (
 export const MIGRATION_ADD_CONTEXT_LIMIT = `
 ALTER TABLE user_models ADD COLUMN context_limit INTEGER DEFAULT 32000;
 `;
+
+/**
+ * 迁移SQL：为 messages 表添加 token 统计字段
+ * 仅 assistant 消息有值，user 消息为 NULL
+ */
+export const MIGRATION_ADD_MESSAGE_TOKEN_FIELDS = `
+ALTER TABLE messages ADD COLUMN input_tokens INTEGER;
+ALTER TABLE messages ADD COLUMN output_tokens INTEGER;
+ALTER TABLE messages ADD COLUMN total_tokens INTEGER;
+`;
+
+/**
+ * 迁移SQL：为 conversations 表添加 token 汇总字段
+ */
+export const MIGRATION_ADD_CONVERSATION_TOKEN_FIELDS = `
+ALTER TABLE conversations ADD COLUMN total_input_tokens INTEGER DEFAULT 0;
+ALTER TABLE conversations ADD COLUMN total_output_tokens INTEGER DEFAULT 0;
+ALTER TABLE conversations ADD COLUMN total_tokens INTEGER DEFAULT 0;
+`;
+
+/**
+ * 迁移SQL：为 conversations 表添加 compression_cache 字段
+ * 用于存储会话压缩缓存
+ */
+export const MIGRATION_ADD_COMPRESSION_CACHE = `
+ALTER TABLE conversations ADD COLUMN compression_cache TEXT;
+`;
+
+/**
+ * 迁移SQL：为 messages 表添加 type 字段
+ * 用于区分普通消息和 checkpoint 消息
+ */
+export const MIGRATION_ADD_MESSAGE_TYPE = `
+ALTER TABLE messages ADD COLUMN type TEXT DEFAULT 'normal';
+`;
+
+// ==================== 异步会话压缩相关表结构 ====================
+
+/**
+ * compression_tasks 表 - 存储压缩任务
+ * 用于异步压缩任务调度
+ * status: 0 - pending（未处理）, 1 - completed（已完成）
+ */
+export const CREATE_COMPRESSION_TASKS_TABLE = `
+CREATE TABLE IF NOT EXISTS compression_tasks (
+  id TEXT PRIMARY KEY,
+  conversation_id TEXT NOT NULL,
+  status INTEGER DEFAULT 0,
+  created_at INTEGER NOT NULL,
+  completed_at INTEGER,
+  FOREIGN KEY (conversation_id) REFERENCES conversations(id)
+);
+`;
+
+/**
+ * 唯一索引：每个会话只能有 1 个未处理的压缩任务
+ * SQLite 3.8.0+ 支持 filtered index（WHERE 子句）
+ */
+export const CREATE_COMPRESSION_TASKS_INDEXES = [
+  `CREATE UNIQUE INDEX IF NOT EXISTS idx_compression_tasks_pending_unique
+   ON compression_tasks(conversation_id, status)
+   WHERE status = 0;`,
+];
+
+/**
+ * checkpoints 表 - 存储压缩检查点
+ * checkpoint 是压缩元数据，不再作为消息存储
+ */
+export const CREATE_CHECKPOINTS_TABLE = `
+CREATE TABLE IF NOT EXISTS checkpoints (
+  id TEXT PRIMARY KEY,
+  conversation_id TEXT NOT NULL,
+  removed_count INTEGER NOT NULL,
+  original_message_count INTEGER NOT NULL,
+  created_at INTEGER NOT NULL,
+  FOREIGN KEY (conversation_id) REFERENCES conversations(id)
+);
+`;
+
+/**
+ * checkpoints 表索引
+ */
+export const CREATE_CHECKPOINTS_INDEXES = [
+  `CREATE INDEX IF NOT EXISTS idx_checkpoints_conversation
+   ON checkpoints(conversation_id, created_at DESC);`,
+];
 
 /**
  * 个人模型设置索引
@@ -965,4 +1083,91 @@ export interface CreateDeletedMessageParams {
   originalCreatedAt: number;
   deletedReason?: "user-delete" | "edit-regenerate";
   deletedBy: string;
+}
+
+// ==================== 会话压缩相关类型定义 ====================
+
+/**
+ * 压缩缓存类型定义
+ * 存储在 conversation.compression_cache 字段中
+ */
+export interface CompressionCache {
+  /** 压缩后的消息快照 */
+  messages: Array<{
+    id: string;
+    role: "user" | "assistant";
+    parts: MessagePart[];
+  }>;
+  /** 压缩时的消息总数 */
+  messageCount: number;
+  /** 被移除的消息数量 */
+  removedCount: number;
+  /** 压缩时间戳 */
+  compressedAt: number;
+}
+
+/**
+ * Checkpoint 消息内容类型定义（旧格式，用于兼容历史数据）
+ * 旧方案中存储在 message.content 字段中（type 为 checkpoint 时）
+ * 新方案使用独立的 checkpoints 表存储
+ */
+export interface CheckpointContent {
+  type: "checkpoint";
+  /** 被移除的消息数量 */
+  removedCount: number;
+  /** 压缩前的消息总数 */
+  originalMessageCount: number;
+  /** 压缩时间戳 */
+  compressedAt: number;
+}
+
+// ==================== 异步压缩相关类型定义 ====================
+
+/**
+ * 压缩任务状态枚举
+ */
+export enum CompressionTaskStatus {
+  Pending = 0,    // 未处理
+  Completed = 1,  // 已完成
+}
+
+/**
+ * CompressionTask 类型定义
+ */
+export interface CompressionTask {
+  id: string;
+  conversation_id: string;
+  status: CompressionTaskStatus;
+  created_at: number;
+  completed_at: number | null;
+}
+
+/**
+ * Checkpoint 类型定义（独立表）
+ * 注意：这是新的独立 checkpoint 类型，与旧的 CheckpointContent 不同
+ */
+export interface Checkpoint {
+  id: string;
+  conversation_id: string;
+  removed_count: number;
+  original_message_count: number;
+  created_at: number;
+}
+
+/**
+ * 创建压缩任务的参数类型
+ */
+export interface CreateCompressionTaskParams {
+  id: string;
+  conversationId: string;
+}
+
+/**
+ * 创建 Checkpoint 记录的参数类型
+ * 使用 CreateCheckpointRecordParams 以避免与现有 CreateCheckpointParams 冲突
+ */
+export interface CreateCheckpointRecordParams {
+  conversationId: string;
+  removedCount: number;
+  originalMessageCount: number;
 }

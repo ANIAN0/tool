@@ -81,10 +81,13 @@ export async function createUserModel(
     });
   }
 
+  // 获取 context_limit，默认 32000
+  const contextLimit = params.contextLimit ?? 32000;
+
   await db.execute({
     sql: `INSERT INTO user_models
-          (id, user_id, name, provider, model, api_key, base_url, is_default, created_at, updated_at)
-          VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+          (id, user_id, name, provider, model, api_key, base_url, is_default, context_limit, created_at, updated_at)
+          VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
     args: [
       params.id,
       params.userId,
@@ -94,6 +97,7 @@ export async function createUserModel(
       params.apiKey,
       params.baseUrl ?? null,
       params.isDefault ? 1 : 0,
+      contextLimit,
       now,
       now,
     ],
@@ -108,6 +112,7 @@ export async function createUserModel(
     api_key: params.apiKey,
     base_url: params.baseUrl ?? null,
     is_default: params.isDefault ?? false,
+    context_limit: contextLimit,
     created_at: now,
     updated_at: now,
   };
@@ -164,6 +169,11 @@ export async function updateUserModel(
   if (params.isDefault !== undefined) {
     updates.push("is_default = ?");
     args.push(params.isDefault ? 1 : 0);
+  }
+  // 新增：context_limit 更新
+  if (params.contextLimit !== undefined) {
+    updates.push("context_limit = ?");
+    args.push(params.contextLimit);
   }
 
   updates.push("updated_at = ?");
@@ -240,6 +250,7 @@ function rowToUserModel(row: Record<string, unknown>): UserModel {
     api_key: row.api_key as string,
     base_url: row.base_url as string | null,
     is_default: (row.is_default as number) === 1,
+    context_limit: (row.context_limit as number) ?? 32000, // 新增，默认 32000
     created_at: row.created_at as number,
     updated_at: row.updated_at as number,
   };

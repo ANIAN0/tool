@@ -183,7 +183,7 @@ function generatePresetPrompt(skills: SkillLoadInfo[]): string {
   const skillList = skills
     .map(
       (skill) =>
-        `- **${skill.name}**: ${skill.description}\n  - 文件路径: \`skills/${skill.id}/skill.md\``
+        `- **${skill.name}**: ${skill.description}\n  - 文件路径: \`skills/${skill.id}/SKILL.md\``
     )
     .join("\n");
 
@@ -195,7 +195,7 @@ ${skillList}
 
 ### 如何使用 Skills
 
-1. **读取 Skill 正文**: 使用 \`readFile\` 工具读取 \`skills/{skillId}/skill.md\`
+1. **读取 Skill 正文**: 使用 \`readFile\` 工具读取 \`skills/{skillId}/SKILL.md\`
 2. **读取 Skill 目录下的文件**: 使用 \`readFile\` 工具读取 \`skills/{skillId}/\` 下的其他文件
 3. **执行 Skill 目录下的脚本**: 使用 \`bash\` 工具执行 \`skills/{skillId}/\` 下的脚本文件
 

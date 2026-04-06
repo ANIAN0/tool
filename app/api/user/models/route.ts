@@ -30,6 +30,7 @@ export const GET = withOptionalAuth(async (request, context): Promise<NextRespon
       model: model.model,
       base_url: model.base_url,
       is_default: model.is_default,
+      context_limit: model.context_limit, // 新增：返回上下文上限
       created_at: model.created_at,
       updated_at: model.updated_at,
       // 不返回 api_key 字段
@@ -123,6 +124,7 @@ export const POST = withOptionalAuth(async (request, context): Promise<NextRespo
       apiKey: encryptedApiKey,
       baseUrl: body.baseUrl?.trim() || undefined,
       isDefault: body.isDefault === true,
+      contextLimit: body.contextLimit ? parseInt(body.contextLimit, 10) : undefined, // 新增：上下文上限
     };
 
     // 创建模型
@@ -139,6 +141,7 @@ export const POST = withOptionalAuth(async (request, context): Promise<NextRespo
         model: newModel.model,
         base_url: newModel.base_url,
         is_default: newModel.is_default,
+        context_limit: newModel.context_limit, // 新增：返回上下文上限
         created_at: newModel.created_at,
         updated_at: newModel.updated_at,
       },

@@ -44,7 +44,24 @@
       "Bash(rm:*)",
       "Skill(code-review:code-review)",
       "Bash(npm info:*)",
-      "Bash(grep -r onFinish node_modules/ai/dist/*.d.ts)"
+      "Bash(grep -r onFinish node_modules/ai/dist/*.d.ts)",
+      "Bash(npm list:*)",
+      "Bash(npm outdated:*)",
+      "Bash(npm view:*)",
+      "Bash(npm update:*)",
+      "WebFetch(domain:help.openai.com)",
+      "mcp__docs-langchain__search_docs_by_lang_chain",
+      "WebFetch(domain:juejin.cn)",
+      "Bash(rm -rf .next/cache .next/server .next/static)",
+      "Bash(rm -rf .next)",
+      "WebFetch(domain:elements.ai-sdk.dev)",
+      "Bash(dir \"H:\\\\hucar\\\\hugit\\\\hu_coding\\\\code\\\\nianian\\\\my-app\\\\node_modules\\\\ai\\\\docs\" /b)",
+      "WebFetch(domain:github.com)",
+      "Bash(npm search:*)",
+      "Bash(dir \"H:\\\\hucar\\\\hugit\\\\hu_coding\\\\code\\\\nianian\\\\my-app\\\\app\\\\settings\")",
+      "Bash(sed -i 's/\"/\"/g; s/\"/\"/g' app/api/agent-chat/route.ts)",
+      "Bash(sed -i 's/'/'\"'\"'/g; s/'/'\"'\"'/g' app/api/agent-chat/route.ts)",
+      "Bash(grep -r \"type Row\" node_modules/@libsql/client/dist/*.d.ts)"
     ]
   }
 }

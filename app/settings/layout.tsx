@@ -22,6 +22,7 @@ const settingsNavItems = [
   { href: "/settings/mcp", label: "MCP 服务器", icon: "🔌", showForAnonymous: false },
   { href: "/settings/api-keys", label: "API Key", icon: "🔑", showForAnonymous: false },
   { href: "/settings/files", label: "文件管理", icon: "📁", showForAnonymous: false }, // 新增：沙盒文件管理入口
+  { href: "/settings/token-test", label: "Token 测试", icon: "📊", showForAnonymous: false }, // 新增：Token估算测试工具
 ];
 
 interface SettingsLayoutProps {

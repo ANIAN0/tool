@@ -57,6 +57,7 @@ export const GET = withOptionalAuth(async (request, context): Promise<NextRespon
         model: model.model,
         base_url: model.base_url,
         is_default: model.is_default,
+        context_limit: model.context_limit, // 新增：返回上下文上限
         created_at: model.created_at,
         updated_at: model.updated_at,
       },
@@ -144,6 +145,14 @@ export const PUT = withOptionalAuth(async (request, context): Promise<NextRespon
       updateParams.isDefault = body.isDefault === true;
     }
 
+    // 新增：上下文上限更新
+    if (body.contextLimit !== undefined) {
+      const parsedLimit = parseInt(body.contextLimit, 10);
+      if (!isNaN(parsedLimit) && parsedLimit > 0) {
+        updateParams.contextLimit = parsedLimit;
+      }
+    }
+
     // 更新模型
     const updatedModel = await updateUserModel(context.userId, id, updateParams);
 
@@ -168,6 +177,7 @@ export const PUT = withOptionalAuth(async (request, context): Promise<NextRespon
         model: updatedModel.model,
         base_url: updatedModel.base_url,
         is_default: updatedModel.is_default,
+        context_limit: updatedModel.context_limit, // 新增：返回上下文上限
         created_at: updatedModel.created_at,
         updated_at: updatedModel.updated_at,
       },

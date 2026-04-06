@@ -36,6 +36,9 @@ import {
   // API Key相关表Schema
   CREATE_USER_API_KEYS_TABLE,
   CREATE_API_KEYS_INDEXES,
+  // 消息撤回相关表Schema
+  CREATE_DELETED_MESSAGES_TABLE,
+  CREATE_DELETED_MESSAGES_INDEXES,
 } from "../lib/db/schema";
 
 /**
@@ -130,6 +133,11 @@ async function initDatabase(db: Client): Promise<void> {
   await db.execute(CREATE_USER_API_KEYS_TABLE);
   console.log("✅ user_api_keys 表创建成功");
 
+  // 14. 创建 deleted_messages 表（消息撤回归档）
+  console.log("创建 deleted_messages 表...");
+  await db.execute(CREATE_DELETED_MESSAGES_TABLE);
+  console.log("✅ deleted_messages 表创建成功");
+
   console.log("\n");
 }
 
@@ -206,6 +214,16 @@ async function createIndexes(db: Client): Promise<void> {
       console.log(`✅ API Key索引创建成功: ${sql.substring(0, 60)}...`);
     } catch (error) {
       console.log(`⚠️ API Key索引创建跳过: ${sql.substring(0, 60)}...`);
+    }
+  }
+
+  // 创建 deleted_messages 相关索引
+  for (const sql of CREATE_DELETED_MESSAGES_INDEXES) {
+    try {
+      await db.execute(sql);
+      console.log(`✅ deleted_messages索引创建成功: ${sql.substring(0, 60)}...`);
+    } catch (error) {
+      console.log(`⚠️ deleted_messages索引创建跳过: ${sql.substring(0, 60)}...`);
     }
   }
 
@@ -436,6 +454,106 @@ async function migrateDatabase(db: Client): Promise<void> {
     }
   }
 
+  // 迁移18: 添加 context_limit 字段到 user_models 表（模型上下文上限）
+  if (await tableExists(db, "user_models")) {
+    if (!(await columnExists(db, "user_models", "context_limit"))) {
+      console.log("添加 context_limit 字段到 user_models 表...");
+      await db.execute(
+        "ALTER TABLE user_models ADD COLUMN context_limit INTEGER DEFAULT 32000"
+      );
+      console.log("✅ context_limit 字段添加成功");
+    } else {
+      console.log("✅ context_limit 字段已存在，跳过迁移");
+    }
+  }
+
+  // 迁移19: 添加 token 统计字段到 messages 表
+  if (await tableExists(db, "messages")) {
+    const messageTokenFields = [
+      { name: "input_tokens", sql: "ALTER TABLE messages ADD COLUMN input_tokens INTEGER" },
+      { name: "output_tokens", sql: "ALTER TABLE messages ADD COLUMN output_tokens INTEGER" },
+      { name: "total_tokens", sql: "ALTER TABLE messages ADD COLUMN total_tokens INTEGER" },
+    ];
+
+    for (const field of messageTokenFields) {
+      if (!(await columnExists(db, "messages", field.name))) {
+        console.log(`添加 ${field.name} 字段到 messages 表...`);
+        await db.execute(field.sql);
+        console.log(`✅ messages.${field.name} 字段添加成功`);
+      } else {
+        console.log(`✅ messages.${field.name} 字段已存在，跳过迁移`);
+      }
+    }
+  }
+
+  // 迁移20: 添加 token 汇总字段到 conversations 表
+  if (await tableExists(db, "conversations")) {
+    const conversationTokenFields = [
+      { name: "total_input_tokens", sql: "ALTER TABLE conversations ADD COLUMN total_input_tokens INTEGER DEFAULT 0" },
+      { name: "total_output_tokens", sql: "ALTER TABLE conversations ADD COLUMN total_output_tokens INTEGER DEFAULT 0" },
+      { name: "total_tokens", sql: "ALTER TABLE conversations ADD COLUMN total_tokens INTEGER DEFAULT 0" },
+    ];
+
+    for (const field of conversationTokenFields) {
+      if (!(await columnExists(db, "conversations", field.name))) {
+        console.log(`添加 ${field.name} 字段到 conversations 表...`);
+        await db.execute(field.sql);
+        console.log(`✅ conversations.${field.name} 字段添加成功`);
+      } else {
+        console.log(`✅ conversations.${field.name} 字段已存在，跳过迁移`);
+      }
+    }
+  }
+
+  // 迁移21: 创建 deleted_messages 表（如果不存在）
+  if (!(await tableExists(db, "deleted_messages"))) {
+    console.log("创建 deleted_messages 表...");
+    await db.execute(CREATE_DELETED_MESSAGES_TABLE);
+    console.log("✅ deleted_messages 表创建成功");
+  } else {
+    console.log("✅ deleted_messages 表已存在，跳过迁移");
+  }
+
+  // 迁移22: 创建 deleted_messages 相关索引（如果不存在）
+  for (const sql of CREATE_DELETED_MESSAGES_INDEXES) {
+    try {
+      await db.execute(sql);
+      console.log(`✅ deleted_messages索引创建成功: ${sql.substring(0, 60)}...`);
+    } catch (error) {
+      if (String(error).includes("already exists")) {
+        console.log("✅ deleted_messages索引已存在，跳过");
+      } else {
+        console.error("创建 deleted_messages 索引失败:", error);
+      }
+    }
+  }
+
+  // 迁移23: 添加 compression_cache 字段到 conversations 表（会话压缩缓存）
+  if (await tableExists(db, "conversations")) {
+    if (!(await columnExists(db, "conversations", "compression_cache"))) {
+      console.log("添加 compression_cache 字段到 conversations 表...");
+      await db.execute(
+        "ALTER TABLE conversations ADD COLUMN compression_cache TEXT"
+      );
+      console.log("✅ compression_cache 字段添加成功");
+    } else {
+      console.log("✅ compression_cache 字段已存在，跳过迁移");
+    }
+  }
+
+  // 迁移24: 添加 type 字段到 messages 表（消息类型：normal/checkpoint）
+  if (await tableExists(db, "messages")) {
+    if (!(await columnExists(db, "messages", "type"))) {
+      console.log("添加 type 字段到 messages 表...");
+      await db.execute(
+        "ALTER TABLE messages ADD COLUMN type TEXT DEFAULT 'normal'"
+      );
+      console.log("✅ messages.type 字段添加成功");
+    } else {
+      console.log("✅ messages.type 字段已存在，跳过迁移");
+    }
+  }
+
   console.log("\n");
 }
 
@@ -459,6 +577,7 @@ async function showDatabaseStatus(db: Client): Promise<void> {
     "user_skills",
     "agent_skills",
     "user_api_keys",
+    "deleted_messages",
   ];
 
   for (const table of tables) {

@@ -56,8 +56,15 @@ export function ModelForm({
       ? initialData.is_default ?? false
       : initialData.isDefault ?? false
     : false;
+  // 读取初始上下文上限，默认 32000
+  const initialContextLimit = initialData
+    ? "context_limit" in initialData
+      ? initialData.context_limit ?? 32000
+      : 32000
+    : 32000;
   const [baseUrl, setBaseUrl] = useState(initialBaseUrl);
   const [isDefault, setIsDefault] = useState(initialIsDefault);
+  const [contextLimit, setContextLimit] = useState(initialContextLimit.toString()); // 新增：上下文上限
   const [errors, setErrors] = useState<Record<string, string>>({});
 
   // 验证表单
@@ -96,6 +103,7 @@ export function ModelForm({
           apiKey: apiKey.trim() || undefined,
           baseUrl: baseUrl.trim() || undefined,
           isDefault,
+          contextLimit: parseInt(contextLimit, 10) || undefined, // 新增：上下文上限
         }
       : {
           name: name.trim(),
@@ -104,6 +112,7 @@ export function ModelForm({
           apiKey: apiKey.trim(),
           baseUrl: baseUrl.trim() || undefined,
           isDefault,
+          contextLimit: parseInt(contextLimit, 10) || undefined, // 新增：上下文上限
         };
 
     await onSubmit(data);
@@ -202,6 +211,25 @@ export function ModelForm({
               onChange={(e) => setBaseUrl(e.target.value)}
               placeholder="https://api.example.com/v1"
               disabled={isLoading}
+            />
+          </div>
+
+          {/* 上下文上限 */}
+          <div className="space-y-2">
+            <Label htmlFor="contextLimit">
+              上下文上限 (tokens)
+              <span className="text-muted-foreground text-xs ml-2">
+                (模型支持的最大 token 数，用于会话压缩)
+              </span>
+            </Label>
+            <Input
+              id="contextLimit"
+              type="number"
+              value={contextLimit}
+              onChange={(e) => setContextLimit(e.target.value)}
+              placeholder="32000"
+              disabled={isLoading}
+              min={1}
             />
           </div>
 

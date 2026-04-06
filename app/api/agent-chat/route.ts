@@ -5,7 +5,7 @@
  * 请求格式：
  * POST /api/agent-chat
  * Headers: Authorization (JWT) 或 X-Anonymous-Id
- * Body: { messages: UIMessage[], conversationId?: string, agentId: string }
+ * Body: { message: UIMessage, conversationId?: string, agentId: string }
  *
  * 响应格式：
  * 流式响应（使用 toUIMessageStreamResponse）
@@ -25,10 +25,18 @@ import {
   getAgentById,
   getUserModelById,
   getDefaultUserModel,
+  updateConversationTokenTotals,
   type UserModel,
 } from "@/lib/db";
+// 新增：压缩相关函数（异步压缩方案）
+import {
+  getPendingCompressionTask,
+  completeCompressionTask,
+  loadHistoryMessages,
+  executeCompressionTask,
+} from "@/lib/db/compression";
+import { wrapModelWithAllMiddlewares } from "@/lib/ai";
 import { nanoid } from "nanoid";
-import { wrapModelWithDevTools } from "@/lib/ai";
 import { ToolLoopAgent, stepCountIs } from "ai";
 import { getSandboxToolsWithContext } from "@/lib/sandbox";
 import { decryptApiKey } from "@/lib/encryption";
@@ -94,16 +102,16 @@ export async function POST(req: NextRequest) {
   const userId = authResult.userId;
 
   try {
-    // 解析请求体
+    // 解析请求体（前端只发送最后一条消息）
     const body = await req.json();
-    const { messages, conversationId, agentId } = body as {
-      messages: UIMessage[];
+    const { message, conversationId, agentId } = body as {
+      message: UIMessage;      // 单条新消息（前端只发送最后一条）
       conversationId?: string;
       agentId: string;
     };
 
     // 验证消息不为空
-    if (!messages || messages.length === 0) {
+    if (!message) {
       return new Response(
         JSON.stringify({ error: "消息不能为空" }),
         { status: 400, headers: { "Content-Type": "application/json" } }
@@ -140,6 +148,7 @@ export async function POST(req: NextRequest) {
     // 获取模型配置
     let modelName = "";
     let chatModel;
+    let userModel: UserModel | null = null; // 保存模型配置引用，用于获取 context_limit
 
     if (agent.model_id) {
       // 优先使用 Agent 绑定模型（使用创建者的模型池）
@@ -150,6 +159,8 @@ export async function POST(req: NextRequest) {
           { status: 400, headers: { "Content-Type": "application/json" } }
         );
       }
+
+      userModel = modelConfig; // 保存模型配置
 
       try {
         // 按文档仅支持 openai provider，统一走 OpenAI-Compatible
@@ -178,6 +189,8 @@ export async function POST(req: NextRequest) {
         );
       }
 
+      userModel = defaultModel; // 保存模型配置
+
       try {
         // 使用当前用户默认模型构建聊天模型
         chatModel = buildChatModelFromUserModel(defaultModel);
@@ -195,8 +208,8 @@ export async function POST(req: NextRequest) {
       }
     }
 
-    // 包装模型（开发环境启用 DevTools）
-    const wrappedModel = wrapModelWithDevTools(chatModel);
+    // 获取模型上下文上限（用于压缩检测）
+    const contextLimit = userModel?.context_limit ?? 32000;
 
     // 确定对话ID
     const currentConversationId = conversationId;
@@ -214,11 +227,10 @@ export async function POST(req: NextRequest) {
           );
         }
       } else {
-        // 对话不存在，创建新对话
-        const firstUserMessage = messages.find((m) => m.role === "user");
-        const title = firstUserMessage
+        // 对话不存在，创建新对话（前端只发送单条消息）
+        const title = message.role === "user"
           ? extractTitle(
-              firstUserMessage.parts
+              message.parts
                 .filter((p) => p.type === "text")
                 .map((p) => (p as { type: "text"; text: string }).text)
                 .join("")
@@ -241,28 +253,58 @@ export async function POST(req: NextRequest) {
       );
     }
 
-    // 存储用户消息
-    const lastMessage = messages[messages.length - 1];
-    if (lastMessage.role === "user") {
-      const userMessageId = lastMessage.id || nanoid();
+    // 构建聊天模型（使用中间件包装，传入压缩检测配置）
+    const baseModel = buildChatModelFromUserModel(userModel);
+    const wrappedModel = wrapModelWithAllMiddlewares(baseModel, {
+      conversationId: currentConversationId!,
+      contextLimit,
+    });
+
+    // ==================== 检查并执行未处理的压缩任务 ====================
+    // 注意：压缩执行在用户消息保存之前
+
+    const pendingTask = await getPendingCompressionTask(currentConversationId!);
+
+    if (pendingTask) {
+      try {
+        // 执行压缩（使用统一的加载历史消息逻辑）
+        const { removedCount } = await executeCompressionTask(currentConversationId!);
+
+        // 标记任务完成（无论是否实际压缩，都标记完成，避免死循环）
+        await completeCompressionTask(pendingTask.id);
+
+        console.log("[agent-chat 压缩执行] 完成:", { taskId: pendingTask.id, removedCount });
+      } catch (error) {
+        // 压缩失败：任务状态不变（pending），下次重试
+        // 不影响本次请求，继续执行
+        console.error("[agent-chat 压缩执行] 失败:", error);
+      }
+    }
+
+    // ==================== 加载历史消息 ====================
+    // 注意：在保存用户消息之前加载，避免重复包含当前消息
+    const historyMessages = await loadHistoryMessages(currentConversationId!);
+
+    // ==================== 保存用户消息 ====================
+    // 前端传入的单条新消息
+    if (message.role === "user") {
+      const userMessageId = message.id || nanoid();
       const fullUserMessage: UIMessage = {
         id: userMessageId,
         role: "user",
-        parts: lastMessage.parts,
+        parts: message.parts,
       };
 
       await createMessage({
         id: userMessageId,
-        conversationId: currentConversationId,
+        conversationId: currentConversationId!,
         role: "user",
         content: JSON.stringify(fullUserMessage),
       });
     }
 
-    // 转换消息格式
-    const modelMessages = await convertToModelMessages(messages, {
-      ignoreIncompleteToolCalls: true,
-    });
+    // 合并历史消息和当前新消息
+    const messagesForLLM = [...historyMessages, message];
 
     // 获取 Agent 关联的 Skill 信息
     const agentSkills = await getAgentSkillsInfo(agent.id);
@@ -324,35 +366,49 @@ export async function POST(req: NextRequest) {
       }
     };
 
-    // 创建ToolLoopAgent实例（使用包含 Skill 预置提示词的 systemPrompt）
+    // 转换消息格式
+    const modelMessages = await convertToModelMessages(messagesForLLM, {
+      ignoreIncompleteToolCalls: true,
+    });
+
+    // 创建ToolLoopAgent实例（压缩检测通过 middleware 闭包传入）
     const agentInstance = new ToolLoopAgent({
       model: wrappedModel,
       instructions: systemPrompt,
-      tools: runtimeTools, // 挂载”系统工具 + MCP工具”的合并结果
+      tools: runtimeTools,
       stopWhen: stepCountIs(10),
     });
 
     // 执行流式响应
-    const result = await (async () => {
-      try {
-        // 启动流式执行，正常结束时写入消息并回收 MCP 连接
-        return await agentInstance.stream({
-          messages: modelMessages,
-        });
-      } catch (streamError) {
-        // 启动流式过程失败时也要执行清理，避免连接泄漏
-        await safeCleanupMcpRuntime();
-        throw streamError;
-      }
-    })();
+    const result = await agentInstance.stream({
+      messages: modelMessages,
+    });
+
+    // 消费流以确保即使客户端断开，服务端也会完成生成
+    result.consumeStream(); // 无需 await，后台执行
 
     return result.toUIMessageStreamResponse({
       sendSources: true,
       sendReasoning: true,
+      // 传递 usage 信息到客户端（用于 Context 组件显示 token 用量）
+      messageMetadata: ({ part }) => {
+        // 在 finish 事件时传递 totalUsage 和模型配置
+        if (part.type === "finish") {
+          return {
+            usage: part.totalUsage,
+            contextLimit,
+            modelName,
+          };
+        }
+        return undefined;
+      },
       onFinish: async ({ responseMessage, finishReason }) => {
         try {
           if (finishReason !== "error" && currentConversationId) {
             try {
+              // 获取完整的 usage（所有 step 的累加）
+              const usage = await result.totalUsage;
+
               // 生成 assistant 消息ID
               const messageId = nanoid();
               // 从返回的 responseMessage 中提取内容
@@ -365,13 +421,26 @@ export async function POST(req: NextRequest) {
                 parts,
               };
 
-              // 持久化 assistant 消息
+              // 持久化 assistant 消息（带 token 统计）
               await createMessage({
                 id: messageId,
                 conversationId: currentConversationId,
                 role: "assistant",
                 content: JSON.stringify(fullMessage),
+                // 保存 token 统计
+                input_tokens: usage?.inputTokens,
+                output_tokens: usage?.outputTokens,
+                total_tokens: usage?.totalTokens,
               });
+
+              // 更新对话的 token 汇总
+              if (usage) {
+                await updateConversationTokenTotals(currentConversationId, {
+                  inputTokens: usage.inputTokens || 0,
+                  outputTokens: usage.outputTokens || 0,
+                  totalTokens: usage.totalTokens || 0,
+                });
+              }
 
               // 刷新会话更新时间
               await touchConversation(currentConversationId);

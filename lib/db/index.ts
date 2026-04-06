@@ -24,6 +24,13 @@ import {
   // API Key相关表Schema
   CREATE_USER_API_KEYS_TABLE,
   CREATE_API_KEYS_INDEXES,
+  // 新增：context_limit 迁移和消息归档表
+  MIGRATION_ADD_CONTEXT_LIMIT,
+  CREATE_DELETED_MESSAGES_TABLE,
+  CREATE_DELETED_MESSAGES_INDEXES,
+  // Token统计字段迁移
+  MIGRATION_ADD_MESSAGE_TOKEN_FIELDS,
+  MIGRATION_ADD_CONVERSATION_TOKEN_FIELDS,
 } from "./schema";
 
 /**
@@ -304,6 +311,108 @@ export async function migrateDatabase(): Promise<void> {
       }
     }
   }
+
+  // 迁移：为 user_models 添加 context_limit 字段
+  try {
+    await db.execute(MIGRATION_ADD_CONTEXT_LIMIT);
+    console.log("数据库迁移成功：已添加 context_limit 字段");
+  } catch (error) {
+    if (String(error).includes("duplicate column")) {
+      console.log("context_limit 字段已存在，跳过迁移");
+    } else {
+      console.error("数据库迁移失败:", error);
+    }
+  }
+
+  // 迁移：创建 deleted_messages 归档表
+  try {
+    await db.execute(CREATE_DELETED_MESSAGES_TABLE);
+    console.log("deleted_messages 表已创建或已存在");
+  } catch (error) {
+    console.error("创建 deleted_messages 表失败:", error);
+  }
+
+  // 迁移：创建归档表索引
+  for (const sql of CREATE_DELETED_MESSAGES_INDEXES) {
+    try {
+      await db.execute(sql);
+    } catch (error) {
+      if (String(error).includes("already exists")) {
+        console.log("归档表索引已存在，跳过");
+      } else {
+        console.error("创建归档表索引失败:", error);
+      }
+    }
+  }
+
+  // 迁移：为 messages 表添加 token 统计字段
+  // 注意：SQLite 每条 ALTER TABLE 只能添加一个字段
+  try {
+    await db.execute(`ALTER TABLE messages ADD COLUMN input_tokens INTEGER`);
+    console.log("数据库迁移成功：已添加 messages.input_tokens 字段");
+  } catch (error) {
+    if (String(error).includes("duplicate column")) {
+      console.log("messages.input_tokens 字段已存在，跳过迁移");
+    } else {
+      console.error("添加 messages.input_tokens 字段失败:", error);
+    }
+  }
+
+  try {
+    await db.execute(`ALTER TABLE messages ADD COLUMN output_tokens INTEGER`);
+    console.log("数据库迁移成功：已添加 messages.output_tokens 字段");
+  } catch (error) {
+    if (String(error).includes("duplicate column")) {
+      console.log("messages.output_tokens 字段已存在，跳过迁移");
+    } else {
+      console.error("添加 messages.output_tokens 字段失败:", error);
+    }
+  }
+
+  try {
+    await db.execute(`ALTER TABLE messages ADD COLUMN total_tokens INTEGER`);
+    console.log("数据库迁移成功：已添加 messages.total_tokens 字段");
+  } catch (error) {
+    if (String(error).includes("duplicate column")) {
+      console.log("messages.total_tokens 字段已存在，跳过迁移");
+    } else {
+      console.error("添加 messages.total_tokens 字段失败:", error);
+    }
+  }
+
+  // 迁移：为 conversations 表添加 token 汇总字段
+  try {
+    await db.execute(`ALTER TABLE conversations ADD COLUMN total_input_tokens INTEGER DEFAULT 0`);
+    console.log("数据库迁移成功：已添加 conversations.total_input_tokens 字段");
+  } catch (error) {
+    if (String(error).includes("duplicate column")) {
+      console.log("conversations.total_input_tokens 字段已存在，跳过迁移");
+    } else {
+      console.error("添加 conversations.total_input_tokens 字段失败:", error);
+    }
+  }
+
+  try {
+    await db.execute(`ALTER TABLE conversations ADD COLUMN total_output_tokens INTEGER DEFAULT 0`);
+    console.log("数据库迁移成功：已添加 conversations.total_output_tokens 字段");
+  } catch (error) {
+    if (String(error).includes("duplicate column")) {
+      console.log("conversations.total_output_tokens 字段已存在，跳过迁移");
+    } else {
+      console.error("添加 conversations.total_output_tokens 字段失败:", error);
+    }
+  }
+
+  try {
+    await db.execute(`ALTER TABLE conversations ADD COLUMN total_tokens INTEGER DEFAULT 0`);
+    console.log("数据库迁移成功：已添加 conversations.total_tokens 字段");
+  } catch (error) {
+    if (String(error).includes("duplicate column")) {
+      console.log("conversations.total_tokens 字段已存在，跳过迁移");
+    } else {
+      console.error("添加 conversations.total_tokens 字段失败:", error);
+    }
+  }
 }
 
 /**
@@ -358,3 +467,6 @@ export * from "./skills";
 
 // 导出 API Key 数据访问方法
 export * from "./api-keys";
+
+// 导出消息撤回数据访问方法
+export * from "./message-retract";

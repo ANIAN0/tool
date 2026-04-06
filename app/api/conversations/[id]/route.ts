@@ -4,7 +4,12 @@ import {
   deleteConversation,
   deleteMessagesByConversation,
   updateConversation,
+  getAgentById,
+  getUserModelById,
+  getDefaultUserModel,
 } from "@/lib/db";
+// 新增：压缩数据清理函数
+import { cleanupCompressionData } from "@/lib/db/compression";
 import { NextRequest, NextResponse } from "next/server";
 import { authenticateRequestOptional } from "@/lib/auth/middleware";
 
@@ -17,7 +22,11 @@ import { authenticateRequestOptional } from "@/lib/auth/middleware";
  * Headers: Authorization (JWT) 或 X-Anonymous-Id
  *
  * 响应格式：
- * { conversation: Conversation, messages: Message[] }
+ * {
+ *   conversation: Conversation,
+ *   messages: Message[],
+ *   metadataContext?: { contextLimit: number, modelName: string }
+ * }
  */
 export async function GET(
   request: NextRequest,
@@ -59,7 +68,38 @@ export async function GET(
     // 获取消息列表（按创建时间升序）
     const messages = await getMessages(conversationId);
 
-    return NextResponse.json({ conversation, messages });
+    // 获取 metadata 信息（用于历史消息显示 Context 组件）
+    // 从 conversation.agent_id -> agent -> userModel 获取 contextLimit 和 modelName
+    let metadataContext: { contextLimit: number; modelName: string } | undefined;
+
+    // 只有 agent-chat 来源的对话才需要 metadata
+    if (conversation.source === 'agent-chat' && conversation.agent_id) {
+      try {
+        // 获取 agent 配置（使用 conversation 创建者的 userId）
+        const agent = await getAgentById(conversation.agent_id, conversation.user_id);
+        if (agent) {
+          let userModel;
+          if (agent.model_id) {
+            // agent 绑定了特定模型，使用 agent 创建者的模型配置
+            userModel = await getUserModelById(agent.user_id, agent.model_id);
+          } else {
+            // agent 未绑定模型，使用对话所有者的默认模型
+            userModel = await getDefaultUserModel(userId);
+          }
+          if (userModel) {
+            metadataContext = {
+              contextLimit: userModel.context_limit ?? 32000,
+              modelName: userModel.model,
+            };
+          }
+        }
+      } catch (error) {
+        // 获取失败不影响主流程，仅记录日志
+        console.error("获取 metadataContext 失败:", error);
+      }
+    }
+
+    return NextResponse.json({ conversation, messages, metadataContext });
   } catch (error) {
     console.error("获取对话详情失败:", error);
 
@@ -118,8 +158,10 @@ export async function DELETE(
       );
     }
 
-    // 先删除消息，再删除对话
+    // 删除顺序：先删除消息，再清理压缩数据，最后删除对话
+    // 清理压缩数据：compression_tasks 和 checkpoints 表中的关联记录
     await deleteMessagesByConversation(conversationId);
+    await cleanupCompressionData(conversationId);
     const deleted = await deleteConversation(conversationId);
 
     return NextResponse.json({ success: deleted });
