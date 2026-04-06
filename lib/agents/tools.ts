@@ -51,7 +51,7 @@ export async function createLangChainMCPTools(): Promise<MCPToolsResult> {
     });
 
     // 获取MCP服务器提供的所有工具
-    const tools = await mcpClient.tools();
+    const tools = await mcpClient.tools() as ToolSet;
 
     // 不关闭客户端，由调用者负责关闭
     return { tools, mcpClient };

@@ -140,7 +140,7 @@ export async function createAgentMcpRuntimeTools(params: {
 
     try {
       // 拉取该 server 当前可提供的全部工具
-      remoteTools = await client.tools();
+      remoteTools = await client.tools() as ToolSet;
     } catch (error) {
       diagnostics.push({
         level: "error",
