@@ -43,7 +43,7 @@ import { useAuth } from "@/lib/hooks/use-auth";
 import type { Conversation as ConversationType } from "@/lib/db/schema";
 import { useChat } from "@ai-sdk/react";
 import { DefaultChatTransport } from "ai";
-import { MessageSquareIcon } from "lucide-react";
+import { MessageSquareIcon, Menu } from "lucide-react";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { useRouter } from "next/navigation";
 import { dbMessageToUIMessage, isToolPart, isStepStartPart, isCheckpointPart, getCheckpointInfo } from "@/lib/agent-chat";
@@ -528,9 +528,7 @@ export function AgentChatClient({ id }: AgentChatClientProps) {
               className="flex items-center justify-center w-10 h-10 rounded-md hover:bg-accent md:hidden"
               onClick={() => setSidebarOpen(true)}
             >
-              <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                <path d="M4 6h16M4 12h16M4 18h16" strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} />
-              </svg>
+              <Menu className="w-5 h-5" />
             </button>
             <div className="flex-1">
               <h1 className="text-lg font-semibold text-foreground">
