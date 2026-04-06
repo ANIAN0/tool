@@ -14,6 +14,7 @@ import {
   getPublicAgents,
   createAgent,
   createAgentWithSkills,
+  validateToolNamesUniqueness,
 } from "@/lib/db/agents";
 import { validateTemplateConfig } from "@/lib/agents/templates";
 import { generateId } from "@/lib/utils";
@@ -124,6 +125,21 @@ export async function POST(request: NextRequest) {
       if (!validationResult.valid) {
         return NextResponse.json(
           { success: false, error: validationResult.error },
+          { status: 400 }
+        );
+      }
+    }
+
+    // 校验工具名称唯一性（如果有MCP工具）
+    if (toolIds && toolIds.length > 0) {
+      const validation = await validateToolNamesUniqueness(toolIds);
+      if (!validation.valid) {
+        return NextResponse.json(
+          {
+            success: false,
+            error: "工具名称重复，请调整工具绑定配置",
+            duplicates: validation.duplicates,
+          },
           { status: 400 }
         );
       }

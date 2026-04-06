@@ -16,6 +16,7 @@ import {
   deleteAgent,
   isAgentCreator,
   getAgentSkillsInfo,
+  validateToolNamesUniqueness,
 } from "@/lib/db/agents";
 import { validateTemplateConfig } from "@/lib/agents/templates";
 import type { UpdateAgentParams } from "@/lib/db/schema";
@@ -190,6 +191,20 @@ export async function PUT(
           { success: false, error: "toolIds必须是数组" },
           { status: 400 }
         );
+      }
+      // 校验工具名称唯一性（如果有MCP工具）
+      if (body.toolIds.length > 0) {
+        const validation = await validateToolNamesUniqueness(body.toolIds);
+        if (!validation.valid) {
+          return NextResponse.json(
+            {
+              success: false,
+              error: "工具名称重复，请调整工具绑定配置",
+              duplicates: validation.duplicates,
+            },
+            { status: 400 }
+          );
+        }
       }
       updateParams.toolIds = body.toolIds;
     }
