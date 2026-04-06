@@ -45,7 +45,7 @@ function createBashTool(context: SandboxToolContext) {
           output += result.stdout;
         }
         if (result.stderr) {
-          output += `\n[stderr] ${result.stderr}`;
+          output += `\n${result.stderr}`; // 移除 [stderr] 前缀，保留换行
         }
         if (result.exitCode !== 0) {
           output += `\n[exit code: ${result.exitCode}]`;
