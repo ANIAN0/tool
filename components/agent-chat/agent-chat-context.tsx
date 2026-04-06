@@ -70,10 +70,14 @@ interface AgentChatActions {
   handleDeleteClick: (messageId: string) => void;
   // 确认删除消息
   handleConfirmDelete: () => Promise<void>;
+  // 关闭删除确认对话框
+  closeDeleteDialog: () => void;
   // 打开编辑确认对话框
   handleEditClick: (messageId: string) => void;
   // 确认编辑消息
   handleConfirmEdit: () => Promise<void>;
+  // 关闭编辑确认对话框
+  closeEditDialog: () => void;
   // 停止生成
   stop: () => void;
   // 设置侧边栏开关
@@ -481,6 +485,13 @@ export function AgentChatProvider({ conversationId, children }: AgentChatProvide
     }
   }, [messageToDelete, authenticatedFetch, fetchConversations, router]);
 
+  // ==================== 操作函数：关闭删除确认对话框 ====================
+
+  const closeDeleteDialog = useCallback(() => {
+    setDeleteDialogOpen(false);
+    setMessageToDelete(null);
+  }, []);
+
   // ==================== 操作函数：打开编辑确认对话框 ====================
 
   // 用户确认后，删除消息并将内容填入输入框
@@ -539,6 +550,14 @@ export function AgentChatProvider({ conversationId, children }: AgentChatProvide
       setEditContent("");
     }
   }, [messageToEdit, editContent, authenticatedFetch, fetchConversations, router]);
+
+  // ==================== 操作函数：关闭编辑确认对话框 ====================
+
+  const closeEditDialog = useCallback(() => {
+    setEditDialogOpen(false);
+    setMessageToEdit(null);
+    setEditContent("");
+  }, []);
 
   // ==================== 操作函数：发送消息 ====================
 
@@ -629,8 +648,10 @@ export function AgentChatProvider({ conversationId, children }: AgentChatProvide
     handleSubmit,
     handleDeleteClick,
     handleConfirmDelete,
+    closeDeleteDialog,
     handleEditClick,
     handleConfirmEdit,
+    closeEditDialog,
     stop,
     setSidebarOpen,
     setSelectedAgentId,
