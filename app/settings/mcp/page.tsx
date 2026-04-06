@@ -38,27 +38,31 @@ export default function McpSettingsPage() {
    * @param data - 表单数据
    */
   const handleCreate = async (data: McpFormData) => {
-    // 创建服务器并获取返回的服务器对象
+    // 🚀 性能优化：创建服务器并立即返回，状态检查在后台进行
     const server = await createServer({
       name: data.name,
       url: data.url,
     });
 
-    // 创建成功后立即检查状态，触发工具同步
+    // 创建成功后在后台检查状态（不阻塞用户操作）
+    // 状态检查可能需要几秒，但用户可以立即进行其他操作
     if (server?.id) {
-      try {
-        const response = await fetch(`/api/mcp/${server.id}/status`, {
-          headers: {
-            ...getAuthHeader(),
-          },
-        });
-        const statusData = await response.json();
+      // 使用 void 显式标记 fire-and-forget，状态会在后台更新
+      void (async () => {
+        try {
+          const response = await fetch(`/api/mcp/${server.id}/status`, {
+            headers: {
+              ...getAuthHeader(),
+            },
+          });
+          const statusData = await response.json();
 
-        // 更新本地状态
-        updateServerStatus(server.id, statusData.status, statusData.error);
-      } catch {
-        updateServerStatus(server.id, "error", "检查状态失败");
-      }
+          // 更新本地状态
+          updateServerStatus(server.id, statusData.status, statusData.error);
+        } catch {
+          updateServerStatus(server.id, "error", "检查状态失败");
+        }
+      })();
     }
   };
 
