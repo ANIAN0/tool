@@ -8,6 +8,11 @@ import os
 import time
 from typing import Optional
 
+from src.utils.logger import get_logger
+
+# 沙盒执行器日志（写入 /var/log/sandbox/exec.log）
+logger = get_logger("sandbox.exec", "exec.log")
+
 
 class NsjailSandbox:
     """nsjail 沙盒执行器"""
@@ -15,6 +20,35 @@ class NsjailSandbox:
     def __init__(self, config_path: str = "/etc/sandbox/nsjail.conf"):
         self.config_path = config_path
         self.nsjail_path = "/usr/local/bin/nsjail"
+
+    def _filter_system_logs(self, stderr: str) -> str:
+        """
+        过滤 nsjail 系统日志，只保留用户命令的真实 stderr
+
+        nsjail 系统日志格式：
+        - [I][timestamp] - info日志（Mode、Jail parameters、Mount等）
+        - [W][timestamp] - warning日志
+        - [E][timestamp] - error日志
+
+        Args:
+            stderr: 原始 stderr 输出
+
+        Returns:
+            过滤后的 stderr（仅用户命令输出）
+        """
+        if not stderr:
+            return stderr
+
+        # 过滤以 [I]、[W]、[E] 开头的系统日志行
+        lines = stderr.split('\n')
+        filtered_lines = [
+            line for line in lines
+            if not line.startswith('[I][') and
+               not line.startswith('[W][') and
+               not line.startswith('[E][')
+        ]
+
+        return '\n'.join(filtered_lines).strip()
 
     def _get_suffix(self, language: str) -> str:
         """获取脚本文件后缀"""
@@ -132,9 +166,18 @@ class NsjailSandbox:
 
             exec_time_ms = int((time.time() - start_time) * 1000)
 
+            # 解码输出
+            stdout_text = stdout.decode('utf-8', errors='replace')
+            stderr_text = stderr.decode('utf-8', errors='replace')
+
+            # 写入完整日志到文件（用于运维排查）
+            logger.debug(f"[exec] language={language}, exit_code={proc.returncode}")
+            logger.debug(f"[exec] stdout:\n{stdout_text}")
+            logger.debug(f"[exec] stderr:\n{stderr_text}")
+
             return {
-                "stdout": stdout.decode('utf-8', errors='replace'),
-                "stderr": stderr.decode('utf-8', errors='replace'),
+                "stdout": stdout_text,
+                "stderr": self._filter_system_logs(stderr_text),
                 "exit_code": proc.returncode or 0,
                 "exec_time_ms": exec_time_ms
             }
