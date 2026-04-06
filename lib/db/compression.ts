@@ -97,6 +97,7 @@ export async function deleteCompressionTasksByConversation(
 
 /**
  * 创建 Checkpoint 记录
+ * @param params.cacheContent - 压缩缓存内容（JSON字符串），用于排查问题
  */
 export async function createCheckpointRecord(
   params: CreateCheckpointRecordParams
@@ -106,10 +107,11 @@ export async function createCheckpointRecord(
   // 使用 nanoid 生成唯一 ID，避免同一毫秒内的冲突
   const id = `checkpoint-${nanoid(8)}`;
 
+  // 新增 cache_content 字段，存储压缩缓存内容便于排查
   await db.execute({
-    sql: `INSERT INTO checkpoints (id, conversation_id, removed_count, original_message_count, created_at)
-          VALUES (?, ?, ?, ?, ?)`,
-    args: [id, params.conversationId, params.removedCount, params.originalMessageCount, now],
+    sql: `INSERT INTO checkpoints (id, conversation_id, removed_count, original_message_count, created_at, cache_content)
+          VALUES (?, ?, ?, ?, ?, ?)`,
+    args: [id, params.conversationId, params.removedCount, params.originalMessageCount, now, params.cacheContent || null],
   });
 
   return {
@@ -118,6 +120,7 @@ export async function createCheckpointRecord(
     removed_count: params.removedCount,
     original_message_count: params.originalMessageCount,
     created_at: now,
+    cache_content: params.cacheContent || null,
   };
 }
 
@@ -144,6 +147,8 @@ export async function getLatestCheckpoint(
     removed_count: row.removed_count as number,
     original_message_count: row.original_message_count as number,
     created_at: row.created_at as number,
+    // 新增：读取 cache_content 字段
+    cache_content: row.cache_content as string | null,
   };
 }
 
@@ -249,28 +254,16 @@ export async function loadHistoryMessages(
       // 合并：缓存消息 + checkpoint 之后的消息
       const historyMessages = [...(cache.messages as UIMessage[]), ...messagesAfterCheckpoint];
 
-      console.log("[加载历史消息] 使用缓存:", {
-        cacheCount: cache.messages.length,
-        afterCheckpointCount: messagesAfterCheckpoint.length,
-        totalCount: historyMessages.length,
-      });
-
       return historyMessages;
     } catch (parseError) {
       // JSON 解析失败：cache 数据损坏，清除缓存后使用全部消息
-      console.error("[加载历史消息] compression_cache 解析失败，已清除损坏的缓存:", parseError);
+      console.error("[压缩] compression_cache 解析失败:", parseError);
       await clearCompressionCache(conversationId);
     }
   }
 
   // 无缓存或缓存损坏：获取全部消息
-  const historyMessages = await getAllMessagesAsUIMessage(conversationId);
-
-  console.log("[加载历史消息] 无缓存，使用全部消息:", {
-    totalCount: historyMessages.length,
-  });
-
-  return historyMessages;
+  return getAllMessagesAsUIMessage(conversationId);
 }
 
 // ==================== 执行压缩 ====================
@@ -303,16 +296,10 @@ export async function executeCompressionTask(
 
   // 移除最早的消息（数组前部）
   const compressedMessages = historyMessages.slice(removeCount);
+  const compressedAt = Date.now();
 
-  // 插入 Checkpoint（独立表）
-  await createCheckpointRecord({
-    conversationId,
-    removedCount: removeCount,
-    originalMessageCount: originalMessageCount,
-  });
-
-  // 更新 compression_cache
-  await updateCompressionCache(conversationId, {
+  // 构造 cache_content（用于排查问题）
+  const cacheContent: CompressionCache = {
     messages: compressedMessages.map((msg) => ({
       id: msg.id,
       role: msg.role as "user" | "assistant",
@@ -320,8 +307,20 @@ export async function executeCompressionTask(
     })),
     messageCount: originalMessageCount,
     removedCount: removeCount,
-    compressedAt: Date.now(),
+    compressedAt,
+  };
+
+  // 插入 Checkpoint（独立表），传入 cache_content 便于排查
+  await createCheckpointRecord({
+    conversationId,
+    removedCount: removeCount,
+    originalMessageCount: originalMessageCount,
+    // 新增：存储压缩缓存内容，便于排查问题
+    cacheContent: JSON.stringify(cacheContent),
   });
+
+  // 更新 compression_cache
+  await updateCompressionCache(conversationId, cacheContent);
 
   console.log("[执行压缩] 完成:", {
     originalCount: originalMessageCount,

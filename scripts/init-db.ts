@@ -554,6 +554,19 @@ async function migrateDatabase(db: Client): Promise<void> {
     }
   }
 
+  // 迁移25: 添加 cache_content 字段到 checkpoints 表（存储压缩缓存内容，便于排查）
+  if (await tableExists(db, "checkpoints")) {
+    if (!(await columnExists(db, "checkpoints", "cache_content"))) {
+      console.log("添加 cache_content 字段到 checkpoints 表...");
+      await db.execute(
+        "ALTER TABLE checkpoints ADD COLUMN cache_content TEXT"
+      );
+      console.log("✅ checkpoints.cache_content 字段添加成功");
+    } else {
+      console.log("✅ checkpoints.cache_content 字段已存在，跳过迁移");
+    }
+  }
+
   console.log("\n");
 }
 

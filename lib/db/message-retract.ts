@@ -4,7 +4,7 @@
  */
 
 import { getDb } from "./client";
-import type { DeletedMessage, Message } from "./schema";
+import type { DeletedMessage } from "./schema";
 
 /**
  * 撤回消息结果
@@ -118,107 +118,6 @@ export async function retractMessage(
   return {
     deletedCount,
     conversationId,
-  };
-}
-
-/**
- * 编辑消息并重新生成（级联删除后续消息）
- * @param messageId - 要编辑的消息ID
- * @param newContent - 新的消息内容（JSON格式的UIMessage）
- * @param userId - 操作用户ID
- * @returns 更新后的消息对象
- */
-export async function editAndRegenerate(
-  messageId: string,
-  newContent: string,
-  userId: string
-): Promise<Message> {
-  const db = getDb();
-  const now = Date.now();
-
-  // 查询目标消息
-  const targetMessage = await db.execute({
-    sql: `SELECT * FROM messages WHERE id = ?`,
-    args: [messageId],
-  });
-
-  if (targetMessage.rows.length === 0) {
-    throw new Error("消息不存在");
-  }
-
-  const msg = targetMessage.rows[0];
-  if (msg.role !== "user") {
-    throw new Error("只能编辑用户消息");
-  }
-
-  const targetCreatedAt = msg.created_at as number;
-  const conversationId = msg.conversation_id as string;
-
-  // 验证对话所有权
-  const conversation = await db.execute({
-    sql: `SELECT user_id FROM conversations WHERE id = ?`,
-    args: [conversationId],
-  });
-
-  if (conversation.rows.length === 0) {
-    throw new Error("对话不存在");
-  }
-
-  if (conversation.rows[0].user_id !== userId) {
-    throw new Error("无权操作此消息");
-  }
-
-  // 查询后续消息（不包含目标消息本身）
-  const subsequentMessages = await db.execute({
-    sql: `SELECT * FROM messages WHERE conversation_id = ? AND created_at > ? ORDER BY created_at ASC`,
-    args: [conversationId, targetCreatedAt],
-  });
-
-  // 执行事务：归档后续消息 + 删除后续消息 + 更新目标消息
-  const statements = [];
-
-  // 归档后续消息
-  for (const subMsg of subsequentMessages.rows) {
-    statements.push({
-      sql: `INSERT INTO deleted_messages (id, conversation_id, role, content, original_created_at, deleted_at, deleted_reason, deleted_by)
-            VALUES (?, ?, ?, ?, ?, ?, ?, ?)`,
-      args: [
-        subMsg.id,
-        subMsg.conversation_id,
-        subMsg.role,
-        subMsg.content,
-        subMsg.created_at,
-        now,
-        "edit-regenerate",
-        userId,
-      ],
-    });
-  }
-
-  // 删除后续消息
-  for (const subMsg of subsequentMessages.rows) {
-    statements.push({
-      sql: `DELETE FROM messages WHERE id = ?`,
-      args: [subMsg.id],
-    });
-  }
-
-  // 更新目标消息内容
-  statements.push({
-    sql: `UPDATE messages SET content = ? WHERE id = ?`,
-    args: [newContent, messageId],
-  });
-
-  // 批量执行（事务）
-  await db.batch(statements);
-
-  // 返回更新后的消息
-  return {
-    id: messageId,
-    conversation_id: conversationId,
-    role: "user",
-    content: newContent,
-    created_at: msg.created_at as number,
   };
 }
 

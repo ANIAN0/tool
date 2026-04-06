@@ -8,8 +8,8 @@ import {
   getUserModelById,
   getDefaultUserModel,
 } from "@/lib/db";
-// 新增：压缩数据清理函数
-import { cleanupCompressionData } from "@/lib/db/compression";
+// 新增：压缩数据清理函数和 checkpoint 获取函数
+import { cleanupCompressionData, getLatestCheckpoint } from "@/lib/db/compression";
 import { NextRequest, NextResponse } from "next/server";
 import { authenticateRequestOptional } from "@/lib/auth/middleware";
 
@@ -68,6 +68,22 @@ export async function GET(
     // 获取消息列表（按创建时间升序）
     const messages = await getMessages(conversationId);
 
+    // 获取最新 checkpoint 信息（用于前端判断消息删除权限）
+    // checkpoint 数据存储在独立的 checkpoints 表中，不再在 messages 表中
+    const latestCheckpoint = await getLatestCheckpoint(conversationId);
+
+    // 计算 checkpoint 之后的消息数量（用于前端计算删除边界）
+    // 前端需要知道：checkpoint 之前的消息不能删除
+    let checkpointMessageCount = 0;
+    if (latestCheckpoint) {
+      // 找到 checkpoint 时间戳之后的第一条消息的索引
+      const checkpointCreatedAt = latestCheckpoint.created_at;
+      // 计算创建时间大于 checkpoint 的消息数量
+      checkpointMessageCount = messages.filter(
+        (msg) => msg.created_at > checkpointCreatedAt
+      ).length;
+    }
+
     // 获取 metadata 信息（用于历史消息显示 Context 组件）
     // 从 conversation.agent_id -> agent -> userModel 获取 contextLimit 和 modelName
     let metadataContext: { contextLimit: number; modelName: string } | undefined;
@@ -99,7 +115,19 @@ export async function GET(
       }
     }
 
-    return NextResponse.json({ conversation, messages, metadataContext });
+    return NextResponse.json({
+      conversation,
+      messages,
+      metadataContext,
+      // 新增：checkpoint 信息（用于前端判断消息删除权限）
+      checkpoint: latestCheckpoint ? {
+        removedCount: latestCheckpoint.removed_count,
+        originalMessageCount: latestCheckpoint.original_message_count,
+        createdAt: latestCheckpoint.created_at,
+        // checkpoint 之后的消息数量（前端用于计算删除边界）
+        messagesAfterCheckpoint: checkpointMessageCount,
+      } : null,
+    });
   } catch (error) {
     console.error("获取对话详情失败:", error);
 

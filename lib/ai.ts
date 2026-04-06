@@ -3,7 +3,7 @@ import { nanoid } from "nanoid";
 import { devToolsMiddleware } from "@ai-sdk/devtools";
 import { createCompressionTask } from "./db/compression";
 import { estimateTokens } from "./chat/compression";
-import type { LanguageModelV3Middleware, LanguageModelV3StreamPart, LanguageModelV3CallOptions } from "@ai-sdk/provider";
+import type { LanguageModelV3Middleware, LanguageModelV3CallOptions } from "@ai-sdk/provider";
 
 /**
  * 是否启用DevTools
@@ -12,8 +12,8 @@ import type { LanguageModelV3Middleware, LanguageModelV3StreamPart, LanguageMode
 const isDevToolsEnabled = process.env.NODE_ENV === "development";
 
 /**
- * 自定义日志中间件 - 打印完整的 LLM 入参
- * 用于调试 token 计算，验证 params.prompt 实际内容
+ * 自定义日志中间件 - 打印 LLM 调用摘要
+ * 用于开发环境调试
  *
  * 注意：LanguageModelV3CallOptions 使用 prompt 字段（而不是 messages）
  * prompt 是 LanguageModelV3Prompt 类型，包含转换后的消息数组
@@ -24,71 +24,32 @@ const logInputMiddleware: LanguageModelV3Middleware = {
 
   // 非流式调用时拦截
   wrapGenerate: async ({ doGenerate, params }) => {
-    // params.prompt 包含完整的消息数组（已转换为 LanguageModelV3Prompt 格式）
-    // 打印完整的 prompt（JSON 序列化，方便查看结构）
-    console.log("[middleware] wrapGenerate params.prompt:", JSON.stringify(params.prompt, null, 2));
-
-    // 打印消息数量和工具数量
+    // 打印消息数量和工具数量摘要
     const promptArray = params.prompt;
-    console.log("[middleware] wrapGenerate 摘要:", {
-      promptLength: promptArray?.length || 0,
-      toolsCount: params.tools?.length || 0,
-      toolChoice: params.toolChoice,
-      maxOutputTokens: params.maxOutputTokens,
-      temperature: params.temperature,
+    console.log("[LLM] wrapGenerate:", {
+      messages: promptArray?.length || 0,
+      tools: params.tools?.length || 0,
     });
 
     const result = await doGenerate();
-
-    // 打印实际返回的 token 使用量（如果有）
-    console.log("[middleware] wrapGenerate result.usage:", result.usage);
-
     return result;
   },
 
   // 流式调用时拦截
   wrapStream: async ({ doStream, params }) => {
-    // 打印完整的 prompt（JSON 序列化）
-    console.log("[middleware] wrapStream params.prompt:", JSON.stringify(params.prompt, null, 2));
-
     // 打印摘要
     const promptArray = params.prompt;
-    console.log("[middleware] wrapStream 摘要:", {
-      promptLength: promptArray?.length || 0,
-      toolsCount: params.tools?.length || 0,
-      toolChoice: params.toolChoice,
-      maxOutputTokens: params.maxOutputTokens,
-      temperature: params.temperature,
+    console.log("[LLM] wrapStream:", {
+      messages: promptArray?.length || 0,
+      tools: params.tools?.length || 0,
     });
 
-    const { stream, ...rest } = await doStream();
-
-    // 收集流式输出的 token 信息
-    const transformStream = new TransformStream<LanguageModelV3StreamPart, LanguageModelV3StreamPart>({
-      transform(chunk, controller) {
-        // 拦截 finish 事件获取 token 统计
-        if (chunk.type === 'finish') {
-          console.log("[middleware] wrapStream finish chunk:", {
-            type: chunk.type,
-            usage: chunk.usage,
-          });
-        }
-        controller.enqueue(chunk);
-      },
-      flush() {
-        console.log("[middleware] wrapStream 完成");
-      },
-    });
-
-    return {
-      stream: stream.pipeThrough(transformStream),
-      ...rest,
-    };
+    return doStream();
   },
 };
 
 /**
- * 创建压缩检测中间件（工厂函数）
+ * 压缩检测中间件（工厂函数）
  * 在 LLM 调用前估算 token，超过阈值时创建压缩任务
  *
  * 由于 Agent.stream 不支持 providerOptions 参数，
@@ -112,13 +73,6 @@ export function createCompressionDetectionMiddleware(options: {
     wrapStream: async ({ doStream, params }) => {
       // 估算 token
       const totalTokens = estimateTotalTokensFromParams(params);
-
-      console.log("[压缩检测] Token估算:", {
-        totalTokens,
-        contextLimit,
-        triggerThreshold,
-        needCompress: totalTokens > triggerThreshold,
-      });
 
       // 如果超限，尝试创建压缩任务
       if (totalTokens > triggerThreshold) {

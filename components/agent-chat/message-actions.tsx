@@ -111,10 +111,28 @@ export function MessageActions({
         </div>
       )}
 
-      {/* 操作按钮 */}
+      {/* 复制按钮（assistant 消息放在 token 统计后面，user 消息放在操作按钮区域） */}
+      {role === "assistant" && content && (
+        <Button
+          variant="ghost"
+          size="icon"
+          className="h-6 w-6"
+          onClick={handleCopy}
+          disabled={isGenerating}
+          title={copied ? "已复制" : "复制消息"}
+        >
+          {copied ? (
+            <CheckIcon className="h-3 w-3 text-green-500" />
+          ) : (
+            <CopyIcon className="h-3 w-3" />
+          )}
+        </Button>
+      )}
+
+      {/* 操作按钮（编辑、删除） */}
       <div className="flex items-center gap-1 ml-auto opacity-0 group-hover:opacity-100 transition-opacity">
-        {/* 复制按钮 */}
-        {content && (
+        {/* 复制按钮（user 消息） */}
+        {role === "user" && content && (
           <Button
             variant="ghost"
             size="icon"

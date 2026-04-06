@@ -48,7 +48,6 @@ import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { useRouter } from "next/navigation";
 import { dbMessageToUIMessage, isToolPart, isStepStartPart, isCheckpointPart, getCheckpointInfo } from "@/lib/agent-chat";
 import { Button } from "@/components/ui/button";
-import { Textarea } from "@/components/ui/textarea";
 import {
   Dialog,
   DialogContent,
@@ -93,14 +92,26 @@ export function AgentChatClient({ id }: AgentChatClientProps) {
   const [isDeleting, setIsDeleting] = useState(false);
 
   // ==================== 消息编辑相关状态 ====================
-  // 编辑对话框状态
+  // 编辑确认对话框状态
   const [editDialogOpen, setEditDialogOpen] = useState(false);
   // 要编辑的消息ID
   const [messageToEdit, setMessageToEdit] = useState<string | null>(null);
-  // 编辑中的消息内容
+  // 编辑中的消息内容（删除后填入输入框）
   const [editContent, setEditContent] = useState("");
-  // 编辑提交中状态
+  // 编辑确认中状态
   const [isEditing, setIsEditing] = useState(false);
+  // 输入框预填充内容（用于编辑后填入输入框）
+  const [prefillInput, setPrefillInput] = useState("");
+  // 输入框 key，用于强制重新渲染
+  const [inputKey, setInputKey] = useState(0);
+
+  // ==================== Checkpoint 信息 ====================
+  // 存储 API 返回的 checkpoint 信息（用于判断消息删除权限）
+  // checkpoint 数据存储在独立的 checkpoints 表中，不再在 messages 数组中查找
+  const [checkpointInfo, setCheckpointInfo] = useState<{
+    removedCount: number;
+    messagesAfterCheckpoint: number;
+  } | null>(null);
 
   // 更新ref
   useEffect(() => {
@@ -126,6 +137,31 @@ export function AgentChatClient({ id }: AgentChatClientProps) {
     });
   }, [id, getAuthHeader]);
 
+  // 刷新 checkpoint 信息（用于消息流结束后更新分割线位置）
+  // 压缩任务在下一次 API 调用时执行，所以需要在消息完成后刷新 checkpointInfo
+  const refreshCheckpointInfo = useCallback(async () => {
+    if (!id || window.location.pathname === "/agent-chat") {
+      return;
+    }
+
+    try {
+      const response = await authenticatedFetch(`/api/conversations/${id}`);
+      if (response.ok) {
+        const data = await response.json();
+        if (data.checkpoint) {
+          setCheckpointInfo({
+            removedCount: data.checkpoint.removedCount,
+            messagesAfterCheckpoint: data.checkpoint.messagesAfterCheckpoint,
+          });
+        } else {
+          setCheckpointInfo(null);
+        }
+      }
+    } catch (error) {
+      console.error("刷新 checkpoint 信息失败:", error);
+    }
+  }, [id, authenticatedFetch]);
+
   // useChat hook
   const {
     messages,
@@ -136,6 +172,11 @@ export function AgentChatClient({ id }: AgentChatClientProps) {
   } = useChat({
     transport,
     id: id,
+    // 消息流结束后刷新 checkpointInfo
+    // 原因：压缩任务在下一次 API 调用时执行，导致 checkpointInfo 过期
+    onFinish: () => {
+      refreshCheckpointInfo();
+    },
   });
 
   // URL更新标记
@@ -196,6 +237,17 @@ export function AgentChatClient({ id }: AgentChatClientProps) {
             dbMessageToUIMessage(msg, metadataContext)
           );
           setMessages(uiMessages);
+
+          // 保存 checkpoint 信息（用于判断消息删除权限）
+          // checkpoint 数据存储在独立表中，不再从 messages 数组查找
+          if (data.checkpoint) {
+            setCheckpointInfo({
+              removedCount: data.checkpoint.removedCount,
+              messagesAfterCheckpoint: data.checkpoint.messagesAfterCheckpoint,
+            });
+          } else {
+            setCheckpointInfo(null);
+          }
 
           // 设置Agent ID
           if (data.conversation?.agent_id) {
@@ -318,7 +370,8 @@ export function AgentChatClient({ id }: AgentChatClientProps) {
   // ==================== 消息编辑功能 ====================
 
   /**
-   * 打开编辑对话框
+   * 打开编辑确认对话框
+   * 用户确认后，删除消息并将内容填入输入框
    */
   const handleEditClick = useCallback((messageId: string) => {
     // 找到消息内容
@@ -338,33 +391,33 @@ export function AgentChatClient({ id }: AgentChatClientProps) {
 
   /**
    * 确认编辑消息
-   * 调用 edit-regenerate API，编辑消息并重新生成回复
+   * 删除原消息（级联删除后续消息），然后将内容填入输入框
    */
   const handleConfirmEdit = useCallback(async () => {
     if (!messageToEdit || !editContent.trim()) return;
 
     setIsEditing(true);
     try {
+      // 调用删除 API（级联删除该消息及后续所有消息）
       const response = await authenticatedFetch(
-        `/api/messages/${messageToEdit}/edit-regenerate`,
-        {
-          method: "PUT",
-          headers: {
-            "Content-Type": "application/json",
-          },
-          body: JSON.stringify({
-            content: [{ type: "text", text: editContent.trim() }],
-          }),
-        }
+        `/api/messages/${messageToEdit}/delete`,
+        { method: "DELETE" }
       );
 
       if (!response.ok) {
         const data = await response.json();
-        throw new Error(data.error || "编辑失败");
+        throw new Error(data.error || "删除失败");
       }
 
       // 刷新对话列表和消息
       await fetchConversations();
+
+      // 将消息内容填入输入框
+      setPrefillInput(editContent);
+      // 强制重新渲染输入框
+      setInputKey((prev) => prev + 1);
+
+      // 刷新页面以更新消息列表
       router.refresh();
     } catch (error) {
       console.error("编辑消息失败:", error);
@@ -415,15 +468,25 @@ export function AgentChatClient({ id }: AgentChatClientProps) {
   }, [messages]);
 
   // 找到最新 checkpoint 的索引位置（用于判断消息是否可以删除）
+  // checkpoint 数据存储在独立表中，使用 API 返回的 checkpointInfo 计算
+  // checkpoint 之前的消息（索引 < latestCheckpointIndex）不能删除
   const latestCheckpointIndex = useMemo(() => {
-    // 反向查找最新的 checkpoint
-    for (let i = messages.length - 1; i >= 0; i--) {
-      if (messages[i].parts.some((p) => isCheckpointPart(p))) {
-        return i;
-      }
+    // 没有 checkpoint，所有消息都可以删除
+    if (!checkpointInfo) {
+      return -1;
     }
-    return -1; // 没有 checkpoint
-  }, [messages]);
+    // 计算 checkpoint 之后的第一个消息的索引
+    // messagesAfterCheckpoint 是 checkpoint 之后的消息数量
+    // 所以 checkpoint 之前的消息数量 = messages.length - messagesAfterCheckpoint
+    const messagesBeforeCheckpoint = messages.length - checkpointInfo.messagesAfterCheckpoint;
+    // 如果没有消息在 checkpoint 之前，返回 -1
+    if (messagesBeforeCheckpoint <= 0) {
+      return -1;
+    }
+    // 返回 checkpoint 之前的最后一条消息的索引
+    // 索引 0 到 messagesBeforeCheckpoint - 1 是 checkpoint 之前的消息
+    return messagesBeforeCheckpoint - 1;
+  }, [messages.length, checkpointInfo]);
 
   return (
     <div className="flex h-screen">
@@ -523,26 +586,8 @@ export function AgentChatClient({ id }: AgentChatClientProps) {
             <ConversationContent className="px-6 py-6">
               {messages.length > 0 ? (
                 messages.map((message, index) => {
-                  // 检查是否是 checkpoint 消息
+                  // 跳过旧的 checkpoint 消息（兼容历史数据）
                   const checkpointPart = message.parts.find((p) => isCheckpointPart(p));
-
-                  // 只渲染最新的 checkpoint，旧的 checkpoint 跳过
-                  if (checkpointPart && index === latestCheckpointIndex) {
-                    const checkpointInfo = getCheckpointInfo(checkpointPart);
-                    if (checkpointInfo) {
-                      return (
-                        <div key={message.id} className="flex items-center gap-2 my-4 py-2">
-                          <div className="flex-1 h-px bg-border" />
-                          <span className="text-xs text-muted-foreground whitespace-nowrap">
-                            已压缩 {checkpointInfo.removedCount} 条历史消息
-                          </span>
-                          <div className="flex-1 h-px bg-border" />
-                        </div>
-                      );
-                    }
-                  }
-
-                  // 跳过旧的 checkpoint（不渲染）
                   if (checkpointPart) {
                     return null;
                   }
@@ -552,68 +597,92 @@ export function AgentChatClient({ id }: AgentChatClientProps) {
                   // 判断是否可以删除：checkpoint 之前的消息不能删除
                   const canDelete = latestCheckpointIndex === -1 || index > latestCheckpointIndex;
 
-                  return (
-                    <div key={message.id} className="group relative mb-4">
-                      <Message from={message.role}>
-                        <MessageContent className="max-w-3xl">
-                          {message.parts.map((part, partIndex) => {
-                            if (part.type === "text") {
-                              return <MessageResponse key={partIndex}>{part.text}</MessageResponse>;
-                            }
-                            if (isToolPart(part)) {
-                              const toolPart = part as ToolPart;
-                              const defaultOpen = toolPart.state === "output-available" || toolPart.state === "output-error";
-                              const isDynamicTool = toolPart.type === "dynamic-tool";
-                              const dynamicPart = toolPart as { toolName?: string };
+                  // 计算是否需要显示 checkpoint 分割线
+                  // 分割线显示在 checkpoint 之后的第一条消息之前
+                  // latestCheckpointIndex 是 checkpoint 之前的最后一条消息的索引
+                  // 所以分割线在 latestCheckpointIndex + 1 的位置显示
+                  const showCheckpointDivider =
+                    checkpointInfo &&
+                    checkpointInfo.removedCount > 0 &&
+                    latestCheckpointIndex >= 0 &&
+                    index === latestCheckpointIndex + 1;
 
-                              return (
-                                <Tool key={partIndex} defaultOpen={defaultOpen}>
-                                  {isDynamicTool ? (
-                                    <ToolHeader
-                                      type="dynamic-tool"
-                                      state={toolPart.state}
-                                      toolName={dynamicPart.toolName || "unknown"}
-                                    />
-                                  ) : (
-                                    <ToolHeader
-                                      type={toolPart.type as `tool-${string}`}
-                                      state={toolPart.state}
-                                    />
-                                  )}
-                                  <ToolContent>
-                                    <ToolInput input={toolPart.input} />
-                                    <ToolOutput
-                                      output={toolPart.output}
-                                      errorText={toolPart.errorText}
-                                    />
-                                  </ToolContent>
-                                </Tool>
-                              );
-                            }
-                            if (isStepStartPart(part)) {
-                              return (
-                                <div key={partIndex} className="flex items-center gap-2 my-2">
-                                  <div className="flex-1 h-px bg-border" />
-                                </div>
-                              );
-                            }
-                            return null;
-                          })}
-                        </MessageContent>
-                      </Message>
-                      {/* 消息操作栏：token 信息 + 操作按钮 */}
-                      <div className="mt-1 ml-2">
-                        <MessageActions
-                          role={message.role}
-                          content={message.parts
-                            .filter((p) => p.type === "text")
-                            .map((p) => (p as { type: "text"; text: string }).text)
-                            .join("\n")}
-                          metadata={messageMetadata}
-                          isGenerating={isGenerating}
-                          onDelete={canDelete ? () => handleDeleteClick(message.id) : undefined}
-                          onEdit={message.role === "user" && canDelete ? () => handleEditClick(message.id) : undefined}
-                        />
+                  return (
+                    <div key={message.id}>
+                      {/* Checkpoint 分割线：显示在正确的位置 */}
+                      {showCheckpointDivider && (
+                        <div className="flex items-center gap-2 my-4 py-2">
+                          <div className="flex-1 h-px bg-border" />
+                          <span className="text-xs text-muted-foreground whitespace-nowrap">
+                            已压缩 {checkpointInfo.removedCount} 条历史消息
+                          </span>
+                          <div className="flex-1 h-px bg-border" />
+                        </div>
+                      )}
+
+                      <div className="group relative mb-4">
+                        <Message from={message.role}>
+                          <MessageContent className="max-w-3xl">
+                            {message.parts.map((part, partIndex) => {
+                              if (part.type === "text") {
+                                return <MessageResponse key={partIndex}>{part.text}</MessageResponse>;
+                              }
+                              if (isToolPart(part)) {
+                                const toolPart = part as ToolPart;
+                                const defaultOpen = toolPart.state === "output-available" || toolPart.state === "output-error";
+                                const isDynamicTool = toolPart.type === "dynamic-tool";
+                                const dynamicPart = toolPart as { toolName?: string };
+
+                                return (
+                                  <Tool key={partIndex} defaultOpen={defaultOpen}>
+                                    {isDynamicTool ? (
+                                      <ToolHeader
+                                        type="dynamic-tool"
+                                        state={toolPart.state}
+                                        toolName={dynamicPart.toolName || "unknown"}
+                                      />
+                                    ) : (
+                                      <ToolHeader
+                                        type={toolPart.type as `tool-${string}`}
+                                        state={toolPart.state}
+                                      />
+                                    )}
+                                    <ToolContent>
+                                      <ToolInput input={toolPart.input} />
+                                      <ToolOutput
+                                        output={toolPart.output}
+                                        errorText={toolPart.errorText}
+                                      />
+                                    </ToolContent>
+                                  </Tool>
+                                );
+                              }
+                              if (isStepStartPart(part)) {
+                                return (
+                                  <div key={partIndex} className="flex items-center gap-2 my-2">
+                                    <div className="flex-1 h-px bg-border" />
+                                  </div>
+                                );
+                              }
+                              return null;
+                            })}
+                          </MessageContent>
+                        </Message>
+                        {/* 消息操作栏：token 信息 + 操作按钮 */}
+                        <div className="mt-1 ml-2">
+                          <MessageActions
+                            role={message.role}
+                            content={message.parts
+                              .filter((p) => p.type === "text")
+                              .map((p) => (p as { type: "text"; text: string }).text)
+                              .join("\n")}
+                            metadata={messageMetadata}
+                            isGenerating={isGenerating}
+                            // 只有 user 消息才显示删除按钮（agent 消息不能删除）
+                            onDelete={message.role === "user" && canDelete ? () => handleDeleteClick(message.id) : undefined}
+                            onEdit={message.role === "user" && canDelete ? () => handleEditClick(message.id) : undefined}
+                          />
+                        </div>
                       </div>
                     </div>
                   );
@@ -634,10 +703,12 @@ export function AgentChatClient({ id }: AgentChatClientProps) {
         {/* 输入区域 */}
         <div className="px-6 py-6">
           <PromptSection
+            key={inputKey}
             onSubmit={handleSubmit}
             onStop={stop}
             status={isGenerating ? "streaming" : "ready"}
             placeholder="输入消息，按 Enter 发送..."
+            prefillInput={prefillInput}
           />
         </div>
       </main>
@@ -681,7 +752,7 @@ export function AgentChatClient({ id }: AgentChatClientProps) {
         </DialogContent>
       </Dialog>
 
-      {/* 编辑消息对话框 */}
+      {/* 编辑消息确认对话框 */}
       <Dialog
         open={editDialogOpen}
         onOpenChange={(open) => {
@@ -695,22 +766,13 @@ export function AgentChatClient({ id }: AgentChatClientProps) {
           }
         }}
       >
-        <DialogContent className="max-w-2xl">
+        <DialogContent>
           <DialogHeader>
             <DialogTitle>编辑消息</DialogTitle>
             <DialogDescription>
-              编辑消息后将重新生成回复，后续消息将被删除。
+              编辑消息将删除原消息及后续所有回复，原消息内容将填入输入框供您修改后重新发送。是否继续？
             </DialogDescription>
           </DialogHeader>
-          <div className="py-4">
-            <Textarea
-              value={editContent}
-              onChange={(e) => setEditContent(e.target.value)}
-              placeholder="输入消息内容..."
-              className="min-h-[120px] resize-none"
-              disabled={isEditing}
-            />
-          </div>
           <DialogFooter>
             <Button
               variant="outline"
@@ -721,9 +783,9 @@ export function AgentChatClient({ id }: AgentChatClientProps) {
             </Button>
             <Button
               onClick={handleConfirmEdit}
-              disabled={isEditing || !editContent.trim()}
+              disabled={isEditing}
             >
-              {isEditing ? "提交中..." : "确认编辑"}
+              {isEditing ? "处理中..." : "确认编辑"}
             </Button>
           </DialogFooter>
         </DialogContent>

@@ -394,6 +394,14 @@ export const MIGRATION_ADD_MESSAGE_TYPE = `
 ALTER TABLE messages ADD COLUMN type TEXT DEFAULT 'normal';
 `;
 
+/**
+ * 迁移SQL：为 checkpoints 表添加 cache_content 字段
+ * 用于存储 compression_cache 的完整内容，便于排查问题
+ */
+export const MIGRATION_ADD_CHECKPOINT_CACHE_CONTENT = `
+ALTER TABLE checkpoints ADD COLUMN cache_content TEXT;
+`;
+
 // ==================== 异步会话压缩相关表结构 ====================
 
 /**
@@ -1145,6 +1153,7 @@ export interface CompressionTask {
 /**
  * Checkpoint 类型定义（独立表）
  * 注意：这是新的独立 checkpoint 类型，与旧的 CheckpointContent 不同
+ * cache_content: 存储 compression_cache 的完整内容（JSON字符串），便于排查
  */
 export interface Checkpoint {
   id: string;
@@ -1152,6 +1161,8 @@ export interface Checkpoint {
   removed_count: number;
   original_message_count: number;
   created_at: number;
+  // 压缩缓存内容（JSON字符串），用于排查问题
+  cache_content?: string | null;
 }
 
 /**
@@ -1165,9 +1176,12 @@ export interface CreateCompressionTaskParams {
 /**
  * 创建 Checkpoint 记录的参数类型
  * 使用 CreateCheckpointRecordParams 以避免与现有 CreateCheckpointParams 冲突
+ * cacheContent: 压缩缓存内容（JSON字符串），用于排查问题
  */
 export interface CreateCheckpointRecordParams {
   conversationId: string;
   removedCount: number;
   originalMessageCount: number;
+  // 压缩缓存内容（JSON字符串），用于排查
+  cacheContent?: string;
 }

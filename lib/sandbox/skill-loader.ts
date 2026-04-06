@@ -58,14 +58,12 @@ async function isSkillUpToDate(
   skillId: string,
   expectedHash: string | null
 ): Promise<boolean> {
-  console.log(`[Skill Loader] 检查 Skill 是否已存在: sessionId=${sessionId}, userId=${userId}, skillId=${skillId}`);
   try {
     const sandbox = getSandboxManager();
 
     // 使用 test 命令检查目录是否存在且有文件
     // 注意：nsjail rootfs 中没有 head 命令，/dev/null 是只读的
     // 所以使用 test -d 检查目录，test -f 检查关键文件
-    console.log(`[Skill Loader] 执行检查命令: test -d skills/${skillId} && test -f skills/${skillId}/SKILL.md`);
     const result = await sandbox.exec({
       sessionId,
       userId,
@@ -74,12 +72,8 @@ async function isSkillUpToDate(
       language: "bash",
     });
 
-    console.log(`[Skill Loader] 检查结果: stdout="${result.stdout.trim()}", stderr="${result.stderr.trim()}", exitCode=${result.exitCode}`);
-
     // 如果输出包含 "exists"，认为 Skill 已加载
-    const isUpToDate = result.stdout.trim() === "exists";
-    console.log(`[Skill Loader] Skill ${skillId} 是否已是最新: ${isUpToDate}`);
-    return isUpToDate;
+    return result.stdout.trim() === "exists";
   } catch (error) {
     console.error(`[Skill Loader] 检查 Skill ${skillId} 是否存在时发生异常:`, error);
     return false;
@@ -98,7 +92,6 @@ async function downloadSkillDirectoryToSandbox(
   try {
     // 检查存储路径是否存在
     if (!skill.storagePath) {
-      console.log(`[Skill Loader] Skill ${skill.id} 存储路径不存在`);
       return { success: false, error: "Skill 存储路径不存在" };
     }
 
@@ -106,24 +99,19 @@ async function downloadSkillDirectoryToSandbox(
     // storagePath 格式: skills/{userId}/{skillName}
     const pathParts = skill.storagePath.split('/');
     if (pathParts.length < 3) {
-      console.log(`[Skill Loader] Skill ${skill.id} 存储路径格式无效: ${skill.storagePath}`);
       return { success: false, error: "Skill 存储路径格式无效" };
     }
     const storageUserId = pathParts[1];
     const skillName = pathParts[2];
 
-    console.log(`[Skill Loader] 下载 Skill 目录: userId=${storageUserId}, skillName=${skillName}`);
-
     // 使用 downloadSkillDirectory 下载整个目录
     const downloadResult = await downloadSkillDirectory(storageUserId, skillName);
-    console.log(`[Skill Loader] 下载结果: success=${downloadResult.success}, files=${downloadResult.files?.length || 0}, error=${downloadResult.error}`);
 
     if (!downloadResult.success || !downloadResult.files) {
       return { success: false, error: downloadResult.error || "下载失败" };
     }
 
     if (downloadResult.files.length === 0) {
-      console.log(`[Skill Loader] Skill ${skill.id} 目录为空，没有文件可写入`);
       return { success: false, error: "Skill 目录为空" };
     }
 
@@ -133,7 +121,6 @@ async function downloadSkillDirectoryToSandbox(
     // 使用 -m 777 设置权限，确保后续 writeFile 可写入
     // 注意：沙盒内进程以 nobody(65534) 身份运行，创建的目录需要 777 权限
     // 这样宿主机上的 sandbox-service 才能修改这些目录
-    console.log(`[Skill Loader] 创建目录: skills/${skill.id}`);
     await sandbox.exec({
       sessionId,
       userId,
@@ -142,10 +129,8 @@ async function downloadSkillDirectoryToSandbox(
     });
 
     // 遍历所有文件并写入沙盒
-    console.log(`[Skill Loader] 开始写入 ${downloadResult.files.length} 个文件到沙盒`);
     for (const file of downloadResult.files) {
       const filePath = `skills/${skill.id}/${file.path}`;
-      console.log(`[Skill Loader] 写入文件: ${filePath} (${file.content.length} bytes)`);
 
       try {
         await sandbox.writeFile({
@@ -154,14 +139,12 @@ async function downloadSkillDirectoryToSandbox(
           relativePath: filePath,
           content: file.content,
         });
-        console.log(`[Skill Loader] 文件写入成功: ${filePath}`);
       } catch (writeError) {
         console.error(`[Skill Loader] 文件写入失败: ${filePath}`, writeError);
         return { success: false, error: `写入文件失败: ${file.path} - ${writeError instanceof Error ? writeError.message : String(writeError)}` };
       }
     }
 
-    console.log(`[Skill Loader] Skill ${skill.id} 所有文件写入完成`);
     return { success: true };
   } catch (error) {
     console.error(`[Skill Loader] 写入沙盒异常:`, error);

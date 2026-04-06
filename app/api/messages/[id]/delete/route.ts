@@ -3,11 +3,11 @@
  * DELETE /api/messages/[id]/delete
  *
  * 级联删除：删除目标消息及之后所有消息
+ * 注意：只能删除 checkpoint 之后的消息，不影响 compression_cache
  */
 
 import { NextRequest } from "next/server";
 import { retractMessage } from "@/lib/db/message-retract";
-import { clearCompressionCache } from "@/lib/db/conversations";
 import { authenticateRequestOptional } from "@/lib/auth/middleware";
 
 /**
@@ -45,16 +45,9 @@ export async function DELETE(
       "user-delete"
     );
 
-    // 清除压缩缓存（消息结构已变化，缓存失效）
-    // 只有实际删除了消息且 conversationId 有效时才清除
-    if (result.deletedCount > 0 && result.conversationId) {
-      try {
-        await clearCompressionCache(result.conversationId);
-      } catch (cacheError) {
-        // 缓存清除失败不影响删除操作，仅记录日志
-        console.error("清除压缩缓存失败:", cacheError);
-      }
-    }
+    // 注意：不需要清除 compression_cache
+    // 原因：用户只能删除 checkpoint 之后的消息，而 cache 存储的是 checkpoint 之前的消息
+    // 删除操作不影响缓存中的内容
 
     // 无论消息是否存在，都返回成功（幂等性）
     return new Response(
