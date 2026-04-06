@@ -781,3 +781,47 @@ export async function updateAgentWithSkills(
 
   return agent;
 }
+
+// ==================== 工具名称唯一性校验 ====================
+
+/**
+ * 校验工具名称唯一性
+ * 用于Agent创建/更新时检查MCP工具名称是否重复
+ *
+ * @param toolIds - MCP工具ID列表
+ * @returns 校验结果，包含重复的工具名称（如果有）
+ */
+export async function validateToolNamesUniqueness(
+  toolIds: string[]
+): Promise<{ valid: boolean; duplicates: string[] }> {
+  if (toolIds.length === 0) {
+    return { valid: true, duplicates: [] };
+  }
+
+  const db = getDb();
+
+  // 查询所有工具的名称
+  const placeholders = toolIds.map(() => "?").join(",");
+  const result = await db.execute({
+    sql: `SELECT id, name FROM mcp_tools WHERE id IN (${placeholders})`,
+    args: toolIds,
+  });
+
+  // 提取名称列表
+  const toolNames = result.rows.map((row) => row.name as string);
+
+  // 查找重复名称
+  const nameCount = new Map<string, number>();
+  for (const name of toolNames) {
+    nameCount.set(name, (nameCount.get(name) || 0) + 1);
+  }
+
+  const duplicates = Array.from(nameCount.entries())
+    .filter(([, count]) => count > 1)
+    .map(([name]) => name);
+
+  return {
+    valid: duplicates.length === 0,
+    duplicates,
+  };
+}
