@@ -65,12 +65,11 @@ export async function GET(
       );
     }
 
-    // 获取消息列表（按创建时间升序）
-    const messages = await getMessages(conversationId);
-
-    // 获取最新 checkpoint 信息（用于前端判断消息删除权限）
-    // checkpoint 数据存储在独立的 checkpoints 表中，不再在 messages 表中
-    const latestCheckpoint = await getLatestCheckpoint(conversationId);
+    // 🚀 性能优化：并行获取消息列表和 checkpoint 信息
+    const [messages, latestCheckpoint] = await Promise.all([
+      getMessages(conversationId),
+      getLatestCheckpoint(conversationId),
+    ]);
 
     // 计算 checkpoint 之后的消息数量（用于前端计算删除边界）
     // 前端需要知道：checkpoint 之前的消息不能删除
@@ -91,17 +90,18 @@ export async function GET(
     // 只有 agent-chat 来源的对话才需要 metadata
     if (conversation.source === 'agent-chat' && conversation.agent_id) {
       try {
+        // 🚀 性能优化：Early-start pattern - 提前启动 defaultModel Promise
+        // 如果 agent 未绑定模型，将使用此 Promise 的结果
+        const defaultModelPromise = getDefaultUserModel(userId);
+
         // 获取 agent 配置（使用 conversation 创建者的 userId）
         const agent = await getAgentById(conversation.agent_id, conversation.user_id);
         if (agent) {
-          let userModel;
-          if (agent.model_id) {
-            // agent 绑定了特定模型，使用 agent 创建者的模型配置
-            userModel = await getUserModelById(agent.user_id, agent.model_id);
-          } else {
-            // agent 未绑定模型，使用对话所有者的默认模型
-            userModel = await getDefaultUserModel(userId);
-          }
+          // 根据 agent.model_id 决定使用哪个模型配置
+          const userModel = agent.model_id
+            ? await getUserModelById(agent.user_id, agent.model_id)
+            : await defaultModelPromise; // 使用提前启动的 Promise
+
           if (userModel) {
             metadataContext = {
               contextLimit: userModel.context_limit ?? 32000,
