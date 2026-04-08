@@ -387,6 +387,8 @@ export function AgentChatProvider({ conversationId, children }: AgentChatProvide
   const handleNewChat = useCallback(() => {
     setSidebarOpen(false);
     setSelectedAgentId("");
+    // 重置URL更新标志，确保新对话的URL能正确更新
+    hasUpdatedUrl.current = false;
     router.push("/agent-chat");
   }, [router]);
 
@@ -394,6 +396,8 @@ export function AgentChatProvider({ conversationId, children }: AgentChatProvide
 
   const handleSelectConversation = useCallback((conversationId: string) => {
     setSidebarOpen(false);
+    // 重置URL更新标志，确保切换对话后新对话的URL能正确更新
+    hasUpdatedUrl.current = false;
     router.push(`/agent-chat/${conversationId}`);
   }, [router]);
 

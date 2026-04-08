@@ -2,7 +2,7 @@
 
 /**
  * AgentChat顶部导航组件
- * 包含移动端菜单按钮、标题、Context组件、Agent选择器、用户菜单
+ * 极简设计：紧凑、功能性强、去除冗余信息
  */
 
 import {
@@ -21,37 +21,35 @@ import { Menu } from "lucide-react";
 
 /**
  * AgentChatHeader组件
- * 顶部导航区域，显示标题、Agent选择器和用户菜单
+ * 顶部导航区域，极简设计：
+ * - 去除冗余副标题，聚焦核心信息
+ * - 紧凑布局，不占用过多空间
+ * - 去除底部边框，使用微妙分隔
  */
 export function AgentChatHeader() {
   // 从 Context 获取状态和操作
   const { state, actions } = useAgentChatContext();
 
   return (
-    <header className="flex h-16 shrink-0 items-center justify-between border-b border-border px-6">
+    <header className="flex h-14 shrink-0 items-center justify-between px-6">
       {/* 左侧：移动端菜单按钮 + 标题 */}
-      <div className="flex items-center gap-4">
+      <div className="flex items-center gap-3">
         {/* 移动端菜单按钮 */}
         <button
-          className="flex items-center justify-center w-10 h-10 rounded-md hover:bg-accent md:hidden"
+          className="flex items-center justify-center w-9 h-9 rounded-lg hover:bg-accent/50 transition-colors md:hidden"
           onClick={() => actions.setSidebarOpen(true)}
         >
-          <Menu className="w-5 h-5" />
+          <Menu className="w-5 h-5 text-muted-foreground" />
         </button>
 
-        {/* 标题和副标题 */}
-        <div className="flex-1">
-          <h1 className="text-lg font-semibold text-foreground">
-            {state.currentConversation?.title || "Agent对话"}
-          </h1>
-          <p className="text-xs text-muted-foreground">
-            {state.currentConversation ? "继续对话..." : "选择Agent开始对话"}
-          </p>
-        </div>
+        {/* 标题：去除副标题，更聚焦 */}
+        <h1 className="text-base font-medium text-foreground truncate max-w-[200px]">
+          {state.currentConversation?.title || "新对话"}
+        </h1>
       </div>
 
       {/* 右侧：Context组件 + Agent选择器 + 用户菜单 */}
-      <div className="flex items-center gap-2">
+      <div className="flex items-center gap-3">
         {/* Context组件：显示会话累计 token 使用情况 */}
         {state.currentConversation &&
           state.currentConversation.total_tokens > 0 &&

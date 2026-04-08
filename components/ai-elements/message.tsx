@@ -1,8 +1,5 @@
 "use client";
 
-import type { UIMessage } from "ai";
-import type { ComponentProps, HTMLAttributes, ReactElement } from "react";
-
 import { Button } from "@/components/ui/button";
 import {
   ButtonGroup,
@@ -19,15 +16,17 @@ import { cjk } from "@streamdown/cjk";
 import { code } from "@streamdown/code";
 import { math } from "@streamdown/math";
 import { mermaid } from "@streamdown/mermaid";
+import type { UIMessage } from "ai";
 import { ChevronLeftIcon, ChevronRightIcon } from "lucide-react";
+import type { ComponentProps, HTMLAttributes, ReactElement } from "react";
 import {
   createContext,
   memo,
   useCallback,
+  useContext,
   useEffect,
   useMemo,
   useState,
-  use,
 } from "react";
 import { Streamdown } from "streamdown";
 
@@ -127,9 +126,8 @@ const MessageBranchContext = createContext<MessageBranchContextType | null>(
   null
 );
 
-// 🚀 React 19: 使用 use() API 替代 useContext
 const useMessageBranch = () => {
-  const context = use(MessageBranchContext);
+  const context = useContext(MessageBranchContext);
 
   if (!context) {
     throw new Error(
@@ -336,7 +334,9 @@ export const MessageResponse = memo(
       {...props}
     />
   ),
-  (prevProps, nextProps) => prevProps.children === nextProps.children
+  (prevProps, nextProps) =>
+    prevProps.children === nextProps.children &&
+    nextProps.isAnimating === prevProps.isAnimating
 );
 
 MessageResponse.displayName = "MessageResponse";

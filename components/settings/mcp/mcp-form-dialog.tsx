@@ -1,6 +1,6 @@
 /**
- * MCP服务器表单组件
- * 用于添加或编辑MCP服务器配置
+ * MCP 服务器表单对话框组件
+ * 用于创建和编辑 MCP 服务器配置
  */
 
 import { useState, useEffect } from "react";
@@ -15,7 +15,7 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Alert, AlertDescription } from "@/components/ui/alert";
-import { AlertCircle, Loader2 } from "lucide-react";
+import { AlertCircle, Loader2, Plus, X } from "lucide-react";
 import type { McpServer } from "@/lib/db/schema";
 
 /**
@@ -24,59 +24,56 @@ import type { McpServer } from "@/lib/db/schema";
 export interface McpFormData {
   name: string;
   url: string;
-  headers?: string;  // 新增：JSON 格式的 headers
+  headers?: string; // JSON 格式的 headers
 }
 
 /**
- * MCP表单组件属性
+ * MCP 表单对话框组件属性
  */
-interface McpFormProps {
+interface McpFormDialogProps {
   // 是否显示表单
-  isOpen: boolean;
+  open: boolean;
   // 关闭表单回调
-  onClose: () => void;
+  onOpenChange: (open: boolean) => void;
   // 提交表单回调
   onSubmit: (data: McpFormData) => Promise<void>;
-  // 正在编辑的服务器（null表示新建）
+  // 正在编辑的服务器（null 表示新建）
   editingServer?: McpServer | null;
   // 提交中状态
   isSubmitting?: boolean;
-  // 错误信息
-  error?: string | null;
 }
 
 /**
- * 验证URL格式
- * @param url - 待验证的URL
- * @returns 错误信息，无错误返回null
+ * 验证 URL 格式
+ * @param url - 待验证的 URL
+ * @returns 错误信息，无错误返回 null
  */
 function validateUrl(url: string): string | null {
   if (!url.trim()) {
-    return "URL不能为空";
+    return "URL 不能为空";
   }
 
   try {
     const parsed = new URL(url);
     if (parsed.protocol !== "http:" && parsed.protocol !== "https:") {
-      return "仅支持HTTP和HTTPS协议";
+      return "仅支持 HTTP 和 HTTPS 协议";
     }
     return null;
   } catch {
-    return "请输入有效的URL地址";
+    return "请输入有效的 URL 地址";
   }
 }
 
 /**
- * MCP服务器表单组件
+ * MCP 服务器表单对话框组件
  */
-export function McpForm({
-  isOpen,
-  onClose,
+export function McpFormDialog({
+  open,
+  onOpenChange,
   onSubmit,
   editingServer,
   isSubmitting = false,
-  error,
-}: McpFormProps) {
+}: McpFormDialogProps) {
   // 表单数据状态
   const [formData, setFormData] = useState<McpFormData>({
     name: "",
@@ -84,7 +81,7 @@ export function McpForm({
     headers: "",
   });
 
-  // headers 键值对状态
+  // Headers 键值对状态
   const [headerPairs, setHeaderPairs] = useState<Array<{ key: string; value: string }>>([
     { key: "", value: "" },
   ]);
@@ -95,35 +92,44 @@ export function McpForm({
     url?: string;
   }>({});
 
+  // 全局错误
+  const [globalError, setGlobalError] = useState<string | null>(null);
+
   // 当编辑对象变化时重置表单
   useEffect(() => {
-    if (editingServer) {
-      setFormData({
-        name: editingServer.name,
-        url: editingServer.url,
-        headers: editingServer.headers || "",
-      });
-      // 解析现有的 headers
-      if (editingServer.headers) {
-        try {
-          const parsed = JSON.parse(editingServer.headers);
-          const pairs = Object.entries(parsed).map(([key, value]) => ({
-            key,
-            value: String(value),
-          }));
-          setHeaderPairs(pairs.length > 0 ? pairs : [{ key: "", value: "" }]);
-        } catch {
+    if (open) {
+      if (editingServer) {
+        // 编辑模式：填充现有数据
+        setFormData({
+          name: editingServer.name,
+          url: editingServer.url,
+          headers: editingServer.headers || "",
+        });
+        // 解析现有的 headers
+        if (editingServer.headers) {
+          try {
+            const parsed = JSON.parse(editingServer.headers);
+            const pairs = Object.entries(parsed).map(([key, value]) => ({
+              key,
+              value: String(value),
+            }));
+            setHeaderPairs(pairs.length > 0 ? pairs : [{ key: "", value: "" }]);
+          } catch {
+            setHeaderPairs([{ key: "", value: "" }]);
+          }
+        } else {
           setHeaderPairs([{ key: "", value: "" }]);
         }
       } else {
+        // 新建模式：清空表单
+        setFormData({ name: "", url: "", headers: "" });
         setHeaderPairs([{ key: "", value: "" }]);
       }
-    } else {
-      setFormData({ name: "", url: "", headers: "" });
-      setHeaderPairs([{ key: "", value: "" }]);
+      // 清空错误
+      setFieldErrors({});
+      setGlobalError(null);
     }
-    setFieldErrors({});
-  }, [editingServer, isOpen]);
+  }, [editingServer, open]);
 
   /**
    * 处理字段变化
@@ -131,8 +137,8 @@ export function McpForm({
   const handleChange = (field: keyof McpFormData, value: string) => {
     setFormData((prev) => ({ ...prev, [field]: value }));
 
-    // 清除该字段的错误（仅对 name 和 url 字段）
-    if ((field === 'name' || field === 'url') && fieldErrors[field]) {
+    // 清除该字段的错误
+    if ((field === "name" || field === "url") && fieldErrors[field]) {
       setFieldErrors((prev) => ({ ...prev, [field]: undefined }));
     }
   };
@@ -148,7 +154,7 @@ export function McpForm({
       errors.name = "服务器名称不能为空";
     }
 
-    // 验证URL
+    // 验证 URL
     const urlError = validateUrl(formData.url);
     if (urlError) {
       errors.url = urlError;
@@ -163,6 +169,7 @@ export function McpForm({
    */
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
+    setGlobalError(null);
 
     if (!validateForm()) {
       return;
@@ -175,44 +182,62 @@ export function McpForm({
         headersObj[pair.key.trim()] = pair.value;
       }
     }
-    const headersJson = Object.keys(headersObj).length > 0 ? JSON.stringify(headersObj) : undefined;
+    const headersJson =
+      Object.keys(headersObj).length > 0 ? JSON.stringify(headersObj) : undefined;
 
-    await onSubmit({
-      name: formData.name,
-      url: formData.url,
-      headers: headersJson,
-    });
+    try {
+      await onSubmit({
+        name: formData.name,
+        url: formData.url,
+        headers: headersJson,
+      });
+    } catch (err) {
+      setGlobalError(err instanceof Error ? err.message : "操作失败");
+    }
   };
 
   /**
-   * 处理表单关闭
+   * 添加 Header 键值对
    */
-  const handleClose = () => {
-    if (!isSubmitting) {
-      onClose();
-    }
+  const addHeaderPair = () => {
+    setHeaderPairs([...headerPairs, { key: "", value: "" }]);
+  };
+
+  /**
+   * 删除 Header 键值对
+   */
+  const removeHeaderPair = (index: number) => {
+    const newPairs = headerPairs.filter((_, i) => i !== index);
+    setHeaderPairs(newPairs.length > 0 ? newPairs : [{ key: "", value: "" }]);
+  };
+
+  /**
+   * 更新 Header 键值对
+   */
+  const updateHeaderPair = (index: number, field: "key" | "value", value: string) => {
+    const newPairs = [...headerPairs];
+    newPairs[index][field] = value;
+    setHeaderPairs(newPairs);
   };
 
   const isEditing = !!editingServer;
 
   return (
-    <Dialog open={isOpen} onOpenChange={handleClose}>
+    <Dialog open={open} onOpenChange={onOpenChange}>
       <DialogContent className="sm:max-w-[500px]">
         <DialogHeader>
-          <DialogTitle>{isEditing ? "编辑MCP服务器" : "添加MCP服务器"}</DialogTitle>
+          <DialogTitle>{isEditing ? "编辑 MCP 服务器" : "添加 MCP 服务器"}</DialogTitle>
           <DialogDescription>
-            {isEditing
-              ? "修改MCP服务器的配置信息"
-              : "配置一个新的MCP服务器连接"}
+            {isEditing ? "修改 MCP 服务器的配置信息" : "配置一个新的 MCP 服务器连接"}
           </DialogDescription>
         </DialogHeader>
 
         <form onSubmit={handleSubmit} className="space-y-4 mt-4">
           {/* 全局错误提示 */}
-          {error && (
+          {globalError && (
             <Alert variant="destructive">
               <AlertCircle className="h-4 w-4" />
-              <AlertDescription>{error}</AlertDescription>
+              <AlertDescription>{globalError}</AlertDescription>
             </Alert>
           )}
 
@@ -224,7 +249,7 @@ export function McpForm({
             </Label>
             <Input
               id="name"
-              placeholder="例如：我的MCP服务器"
+              placeholder="例如：我的 MCP 服务器"
               value={formData.name}
               onChange={(e) => handleChange("name", e.target.value)}
               disabled={isSubmitting}
@@ -235,10 +260,10 @@ export function McpForm({
             )}
           </div>
 
-          {/* 服务器URL */}
+          {/* 服务器 URL */}
           <div className="space-y-2">
             <Label htmlFor="url">
-              服务器URL
+              服务器 URL
               <span className="text-destructive ml-1">*</span>
             </Label>
             <Input
@@ -254,7 +279,7 @@ export function McpForm({
               <p className="text-sm text-destructive">{fieldErrors.url}</p>
             ) : (
               <p className="text-sm text-muted-foreground">
-                MCP Streamable HTTP服务器的URL地址
+                MCP Streamable HTTP 服务器的 URL 地址
               </p>
             )}
           </div>
@@ -268,37 +293,28 @@ export function McpForm({
                   <Input
                     placeholder="Header 名称"
                     value={pair.key}
-                    onChange={(e) => {
-                      const newPairs = [...headerPairs];
-                      newPairs[index].key = e.target.value;
-                      setHeaderPairs(newPairs);
-                    }}
+                    onChange={(e) => updateHeaderPair(index, "key", e.target.value)}
                     disabled={isSubmitting}
                     className="flex-1"
                   />
                   <Input
                     placeholder="Header 值"
                     value={pair.value}
-                    onChange={(e) => {
-                      const newPairs = [...headerPairs];
-                      newPairs[index].value = e.target.value;
-                      setHeaderPairs(newPairs);
-                    }}
+                    onChange={(e) => updateHeaderPair(index, "value", e.target.value)}
                     disabled={isSubmitting}
                     className="flex-1"
                   />
-                  <Button
-                    type="button"
-                    variant="outline"
-                    size="icon"
-                    onClick={() => {
-                      const newPairs = headerPairs.filter((_, i) => i !== index);
-                      setHeaderPairs(newPairs.length > 0 ? newPairs : [{ key: "", value: "" }]);
-                    }}
-                    disabled={isSubmitting}
-                  >
-                    ×
-                  </Button>
+                  {headerPairs.length > 1 && (
+                    <Button
+                      type="button"
+                      variant="outline"
+                      size="icon"
+                      onClick={() => removeHeaderPair(index)}
+                      disabled={isSubmitting}
+                    >
+                      <X className="size-4" />
+                    </Button>
+                  )}
                 </div>
               ))}
             </div>
@@ -306,11 +322,12 @@ export function McpForm({
               type="button"
               variant="outline"
               size="sm"
-              onClick={() => setHeaderPairs([...headerPairs, { key: "", value: "" }])}
+              onClick={addHeaderPair}
               disabled={isSubmitting}
               className="mt-2"
             >
-              + 添加 Header
+              <Plus className="size-4" />
+              添加 Header
             </Button>
             <p className="text-sm text-muted-foreground">
               用于 MCP 服务器的认证，例如 Authorization、X-API-Key 等
@@ -322,15 +339,13 @@ export function McpForm({
             <Button
               type="button"
               variant="outline"
-              onClick={handleClose}
+              onClick={() => onOpenChange(false)}
               disabled={isSubmitting}
             >
               取消
             </Button>
             <Button type="submit" disabled={isSubmitting}>
-              {isSubmitting && (
-                <Loader2 className="mr-2 h-4 w-4 animate-spin" />
-              )}
+              {isSubmitting && <Loader2 className="size-4 mr-2 animate-spin" />}
               {isEditing ? "保存" : "添加"}
             </Button>
           </div>

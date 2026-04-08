@@ -159,7 +159,7 @@ export function UserMessageActions({
   };
 
   return (
-    <div className="flex items-center gap-1 ml-auto opacity-0 group-hover:opacity-100 transition-opacity text-xs text-muted-foreground">
+    <div className="flex items-center gap-1 opacity-0 group-hover:opacity-100 transition-opacity text-xs text-muted-foreground">
       {/* 复制按钮 */}
       {content ? (
         <Button

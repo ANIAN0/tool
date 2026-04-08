@@ -248,11 +248,13 @@ export function shouldShowButton(props: {
 }): boolean {
   const { editor, type, hideWhenUnavailable } = props
 
-  if (!editor || !editor.isEditable) return false
+  if (!editor) return false
 
   if (!hideWhenUnavailable) {
     return true
   }
+
+  if (!editor.isEditable) return false
 
   if (!isNodeInSchema(type, editor)) return false
 

@@ -1,8 +1,5 @@
 "use client";
 
-import type { LanguageModelUsage } from "ai";
-import type { ComponentProps } from "react";
-
 import { Button } from "@/components/ui/button";
 import {
   HoverCard,
@@ -11,7 +8,9 @@ import {
 } from "@/components/ui/hover-card";
 import { Progress } from "@/components/ui/progress";
 import { cn } from "@/lib/utils";
-import { createContext, use, useMemo } from "react";
+import type { LanguageModelUsage } from "ai";
+import type { ComponentProps } from "react";
+import { createContext, useContext, useMemo } from "react";
 import { getUsage } from "tokenlens";
 
 const PERCENT_MAX = 100;
@@ -31,9 +30,8 @@ interface ContextSchema {
 
 const ContextContext = createContext<ContextSchema | null>(null);
 
-// 🚀 React 19: 使用 use() API 替代 useContext
 const useContextValue = () => {
-  const context = use(ContextContext);
+  const context = useContext(ContextContext);
 
   if (!context) {
     throw new Error("Context components must be used within Context");
@@ -231,6 +229,25 @@ export const ContextContentFooter = ({
   );
 };
 
+const TokensWithCost = ({
+  tokens,
+  costText,
+}: {
+  tokens?: number;
+  costText?: string;
+}) => (
+  <span>
+    {tokens === undefined
+      ? "—"
+      : new Intl.NumberFormat("en-US", {
+          notation: "compact",
+        }).format(tokens)}
+    {costText ? (
+      <span className="ml-2 text-muted-foreground">• {costText}</span>
+    ) : null}
+  </span>
+);
+
 export type ContextInputUsageProps = ComponentProps<"div">;
 
 export const ContextInputUsage = ({
@@ -390,22 +407,3 @@ export const ContextCacheUsage = ({
     </div>
   );
 };
-
-const TokensWithCost = ({
-  tokens,
-  costText,
-}: {
-  tokens?: number;
-  costText?: string;
-}) => (
-  <span>
-    {tokens === undefined
-      ? "—"
-      : new Intl.NumberFormat("en-US", {
-          notation: "compact",
-        }).format(tokens)}
-    {costText ? (
-      <span className="ml-2 text-muted-foreground">• {costText}</span>
-    ) : null}
-  </span>
-);

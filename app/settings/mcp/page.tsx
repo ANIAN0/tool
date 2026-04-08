@@ -1,24 +1,25 @@
 /**
- * MCP服务器管理页面
- * 用户可以管理自己的 MCP 服务器配置
+ * MCP 服务器管理页面
+ * 表格布局展示 MCP 服务器列表，详情通过右侧抽屉展示
  */
 
 "use client";
 
+import { useState, useCallback } from "react";
 import { useMcpServers, useMcpServersPolling } from "@/lib/hooks/use-mcp-servers";
 import { useAuth } from "@/lib/hooks/use-auth";
-import { McpList } from "@/components/settings/mcp/mcp-list";
-import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
-import { Info } from "lucide-react";
-import type { McpFormData } from "@/components/settings/mcp/mcp-form";
+import { McpTable } from "@/components/settings/mcp/mcp-table";
+import { McpSheet } from "@/components/settings/mcp/mcp-sheet";
+import { McpFormDialog, type McpFormData } from "@/components/settings/mcp/mcp-form-dialog";
+import type { McpServer } from "@/lib/db/schema";
 
 /**
- * MCP管理页面组件
+ * MCP 管理页面组件
  */
 export default function McpSettingsPage() {
   // 获取认证信息
   const { getAuthHeader } = useAuth();
-  // 获取MCP服务器列表和操作函数
+  // 获取 MCP 服务器列表和操作函数
   const {
     servers,
     isLoading,
@@ -33,129 +34,183 @@ export default function McpSettingsPage() {
   // 自动轮询服务器状态（30秒间隔）
   const { serverStatuses } = useMcpServersPolling(servers, 30000);
 
-  /**
-   * 处理创建服务器
-   * @param data - 表单数据
-   */
-  const handleCreate = async (data: McpFormData) => {
-    // 🚀 性能优化：创建服务器并立即返回，状态检查在后台进行
-    const server = await createServer({
-      name: data.name,
-      url: data.url,
-    });
+  // 详情抽屉状态
+  const [sheetOpen, setSheetOpen] = useState(false);
+  const [selectedServerId, setSelectedServerId] = useState<string | null>(null);
 
-    // 创建成功后在后台检查状态（不阻塞用户操作）
-    // 状态检查可能需要几秒，但用户可以立即进行其他操作
-    if (server?.id) {
-      // 使用 void 显式标记 fire-and-forget，状态会在后台更新
-      void (async () => {
-        try {
-          const response = await fetch(`/api/mcp/${server.id}/status`, {
-            headers: {
-              ...getAuthHeader(),
-            },
+  // 表单对话框状态
+  const [formOpen, setFormOpen] = useState(false);
+  const [editingServer, setEditingServer] = useState<McpServer | null>(null);
+  const [isSubmitting, setIsSubmitting] = useState(false);
+
+  /**
+   * 处理查看服务器详情
+   */
+  const handleView = useCallback((serverId: string) => {
+    setSelectedServerId(serverId);
+    setSheetOpen(true);
+  }, []);
+
+  /**
+   * 关闭详情抽屉
+   */
+  const handleCloseSheet = useCallback(() => {
+    setSheetOpen(false);
+    setSelectedServerId(null);
+  }, []);
+
+  /**
+   * 打开添加表单
+   */
+  const handleCreate = useCallback(() => {
+    setEditingServer(null);
+    setFormOpen(true);
+  }, []);
+
+  /**
+   * 打开编辑表单
+   */
+  const handleEdit = useCallback((server: McpServer) => {
+    setEditingServer(server);
+    setFormOpen(true);
+  }, []);
+
+  /**
+   * 关闭表单对话框
+   */
+  const handleCloseForm = useCallback(() => {
+    setFormOpen(false);
+    setEditingServer(null);
+  }, []);
+
+  /**
+   * 处理表单提交
+   */
+  const handleFormSubmit = useCallback(
+    async (data: McpFormData) => {
+      setIsSubmitting(true);
+      try {
+        if (editingServer) {
+          // 更新现有服务器
+          await updateServer(editingServer.id, {
+            name: data.name,
+            url: data.url,
+            headers: data.headers,
           });
-          const statusData = await response.json();
+        } else {
+          // 创建新服务器
+          const server = await createServer({
+            name: data.name,
+            url: data.url,
+            headers: data.headers,
+          });
 
-          // 更新本地状态
-          updateServerStatus(server.id, statusData.status, statusData.error);
-        } catch {
-          updateServerStatus(server.id, "error", "检查状态失败");
+          // 创建成功后在后台检查状态
+          if (server?.id) {
+            void (async () => {
+              try {
+                const response = await fetch(`/api/mcp/${server.id}/status`, {
+                  headers: {
+                    ...getAuthHeader(),
+                  },
+                });
+                const statusData = await response.json();
+                updateServerStatus(server.id, statusData.status, statusData.error);
+              } catch {
+                updateServerStatus(server.id, "error", "检查状态失败");
+              }
+            })();
+          }
         }
-      })();
-    }
-  };
-
-  /**
-   * 处理更新服务器
-   * @param id - 服务器ID
-   * @param data - 表单数据
-   */
-  const handleUpdate = async (id: string, data: McpFormData) => {
-    await updateServer(id, {
-      name: data.name,
-      url: data.url,
-    });
-  };
+        // 提交成功后关闭表单
+        handleCloseForm();
+      } finally {
+        setIsSubmitting(false);
+      }
+    },
+    [editingServer, createServer, updateServer, getAuthHeader, updateServerStatus, handleCloseForm]
+  );
 
   /**
    * 处理删除服务器
-   * @param id - 服务器ID
    */
-  const handleDelete = async (id: string) => {
-    await deleteServer(id);
-  };
+  const handleDelete = useCallback(
+    async (serverId: string) => {
+      await deleteServer(serverId);
+      // 如果删除的是当前查看的服务器，关闭抽屉
+      if (selectedServerId === serverId) {
+        handleCloseSheet();
+      }
+    },
+    [deleteServer, selectedServerId, handleCloseSheet]
+  );
 
   /**
    * 处理启用状态切换
-   * @param id - 服务器ID
-   * @param enabled - 是否启用
    */
-  const handleToggleEnabled = async (id: string, enabled: boolean) => {
-    await updateServer(id, { isEnabled: enabled });
-  };
+  const handleToggleEnabled = useCallback(
+    async (serverId: string, enabled: boolean) => {
+      await updateServer(serverId, { isEnabled: enabled });
+    },
+    [updateServer]
+  );
 
   /**
    * 处理检查服务器状态
-   * @param id - 服务器ID
    */
-  const handleCheckStatus = async (id: string) => {
-    try {
-      const response = await fetch(`/api/mcp/${id}/status`, {
-        headers: {
-          ...getAuthHeader(),
-        },
-      });
-      const data = await response.json();
+  const handleCheckStatus = useCallback(
+    async (serverId: string) => {
+      try {
+        const response = await fetch(`/api/mcp/${serverId}/status`, {
+          headers: {
+            ...getAuthHeader(),
+          },
+        });
+        const data = await response.json();
 
-      // 更新本地状态
-      updateServerStatus(id, data.status, data.error);
-    } catch {
-      updateServerStatus(id, "error", "检查状态失败");
-    }
-  };
-
-  /**
-   * 清除错误信息
-   */
-  const handleClearError = () => {
-    // 错误信息会在下次操作时自动清除
-  };
+        // 更新本地状态
+        updateServerStatus(serverId, data.status, data.error);
+      } catch {
+        updateServerStatus(serverId, "error", "检查状态失败");
+      }
+    },
+    [getAuthHeader, updateServerStatus]
+  );
 
   return (
-    <div className="space-y-6">
-      {/* 页面标题和说明 */}
-      <div>
-        <h1 className="text-2xl font-bold tracking-tight">MCP 服务器管理</h1>
-        <p className="text-muted-foreground mt-1">
-          管理您的 MCP (Model Context Protocol) 服务器连接，添加外部工具支持
-        </p>
-      </div>
-
-      {/* 信息提示 */}
-      <Alert variant="default" className="bg-muted">
-        <Info className="h-4 w-4" />
-        <AlertTitle>关于 MCP</AlertTitle>
-        <AlertDescription>
-          MCP (Model Context Protocol) 是一种开放协议，允许AI助手通过标准化的方式
-          使用外部工具和服务。添加MCP服务器后，系统会自动获取该服务器提供的工具列表。
-        </AlertDescription>
-      </Alert>
-
-      {/* MCP服务器列表 */}
-      <McpList
+    <>
+      {/* MCP 表格组件 */}
+      <McpTable
         servers={servers}
         serverStatuses={serverStatuses}
         isLoading={isLoading}
         error={error}
         onRefresh={fetchServers}
         onCreate={handleCreate}
-        onUpdate={handleUpdate}
+        onView={handleView}
+        onEdit={handleEdit}
         onDelete={handleDelete}
         onToggleEnabled={handleToggleEnabled}
         onCheckStatus={handleCheckStatus}
-        onClearError={handleClearError}
       />
-    </div>
+
+      {/* MCP 详情抽屉 */}
+      <McpSheet
+        serverId={selectedServerId}
+        open={sheetOpen}
+        onClose={handleCloseSheet}
+        onEdit={handleEdit}
+        onDelete={handleDelete}
+      />
+
+      {/* 新增/编辑表单对话框 */}
+      <McpFormDialog
+        open={formOpen}
+        onOpenChange={setFormOpen}
+        onSubmit={handleFormSubmit}
+        editingServer={editingServer}
+        isSubmitting={isSubmitting}
+      />
+    </>
   );
 }

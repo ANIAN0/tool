@@ -14,7 +14,7 @@ import { HighlighterIcon } from "@/components/tiptap-icons/highlighter-icon"
 
 // --- UI Primitives ---
 import type { ButtonProps } from "@/components/tiptap-ui-primitive/button"
-import { Button, ButtonGroup } from "@/components/tiptap-ui-primitive/button"
+import { Button } from "@/components/tiptap-ui-primitive/button"
 import {
   Popover,
   PopoverTrigger,
@@ -37,6 +37,7 @@ import {
   pickHighlightColorsByValue,
   useColorHighlight,
 } from "@/components/tiptap-ui/color-highlight-button"
+import { ButtonGroup } from "@/components/tiptap-ui-primitive/button-group"
 
 export interface ColorHighlightPopoverContentProps {
   /**
@@ -140,22 +141,25 @@ export function ColorHighlightPopoverContent({
     >
       <CardBody style={isMobile ? { padding: 0 } : {}}>
         <CardItemGroup orientation="horizontal">
-          <ButtonGroup orientation="horizontal">
+          <ButtonGroup>
             {colors.map((color, index) => (
-              <ColorHighlightButton
-                key={color.value}
-                editor={editor}
-                highlightColor={useColorValue ? color.colorValue : color.value}
-                tooltip={color.label}
-                aria-label={`${color.label} highlight color`}
-                tabIndex={index === selectedIndex ? 0 : -1}
-                data-highlighted={selectedIndex === index}
-                useColorValue={useColorValue}
-              />
+              <ButtonGroup key={color.value}>
+                <ColorHighlightButton
+                  editor={editor}
+                  highlightColor={
+                    useColorValue ? color.colorValue : color.value
+                  }
+                  tooltip={color.label}
+                  aria-label={`${color.label} highlight color`}
+                  tabIndex={index === selectedIndex ? 0 : -1}
+                  data-highlighted={selectedIndex === index}
+                  useColorValue={useColorValue}
+                />
+              </ButtonGroup>
             ))}
           </ButtonGroup>
           <Separator />
-          <ButtonGroup orientation="horizontal">
+          <ButtonGroup>
             <Button
               onClick={handleRemoveHighlight}
               aria-label="Remove highlight"

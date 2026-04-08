@@ -61,7 +61,11 @@
       "Bash(dir \"H:\\\\hucar\\\\hugit\\\\hu_coding\\\\code\\\\nianian\\\\my-app\\\\app\\\\settings\")",
       "Bash(sed -i 's/\"/\"/g; s/\"/\"/g' app/api/agent-chat/route.ts)",
       "Bash(sed -i 's/'/'\"'\"'/g; s/'/'\"'\"'/g' app/api/agent-chat/route.ts)",
-      "Bash(grep -r \"type Row\" node_modules/@libsql/client/dist/*.d.ts)"
+      "Bash(grep -r \"type Row\" node_modules/@libsql/client/dist/*.d.ts)",
+      "Bash(grep -n \"clearCompressionCache\" app/api/messages/*/route.ts)",
+      "Bash(dir /b \"H:\\\\hucar\\\\hugit\\\\hu_coding\\\\code\\\\nianian\\\\my-app\\\\components\\\\agent-chat\")",
+      "Bash(mkdir -p \"H:\\\\hucar\\\\hugit\\\\hu_coding\\\\code\\\\nianian\\\\my-app\\\\docs\")",
+      "Bash(mkdir \"H:\\\\hucar\\\\hugit\\\\hu_coding\\\\code\\\\nianian\\\\my-app\\\\docs\")"
     ]
   }
 }

@@ -126,11 +126,13 @@ export function shouldShowButton(props: {
 }): boolean {
   const { editor, hideWhenUnavailable, align } = props
 
-  if (!editor || !editor.isEditable) return false
+  if (!editor) return false
 
   if (!hideWhenUnavailable) {
     return true
   }
+
+  if (!editor.isEditable) return false
 
   if (!isExtensionAvailable(editor, "textAlign")) return false
 

@@ -2,9 +2,8 @@
 
 /**
  * 消息输入组件
+ * 极简设计：融入整体，简洁舒适
  * 使用AI Elements的PromptInput和Attachments系列组件构建输入区
- * 功能点17：消息输入组件
- * 功能点23：支持发送消息状态
  */
 
 import {
@@ -51,13 +50,14 @@ interface PromptSectionProps {
 }
 
 /**
- * 内部输入组件，用于接收预填充内容
+ * 内部输入组件
+ * 极简设计：去除边框分隔，融入整体
  */
 function PromptInputInner({
   onSubmit,
   status = "ready",
   onStop,
-  placeholder = "输入消息，按 Enter 发送...",
+  placeholder = "输入消息...",
   prefillInput,
 }: PromptSectionProps) {
   // 获取输入控制器
@@ -74,7 +74,8 @@ function PromptInputInner({
   const isGenerating = status === "submitted" || status === "streaming";
 
   return (
-    <div className="shrink-0 border-t border-border p-4">
+    // 去除顶部边框，融入整体
+    <div className="shrink-0">
       <PromptInput
         accept="image/*,video/*,audio/*,.pdf,.doc,.docx,.txt,.md"
         maxFiles={5}
@@ -128,7 +129,7 @@ function PromptInputInner({
 
 /**
  * 消息输入组件
- * 支持文本输入、发送/停止按钮、预填充内容
+ * 极简设计：简洁融入整体布局
  */
 export function PromptSection(props: PromptSectionProps) {
   return (

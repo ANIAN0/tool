@@ -19,7 +19,7 @@ import { useLinkPopover } from "@/components/tiptap-ui/link-popover"
 
 // --- UI Primitives ---
 import type { ButtonProps } from "@/components/tiptap-ui-primitive/button"
-import { Button, ButtonGroup } from "@/components/tiptap-ui-primitive/button"
+import { Button } from "@/components/tiptap-ui-primitive/button"
 import {
   Popover,
   PopoverContent,
@@ -31,7 +31,10 @@ import {
   CardBody,
   CardItemGroup,
 } from "@/components/tiptap-ui-primitive/card"
-import { Input, InputGroup } from "@/components/tiptap-ui-primitive/input"
+import { Input } from "@/components/tiptap-ui-primitive/input"
+import { ButtonGroup } from "@/components/tiptap-ui-primitive/button-group"
+
+import "./link-popover.scss"
 
 export interface LinkMainProps {
   /**
@@ -130,21 +133,20 @@ const LinkMain: React.FC<LinkMainProps> = ({
         }}
       >
         <CardItemGroup orientation="horizontal">
-          <InputGroup>
-            <Input
-              type="url"
-              placeholder="Paste a link..."
-              value={url}
-              onChange={(e) => setUrl(e.target.value)}
-              onKeyDown={handleKeyDown}
-              autoFocus
-              autoComplete="off"
-              autoCorrect="off"
-              autoCapitalize="off"
-            />
-          </InputGroup>
+          <Input
+            type="url"
+            placeholder="Paste a link..."
+            value={url}
+            onChange={(e) => setUrl(e.target.value)}
+            onKeyDown={handleKeyDown}
+            autoFocus
+            autoComplete="off"
+            autoCorrect="off"
+            autoCapitalize="off"
+            className="tiptap-link-input"
+          />
 
-          <ButtonGroup orientation="horizontal">
+          <ButtonGroup>
             <Button
               type="button"
               onClick={setLink}
@@ -158,26 +160,30 @@ const LinkMain: React.FC<LinkMainProps> = ({
 
           <Separator />
 
-          <ButtonGroup orientation="horizontal">
-            <Button
-              type="button"
-              onClick={openLink}
-              title="Open in new window"
-              disabled={!url && !isActive}
-              variant="ghost"
-            >
-              <ExternalLinkIcon className="tiptap-button-icon" />
-            </Button>
+          <ButtonGroup>
+            <ButtonGroup>
+              <Button
+                type="button"
+                onClick={openLink}
+                title="Open in new window"
+                disabled={!url && !isActive}
+                variant="ghost"
+              >
+                <ExternalLinkIcon className="tiptap-button-icon" />
+              </Button>
+            </ButtonGroup>
 
-            <Button
-              type="button"
-              onClick={removeLink}
-              title="Remove link"
-              disabled={!url && !isActive}
-              variant="ghost"
-            >
-              <TrashIcon className="tiptap-button-icon" />
-            </Button>
+            <ButtonGroup>
+              <Button
+                type="button"
+                onClick={removeLink}
+                title="Remove link"
+                disabled={!url && !isActive}
+                variant="ghost"
+              >
+                <TrashIcon className="tiptap-button-icon" />
+              </Button>
+            </ButtonGroup>
           </ButtonGroup>
         </CardItemGroup>
       </CardBody>

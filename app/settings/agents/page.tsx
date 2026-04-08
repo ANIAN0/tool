@@ -1,25 +1,30 @@
 /**
- * Agent配置管理页面
- * 用户可以管理自己的Agent配置，包括创建、编辑、删除和公开状态切换
+ * Agent 配置管理页面
+ * 表格布局展示 Agent 列表，详情通过右侧抽屉展示
  */
 
 "use client";
 
-import { useState } from "react";
-import { useAgents, type CreateAgentInput, type UpdateAgentInput, type AgentWithTools } from "@/lib/hooks/use-agents";
-import { AgentList, type AgentFormData } from "@/components/settings/agent-list";
-import { AgentDetailDialog } from "@/components/settings/agent-detail-dialog";
-import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
-import { Info } from "lucide-react";
+import { useState, useCallback } from "react";
+import { useAgents, type CreateAgentInput, type UpdateAgentInput } from "@/lib/hooks/use-agents";
+import { AgentTable } from "@/components/settings/agent-table";
+import { AgentSheet } from "@/components/settings/agent-sheet";
+import { AgentForm, type AgentFormData } from "@/components/settings/agent-form";
+import type { AgentWithTools } from "@/lib/db/schema";
 
 /**
- * Agent配置管理页面组件
+ * Agent 配置管理页面组件
  */
 export default function AgentsSettingsPage() {
-  // Agent详情弹窗状态
-  const [detailDialogAgent, setDetailDialogAgent] = useState<AgentWithTools | null>(null);
+  // Agent 详情抽屉状态
+  const [sheetAgentId, setSheetAgentId] = useState<string | null>(null);
 
-  // 获取Agent列表和操作函数
+  // 新增/编辑表单对话框状态
+  const [formOpen, setFormOpen] = useState(false);
+  const [editingAgent, setEditingAgent] = useState<AgentWithTools | null>(null);
+  const [isSubmitting, setIsSubmitting] = useState(false);
+
+  // 获取 Agent 列表和操作函数
   const {
     myAgents,
     publicAgents,
@@ -30,156 +35,146 @@ export default function AgentsSettingsPage() {
     deleteAgent,
     togglePublic,
     refreshAgents,
-    clearError,
   } = useAgents();
 
   /**
-   * 处理查看Agent接口示例
-   * 打开详情弹窗
-   * @param agent - Agent信息
+   * 处理查看 Agent 详情
    */
-  const handleShowDetail = (agent: AgentWithTools) => {
-    setDetailDialogAgent(agent);
-  };
+  const handleView = useCallback((agentId: string) => {
+    setSheetAgentId(agentId);
+  }, []);
 
   /**
-   * 关闭Agent详情弹窗
+   * 关闭详情抽屉
    */
-  const handleCloseDetailDialog = () => {
-    setDetailDialogAgent(null);
-  };
+  const handleCloseSheet = useCallback(() => {
+    setSheetAgentId(null);
+  }, []);
 
   /**
-   * 处理创建Agent
-   * 将表单数据转换为创建API所需的格式
-   * @param data - 表单数据
+   * 处理创建 Agent
    */
-  const handleCreate = async (data: AgentFormData): Promise<AgentWithTools | null> => {
-    // 构建创建参数
-    const params: CreateAgentInput = {
-      name: data.name,
-      description: data.description || undefined,
-      templateId: data.templateId,
-      templateConfig: data.templateConfig,
-      systemPrompt: data.systemPrompt || undefined,
-      modelId: data.modelId || undefined,
-      toolIds: data.toolIds,
-      enabledSystemTools: data.enabledSystemTools, // 传递启用的系统工具
-      skillIds: data.skillIds, // 传递关联的 Skill ID 列表
-    };
-
-    // 调用创建方法
-    return createAgent(params);
-  };
+  const handleCreate = useCallback(() => {
+    setEditingAgent(null);
+    setFormOpen(true);
+  }, []);
 
   /**
-   * 处理更新Agent
-   * 将表单数据转换为更新API所需的格式
-   * @param id - Agent ID
-   * @param data - 表单数据
+   * 处理编辑 Agent
    */
-  const handleUpdate = async (id: string, data: AgentFormData): Promise<boolean> => {
-    // 调试日志：查看表单提交的数据
-    console.log("=== [handleUpdate] 表单数据 ===");
-    console.log("data.skillIds:", data.skillIds);
-    console.log("data.enabledSystemTools:", data.enabledSystemTools);
-    console.log("完整 data:", JSON.stringify(data, null, 2));
-
-    // 构建更新参数
-    const params: UpdateAgentInput = {
-      name: data.name,
-      description: data.description || null,
-      templateId: data.templateId,
-      templateConfig: data.templateConfig,
-      systemPrompt: data.systemPrompt || null,
-      modelId: data.modelId || null,
-      toolIds: data.toolIds,
-      enabledSystemTools: data.enabledSystemTools, // 传递启用的系统工具
-      skillIds: data.skillIds, // 传递关联的 Skill ID 列表
-    };
-
-    // 调试日志：查看发送给 API 的参数
-    console.log("=== [handleUpdate] API 参数 ===");
-    console.log("params.skillIds:", params.skillIds);
-    console.log("完整 params:", JSON.stringify(params, null, 2));
-
-    // 调用更新方法
-    return updateAgent(id, params);
-  };
+  const handleEdit = useCallback((agentId: string) => {
+    // 从 myAgents 中找到对应的 Agent
+    const agent = myAgents.find((a) => a.id === agentId);
+    if (agent) {
+      setEditingAgent(agent);
+      setFormOpen(true);
+    }
+  }, [myAgents]);
 
   /**
-   * 处理删除Agent
-   * @param id - Agent ID
+   * 关闭表单对话框
    */
-  const handleDelete = async (id: string): Promise<boolean> => {
-    return deleteAgent(id);
-  };
+  const handleCloseForm = useCallback(() => {
+    setFormOpen(false);
+    setEditingAgent(null);
+  }, []);
+
+  /**
+   * 处理表单提交
+   */
+  const handleFormSubmit = useCallback(
+    async (data: AgentFormData) => {
+      setIsSubmitting(true);
+      try {
+        if (editingAgent) {
+          // 更新现有 Agent
+          const params: UpdateAgentInput = {
+            name: data.name,
+            description: data.description || null,
+            templateId: data.templateId,
+            templateConfig: data.templateConfig,
+            systemPrompt: data.systemPrompt || null,
+            modelId: data.modelId || null,
+            toolIds: data.toolIds,
+            enabledSystemTools: data.enabledSystemTools,
+            skillIds: data.skillIds,
+          };
+          await updateAgent(editingAgent.id, params);
+        } else {
+          // 创建新 Agent
+          const params: CreateAgentInput = {
+            name: data.name,
+            description: data.description || undefined,
+            templateId: data.templateId,
+            templateConfig: data.templateConfig,
+            systemPrompt: data.systemPrompt || undefined,
+            modelId: data.modelId || undefined,
+            toolIds: data.toolIds,
+            enabledSystemTools: data.enabledSystemTools,
+            skillIds: data.skillIds,
+          };
+          await createAgent(params);
+        }
+        // 提交成功后关闭表单
+        handleCloseForm();
+      } finally {
+        setIsSubmitting(false);
+      }
+    },
+    [editingAgent, createAgent, updateAgent, handleCloseForm]
+  );
+
+  /**
+   * 处理删除 Agent
+   */
+  const handleDelete = useCallback(
+    async (agentId: string) => {
+      await deleteAgent(agentId);
+    },
+    [deleteAgent]
+  );
 
   /**
    * 处理切换公开状态
-   * @param id - Agent ID
-   * @param isPublic - 目标公开状态
    */
-  const handleTogglePublic = async (id: string, isPublic: boolean): Promise<boolean> => {
-    return togglePublic(id, isPublic);
-  };
-
-  /**
-   * 处理刷新列表
-   */
-  const handleRefresh = () => {
-    refreshAgents();
-  };
-
-  /**
-   * 处理清除错误
-   */
-  const handleClearError = () => {
-    clearError();
-  };
+  const handleTogglePublic = useCallback(
+    async (agentId: string, isPublic: boolean) => {
+      await togglePublic(agentId, isPublic);
+    },
+    [togglePublic]
+  );
 
   return (
-    <div className="space-y-6">
-      {/* 页面标题和说明 */}
-      <div>
-        <h1 className="text-2xl font-bold tracking-tight">Agent 配置管理</h1>
-        <p className="text-muted-foreground mt-1">
-          创建和管理您的 AI Agent，配置模型、工具和提示词
-        </p>
-      </div>
-
-      {/* 信息提示 */}
-      <Alert variant="default" className="bg-muted">
-        <Info className="h-4 w-4" />
-        <AlertTitle>关于 Agent</AlertTitle>
-        <AlertDescription>
-          Agent 是具有特定功能的 AI 助手，可以配置专属的模型、工具和系统提示词。
-          您可以将 Agent 设为公开，让其他用户也能使用。每个 Agent 基于一个模板运行，
-          模板定义了 Agent 的执行逻辑和行为模式。
-        </AlertDescription>
-      </Alert>
-
-      {/* Agent列表组件 */}
-      <AgentList
+    <>
+      {/* Agent 表格组件 */}
+      <AgentTable
         myAgents={myAgents}
         publicAgents={publicAgents}
         isLoading={isLoading}
-        error={error}
+        onRefresh={refreshAgents}
         onCreate={handleCreate}
-        onUpdate={handleUpdate}
+        onView={handleView}
+        onEdit={handleEdit}
         onDelete={handleDelete}
         onTogglePublic={handleTogglePublic}
-        onRefresh={handleRefresh}
-        onClearError={handleClearError}
-        onShowDetail={handleShowDetail} // 传递查看接口示例回调
       />
 
-      {/* Agent详情弹窗 */}
-      <AgentDetailDialog
-        agent={detailDialogAgent}
-        open={!!detailDialogAgent}
-        onClose={handleCloseDetailDialog}
+      {/* Agent 详情抽屉 */}
+      <AgentSheet
+        agentId={sheetAgentId}
+        open={!!sheetAgentId}
+        onClose={handleCloseSheet}
+        onEdit={handleEdit}
       />
-    </div>
+
+      {/* 新增/编辑表单对话框 */}
+      <AgentForm
+        open={formOpen}
+        agent={editingAgent}
+        onClose={handleCloseForm}
+        onSubmit={handleFormSubmit}
+        isLoading={isSubmitting}
+      />
+    </>
   );
 }

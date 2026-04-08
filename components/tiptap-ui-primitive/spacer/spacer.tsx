@@ -2,17 +2,15 @@
 
 export type SpacerOrientation = "horizontal" | "vertical"
 
-export interface SpacerProps extends React.HTMLAttributes<HTMLDivElement> {
-  orientation?: SpacerOrientation
-  size?: string | number
-}
-
 export function Spacer({
   orientation = "horizontal",
   size,
   style = {},
   ...props
-}: SpacerProps) {
+}: React.ComponentProps<"div"> & {
+  orientation?: SpacerOrientation
+  size?: string | number
+}) {
   const computedStyle = {
     ...style,
     ...(orientation === "horizontal" && !size && { flex: 1 }),

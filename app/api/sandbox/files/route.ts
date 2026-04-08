@@ -85,6 +85,7 @@ export async function GET(request: NextRequest) {
 
       try {
         // 使用 sandbox.readFile 获取文件内容（传入相对路径）
+        console.log(`[文件下载] sessionId=${sessionId}, relativePath=${relativePath}`);
         const content = await sandbox.readFile({
           sessionId,
           userId,
@@ -103,9 +104,15 @@ export async function GET(request: NextRequest) {
           },
         });
       } catch (readError) {
-        // 处理文件不存在或其他读取错误
-        console.error("读取文件失败:", readError);
-        return errorResponse("NOT_FOUND", "文件不存在或无法读取", 404);
+        // 处理文件不存在或其他读取错误，传递 Gateway 返回的具体错误信息
+        console.error("[文件下载失败]", {
+          sessionId,
+          relativePath,
+          error: readError instanceof Error ? readError.message : readError,
+        });
+        // 使用 Gateway 返回的错误信息，而不是固定的错误消息
+        const errorMessage = readError instanceof Error ? readError.message : "文件不存在或无法读取";
+        return errorResponse("NOT_FOUND", errorMessage, 404);
       }
     }
 

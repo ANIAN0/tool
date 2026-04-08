@@ -1,45 +1,41 @@
 :root {
-  --tiptap-input-placeholder: var(--tt-gray-light-a-400);
+  --tt-input-placeholder: var(--tt-gray-light-a-400);
+  --tt-input-border: var(--tt-gray-light-a-200);
+  --tt-input-border-focus: var(--tt-gray-light-a-300);
 }
 
 .dark {
-  --tiptap-input-placeholder: var(--tt-gray-dark-a-400);
+  --tt-input-placeholder: var(--tt-gray-dark-a-400);
+  --tt-input-border: var(--tt-gray-dark-a-200);
+  --tt-input-border-focus: var(--tt-gray-dark-a-300);
 }
 
 .tiptap-input {
-  display: block;
   width: 100%;
+  min-width: 0;
   height: 2rem;
-  font-size: 0.875rem;
-  font-weight: 400;
-  line-height: 1.5;
-  padding: 0.375rem 0.5rem;
-  border-radius: 0.375rem;
-  background: none;
-  appearance: none;
+  padding: 0.25rem 0.625rem;
+  border-radius: var(--tt-radius-md);
+  border: 1px solid var(--tt-input-border);
+  background: transparent;
+  font-size: 1rem;
   outline: none;
+  transition:
+    color,
+    background-color,
+    border-color 150ms;
 
   &::placeholder {
-    color: var(--tiptap-input-placeholder);
+    color: var(--tt-input-placeholder);
   }
 }
 
-.tiptap-input-clamp {
-  min-width: 12rem;
-  padding-right: 0;
-
-  text-overflow: ellipsis;
-  white-space: nowrap;
-
-  &:focus {
-    text-overflow: clip;
-    overflow: visible;
-  }
+.tiptap-input:focus-visible {
+  border-color: var(--tt-input-border-focus);
 }
 
-.tiptap-input-group {
-  position: relative;
-  display: flex;
-  flex-wrap: wrap;
-  align-items: stretch;
+@media (min-width: 768px) {
+  .tiptap-input {
+    font-size: 0.875rem;
+  }
 }

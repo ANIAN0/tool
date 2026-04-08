@@ -90,9 +90,15 @@ export function shouldShowButton(props: {
 }): boolean {
   const { editor, hideWhenUnavailable, action } = props
 
-  if (!editor || !editor.isEditable) return false
+  if (!editor) return false
 
-  if (hideWhenUnavailable && !editor.isActive("code")) {
+  if (!hideWhenUnavailable) {
+    return true
+  }
+
+  if (!editor.isEditable) return false
+
+  if (!editor.isActive("code")) {
     return canExecuteUndoRedoAction(editor, action)
   }
 

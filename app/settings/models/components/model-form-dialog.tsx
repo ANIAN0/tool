@@ -1,7 +1,9 @@
 /**
- * 模型表单组件
- * 用于创建和编辑模型的表单
+ * 模型新增对话框组件
+ * 用于创建新模型的表单对话框
  */
+
+"use client";
 
 import { useState } from "react";
 import { Button } from "@/components/ui/button";
@@ -16,56 +18,47 @@ import {
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Checkbox } from "@/components/ui/checkbox";
-import type { UserModel, CreateModelParams, UpdateModelParams } from "@/lib/hooks/use-user-models";
+import type { CreateModelParams } from "@/lib/hooks/use-user-models";
 
-interface ModelFormProps {
-  isOpen: boolean;
-  onClose: () => void;
-  onSubmit: (data: CreateModelParams | UpdateModelParams) => Promise<void>;
-  initialData?: UserModel | null;
+interface ModelFormDialogProps {
+  open: boolean;
+  onOpenChange: (open: boolean) => void;
+  onSubmit: (params: CreateModelParams) => Promise<boolean>;
   isLoading?: boolean;
 }
 
 /**
- * 模型表单组件
+ * 模型新增对话框组件
  */
-export function ModelForm({
-  isOpen,
-  onClose,
+export function ModelFormDialog({
+  open,
+  onOpenChange,
   onSubmit,
-  initialData,
   isLoading = false,
-}: ModelFormProps) {
-  const isEditing = !!initialData;
-
+}: ModelFormDialogProps) {
   // 表单状态
-  const [name, setName] = useState(initialData?.name ?? "");
-  // provider 固定为 openai，保证与后端仅 OpenAI-Compatible 的能力一致
-  const provider = "openai";
-  const [model, setModel] = useState(initialData?.model ?? "");
-  const [apiKey, setApiKey] = useState(""); // 编辑时默认留空，表示不修改
-  // 统一读取初始 baseUrl，兼容 API 模型（base_url）与本地模型（baseUrl）
-  const initialBaseUrl = initialData
-    ? "base_url" in initialData
-      ? initialData.base_url || ""
-      : initialData.baseUrl || ""
-    : "";
-  // 统一读取初始默认状态，兼容 API 模型（is_default）与本地模型（isDefault）
-  const initialIsDefault = initialData
-    ? "is_default" in initialData
-      ? initialData.is_default ?? false
-      : initialData.isDefault ?? false
-    : false;
-  // 读取初始上下文上限，默认 32000
-  const initialContextLimit = initialData
-    ? "context_limit" in initialData
-      ? initialData.context_limit ?? 32000
-      : 32000
-    : 32000;
-  const [baseUrl, setBaseUrl] = useState(initialBaseUrl);
-  const [isDefault, setIsDefault] = useState(initialIsDefault);
-  const [contextLimit, setContextLimit] = useState(initialContextLimit.toString()); // 新增：上下文上限
+  const [name, setName] = useState("");
+  const [model, setModel] = useState("");
+  const [apiKey, setApiKey] = useState("");
+  const [baseUrl, setBaseUrl] = useState("");
+  const [contextLimit, setContextLimit] = useState("32000");
+  const [isDefault, setIsDefault] = useState(false);
   const [errors, setErrors] = useState<Record<string, string>>({});
+
+  // provider 固定为 openai
+  const provider = "openai";
+
+  // 关闭时重置表单
+  const handleClose = () => {
+    setName("");
+    setModel("");
+    setApiKey("");
+    setBaseUrl("");
+    setContextLimit("32000");
+    setIsDefault(false);
+    setErrors({});
+    onOpenChange(false);
+  };
 
   // 验证表单
   const validate = (): boolean => {
@@ -74,12 +67,10 @@ export function ModelForm({
     if (!name.trim()) {
       newErrors.name = "模型名称是必填项";
     }
-
     if (!model.trim()) {
-      newErrors.model = "模型ID是必填项";
+      newErrors.model = "模型 ID 是必填项";
     }
-
-    if (!isEditing && !apiKey.trim()) {
+    if (!apiKey.trim()) {
       newErrors.apiKey = "API Key 是必填项";
     }
 
@@ -95,38 +86,29 @@ export function ModelForm({
       return;
     }
 
-    const data: CreateModelParams | UpdateModelParams = isEditing
-      ? {
-          name: name.trim() || undefined,
-          provider: provider || undefined,
-          model: model.trim() || undefined,
-          apiKey: apiKey.trim() || undefined,
-          baseUrl: baseUrl.trim() || undefined,
-          isDefault,
-          contextLimit: parseInt(contextLimit, 10) || undefined, // 新增：上下文上限
-        }
-      : {
-          name: name.trim(),
-          provider,
-          model: model.trim(),
-          apiKey: apiKey.trim(),
-          baseUrl: baseUrl.trim() || undefined,
-          isDefault,
-          contextLimit: parseInt(contextLimit, 10) || undefined, // 新增：上下文上限
-        };
+    const params: CreateModelParams = {
+      name: name.trim(),
+      provider,
+      model: model.trim(),
+      apiKey: apiKey.trim(),
+      baseUrl: baseUrl.trim() || undefined,
+      contextLimit: parseInt(contextLimit, 10) || undefined,
+      isDefault,
+    };
 
-    await onSubmit(data);
+    const success = await onSubmit(params);
+    if (success) {
+      handleClose();
+    }
   };
 
   return (
-    <Dialog open={isOpen} onOpenChange={onClose}>
+    <Dialog open={open} onOpenChange={handleClose}>
       <DialogContent className="sm:max-w-[500px]">
         <DialogHeader>
-          <DialogTitle>{isEditing ? "编辑模型" : "添加模型"}</DialogTitle>
+          <DialogTitle>添加模型</DialogTitle>
           <DialogDescription>
-            {isEditing
-              ? "修改您的自定义模型配置"
-              : "添加一个新的自定义模型配置"}
+            添加一个新的自定义模型配置
           </DialogDescription>
         </DialogHeader>
 
@@ -176,20 +158,14 @@ export function ModelForm({
           {/* API Key */}
           <div className="space-y-2">
             <Label htmlFor="apiKey">
-              API Key
-              {!isEditing && <span className="text-destructive">*</span>}
-              {isEditing && (
-                <span className="text-muted-foreground text-xs ml-2">
-                  (留空表示不修改)
-                </span>
-              )}
+              API Key <span className="text-destructive">*</span>
             </Label>
             <Input
               id="apiKey"
               type="password"
               value={apiKey}
               onChange={(e) => setApiKey(e.target.value)}
-              placeholder={isEditing ? "••••••••" : "输入 API Key"}
+              placeholder="输入 API Key"
               disabled={isLoading}
             />
             {errors.apiKey && (
@@ -247,11 +223,11 @@ export function ModelForm({
           </div>
 
           <DialogFooter>
-            <Button type="button" variant="outline" onClick={onClose} disabled={isLoading}>
+            <Button type="button" variant="outline" onClick={handleClose} disabled={isLoading}>
               取消
             </Button>
             <Button type="submit" disabled={isLoading}>
-              {isLoading ? "保存中..." : isEditing ? "保存修改" : "添加模型"}
+              {isLoading ? "添加中..." : "添加模型"}
             </Button>
           </DialogFooter>
         </form>

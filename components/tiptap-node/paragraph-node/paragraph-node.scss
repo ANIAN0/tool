@@ -271,3 +271,16 @@
   height: 0.188rem;
   cursor: grabbing;
 }
+
+/* =====================
+     INDENT
+     ===================== */
+
+.tiptap.ProseMirror {
+  --tt-indent-unit: 24px;
+
+  [data-indent] {
+    transition: margin-left 0.2s ease-in-out;
+    margin-left: calc(var(--tt-indent-unit) * var(--tt-indent-level, 0));
+  }
+}

@@ -38,11 +38,17 @@ export default function TokenTestPage() {
   };
 
   return (
-    <div className="container max-w-4xl py-8">
-      <h1 className="text-2xl font-bold mb-6">Token 估算测试</h1>
+    <div className="space-y-6">
+      {/* 页面标题和说明 */}
+      <div>
+        <h1 className="text-2xl font-bold tracking-tight">Token 估算测试</h1>
+        <p className="text-muted-foreground mt-1">
+          估算文本或请求JSON的Token数量
+        </p>
+      </div>
 
       {/* 说明 */}
-      <Card className="mb-6">
+      <Card>
         <CardContent className="pt-4">
           <p className="text-sm text-muted-foreground">
             估算规则：<br />

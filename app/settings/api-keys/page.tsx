@@ -124,12 +124,15 @@ export default function ApiKeysPage() {
   };
 
   return (
-    <div className="container mx-auto py-6 space-y-6">
-      <div className="flex justify-between items-center">
-        <div>
-          <h1 className="text-2xl font-bold">API Key 管理</h1>
-          <p className="text-muted-foreground">管理对外接口访问密钥</p>
-        </div>
+    <div className="space-y-6">
+      {/* 页面标题和说明 */}
+      <div>
+        <h1 className="text-2xl font-bold tracking-tight">API Key 管理</h1>
+        <p className="text-muted-foreground mt-1">
+          管理对外接口访问密钥
+        </p>
+      </div>
+      <div className="flex justify-end">
         <Button onClick={() => setCreateDialogOpen(true)}>
           <Plus className="h-4 w-4 mr-2" />
           创建 API Key

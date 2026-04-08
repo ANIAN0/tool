@@ -96,10 +96,10 @@ const MainToolbarContent = ({
       <ToolbarSeparator />
 
       <ToolbarGroup>
-        <HeadingDropdownMenu levels={[1, 2, 3, 4]} portal={isMobile} />
+        <HeadingDropdownMenu modal={false} levels={[1, 2, 3, 4]} />
         <ListDropdownMenu
+          modal={false}
           types={["bulletList", "orderedList", "taskList"]}
-          portal={isMobile}
         />
         <BlockquoteButton />
         <CodeBlockButton />

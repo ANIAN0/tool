@@ -1,13 +1,13 @@
 /**
  * 模型设置页面
- * 用户可以管理自己的 LLM 模型配置
+ * 表格布局展示模型列表，详情通过右侧抽屉展示
  */
 
 "use client";
 
 import { useUserModels } from "@/lib/hooks/use-user-models";
 import { useAuth } from "@/lib/hooks/use-auth";
-import { ModelList } from "./components/model-list";
+import { ModelTable } from "./components/model-table";
 import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
 import { Info } from "lucide-react";
 
@@ -32,11 +32,11 @@ export default function ModelsSettingsPage() {
   // 如果认证状态还在加载中，显示加载状态
   if (authLoading) {
     return (
-      <div className="space-y-6">
+      <div className="flex flex-col gap-6">
         <div>
-          <h1 className="text-2xl font-bold tracking-tight">模型设置</h1>
+          <h1 className="text-2xl font-semibold tracking-tight">模型设置</h1>
           <p className="text-muted-foreground mt-1">
-            管理您的自定义 LLM 模型配置，当前仅支持 OpenAI-Compatible（provider=openai）
+            管理您的自定义 LLM 模型配置（OpenAI-Compatible）
           </p>
         </div>
         <div className="flex items-center justify-center py-12">
@@ -47,18 +47,10 @@ export default function ModelsSettingsPage() {
   }
 
   return (
-    <div className="space-y-6">
-      {/* 页面标题和说明 */}
-      <div>
-        <h1 className="text-2xl font-bold tracking-tight">模型设置</h1>
-        <p className="text-muted-foreground mt-1">
-          管理您的自定义 LLM 模型配置，当前仅支持 OpenAI-Compatible（provider=openai）
-        </p>
-      </div>
-
+    <div className="flex flex-col gap-6">
       {/* 未登录用户提示 */}
       {!isAuthenticated && (
-        <Alert variant="default" className="bg-muted">
+        <Alert variant="default">
           <Info className="h-4 w-4" />
           <AlertTitle>提示</AlertTitle>
           <AlertDescription>
@@ -68,8 +60,8 @@ export default function ModelsSettingsPage() {
         </Alert>
       )}
 
-      {/* 模型列表 */}
-      <ModelList
+      {/* 模型表格 */}
+      <ModelTable
         models={models}
         isLoading={isLoading}
         error={error}

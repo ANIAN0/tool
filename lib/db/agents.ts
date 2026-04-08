@@ -213,7 +213,7 @@ async function deleteAgentTools(agentId: string): Promise<void> {
  * 创建新Agent
  * 同时创建工具关联
  */
-export async function createAgent(params: CreateAgentParams): Promise<Agent> {
+export async function createAgent(params: CreateAgentParams): Promise<AgentWithTools> {
   const db = getDb();
   const now = Date.now();
 
@@ -254,7 +254,8 @@ export async function createAgent(params: CreateAgentParams): Promise<Agent> {
     await insertAgentTools(params.id, params.toolIds);
   }
 
-  return {
+  // 构建基础 Agent 对象
+  const agent: Agent = {
     id: params.id,
     user_id: params.userId,
     name: params.name,
@@ -268,6 +269,12 @@ export async function createAgent(params: CreateAgentParams): Promise<Agent> {
     created_at: now,
     updated_at: now,
   };
+
+  // 获取关联的 MCP 工具
+  const mcpTools = await getAgentTools(params.id);
+
+  // 使用 buildAgentWithTools 构建完整响应（包含 tools 数组）
+  return buildAgentWithTools(agent, mcpTools);
 }
 
 /**
@@ -710,7 +717,7 @@ export async function getAgentSkillsInfo(agentId: string): Promise<
 export async function createAgentWithSkills(
   params: CreateAgentParams,
   skillIds?: string[]
-): Promise<Agent> {
+): Promise<AgentWithTools> {
   // 如果配置了 Skill，强制包含必要的系统工具
   let enabledSystemTools = params.enabledSystemTools || getDefaultSystemTools();
 
