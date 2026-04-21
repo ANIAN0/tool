@@ -100,6 +100,7 @@ export function useUserModels(
 ): UseUserModelsReturn {
   // 使用项目自定义的 useAuth hook 获取认证状态
   // 替代错误的 next-auth useSession 调用
+  // 使用项目内认证 Hook 统一读取登录状态，避免再次引入废弃认证方案。
   const { isAuthenticated, getAuthHeader } = useAuth();
 
   const [models, setModels] = useState<UserModel[]>([]);

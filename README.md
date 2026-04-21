@@ -77,6 +77,7 @@
 - **流式对话**：基于 AI SDK 的流式响应
 - **工具执行**：沙盒系统工具 + MCP 运行时工具
 - **Skill 加载**：对话开始时自动加载 Skill 文件到沙盒
+- **对话压缩**：自动检测长对话并进行历史压缩，压缩结果缓存到数据库
 
 ### 5. MCP 工具集成 (`docs/项目最新概况/03mcp与mcptool注册说明.md`)
 
@@ -116,15 +117,18 @@
 
 | 层级 | 技术 |
 |------|------|
-| 前端框架 | Next.js 15, React 19 |
-| UI 组件 | Shadcn UI, Tailwind CSS |
+| 前端框架 | Next.js 16, React 19 |
+| UI 组件 | Shadcn UI, Tailwind CSS v4 |
+| 富文本编辑 | Tiptap v3（Markdown、Code、Math、Mermaid）|
 | 后端框架 | Next.js API Routes |
-| 数据库 | Turso (LibSQL) |
+| 数据库 | Turso (LibSQL / SQLite) |
 | 文件存储 | Supabase Storage |
 | 认证 | JWT + bcrypt |
-| AI SDK | @ai-sdk/react, ai |
-| MCP | @ai-sdk/mcp |
-| 沙盒 | Python + nsjail |
+| AI SDK | @ai-sdk/react, ai (Vercel AI SDK) |
+| MCP | @ai-sdk/mcp, @modelcontextprotocol/sdk |
+| 搜索 | Tavily AI SDK |
+| 沙盒 | Python + nsjail (FastAPI) |
+| 语言 | TypeScript 6 |
 
 ## 快速开始
 
@@ -145,56 +149,78 @@ npm run dev
 ### 必需环境变量
 
 ```bash
-# 数据库
-TURSO_DATABASE_URL=
+# 数据库（Turso）
+TURSO_DATABASE_URL=libsql://your-database.turso.io
 TURSO_AUTH_TOKEN=
 
 # JWT 认证
 JWT_SECRET=                    # 至少 32 字符
 INVITE_CODE=                   # 注册邀请码
 
-# 沙盒服务
-SANDBOX_ENABLED=true
-SANDBOX_GATEWAY_URL=
-SANDBOX_API_KEY=
-
-# Supabase (Skill 存储)
+# Supabase（Skill 文件存储）
 SUPABASE_URL=
-SUPABASE_PUBLISHABLE_KEY=
-SUPABASE_SECRET_KEY=
+SUPABASE_PUBLISHABLE_KEY=      # anon public key
+SUPABASE_SECRET_KEY=           # service_role secret key
+```
+
+### 可选环境变量
+
+```bash
+# 沙盒服务（开启代码执行能力）
+SANDBOX_ENABLED=false          # 设为 true 启用
+SANDBOX_GATEWAY_URL=           # 沙盒服务地址（HTTPS）
+SANDBOX_API_KEY=               # 与沙盒服务配置一致
+SANDBOX_IDLE_TIMEOUT_MS=1800000  # 闲置超时，默认 30 分钟
+SANDBOX_REQUEST_TIMEOUT_MS=60000 # 请求超时，默认 60 秒
+
+# 预置模型 API Key（可通过界面配置替代）
+OPENROUTER_API_KEY=            # OpenRouter
+OPENROUTER_MODEL=openai/gpt-4o-mini
+SILICONFLOW_API_KEY=           # SiliconFlow
+STEPFUN_API_KEY=               # StepFun
 ```
 
 ## 项目结构
 
 ```
 ├── app/                      # Next.js App Router
-│   ├── agent-chat/           # 主对话入口
-│   ├── settings/             # 设置页面
+│   ├── agent-chat/           # 主对话入口（新建 + 历史会话）
+│   ├── settings/             # 设置中心
 │   │   ├── agents/           # Agent 管理
 │   │   ├── mcp/              # MCP 服务配置
 │   │   ├── skills/           # Skill 管理
 │   │   ├── models/           # 模型配置
-│   │   └── api-keys/         # API Key 管理
-│   ├── api/                  # API Routes
-│   │   ├── agent-chat/       # 对话 API
+│   │   ├── api-keys/         # API Key 管理
+│   │   ├── files/            # 文件管理
+│   │   └── token-test/       # Token 测试工具
+│   ├── api/                  # API Routes（38 个路由）
+│   │   ├── agent-chat/       # 对话 API（SSE 流式）
 │   │   ├── agents/           # Agent CRUD
 │   │   ├── skills/           # Skill CRUD
-│   │   ├── mcp/              # MCP 服务管理
-│   │   └── v1/               # 对外 API
-│   └── (auth)/               # 认证页面
-├── components/               # React 组件
-│   ├── agent-chat/           # 对话组件
-│   ├── settings/             # 设置组件
+│   │   ├── mcp/              # MCP 服务管理 + 工具同步
+│   │   ├── user/             # 用户模型配置
+│   │   ├── api-keys/         # API Key 管理
+│   │   ├── sandbox/          # 沙盒文件读写
+│   │   ├── upload/           # 文件上传
+│   │   └── v1/               # 对外 API（Bearer Token）
+│   └── (auth)/               # 认证页面（登录/注册）
+├── components/               # React 组件（219 个）
+│   ├── agent-chat/           # 对话组件库
+│   ├── settings/             # 设置页面组件
 │   └── auth/                 # 认证组件
 ├── lib/                      # 核心库
-│   ├── auth/                 # 认证模块
-│   ├── db/                   # 数据库操作
-│   ├── sandbox/              # 沙盒客户端
-│   ├── agents/               # Agent 逻辑
-│   ├── supabase/             # Supabase 客户端
-│   └── utils/                # 工具函数
-├── sandbox-service/          # 沙盒服务 (Python)
-└── docs/                     # 项目文档
+│   ├── auth/                 # JWT + 密码加密
+│   ├── db/                   # 数据库操作（11 张表）
+│   ├── sandbox/              # 沙盒客户端（工厂模式）
+│   ├── agents/               # Agent 逻辑 + MCP 运行时
+│   ├── mcp/                  # MCP 协议实现
+│   ├── models/               # 模型解析与 Provider 注册
+│   ├── chat/                 # 对话压缩
+│   ├── skills/               # Skill 加载与校验
+│   └── utils/                # 工具函数（限速、路径校验等）
+├── hooks/                    # React Hooks
+├── sandbox-service/          # 沙盒服务（Python + FastAPI + nsjail）
+└── docs/                     # 项目文档（本地留存，不纳入版本库）
     └── 项目最新概况/          # 详细技术文档
 ```
 
@@ -215,7 +241,6 @@ SUPABASE_SECRET_KEY=
 ### 后续规划
 
 - [ ] 性能优化（缓存、连接池）
-- [ ] 测试覆盖（单元测试、集成测试）
 - [ ] 多语言支持
 - [ ] 对话导出与分享
 - [ ] Agent 市场与模板库

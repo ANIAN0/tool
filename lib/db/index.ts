@@ -34,7 +34,7 @@ import {
   CREATE_CHECKPOINTS_TABLE,
   MIGRATION_ADD_CHECKPOINT_CACHE_CONTENT,
   CREATE_CHECKPOINTS_INDEXES,
-} from "@/lib/schemas";
+} from "./schema";
 
 /**
  * 初始化数据库表结构
@@ -524,7 +524,8 @@ export async function isDatabaseInitialized(): Promise<boolean> {
 export { getDb, resetDb } from "./client";
 
 // 导出schema类型和常量（从schemas目录导入）
-export * from "@/lib/schemas";
+// 统一从兼容层导出，避免外部继续感知底层 schema 目录结构。
+export * from "./schema";
 
 // 导出用户数据访问方法
 export * from "./users";
