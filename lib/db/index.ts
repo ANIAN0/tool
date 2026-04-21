@@ -1,37 +1,40 @@
 import { getDb } from "./client";
+// 从 schemas 目录导入表结构定义
 import {
-  INIT_SQL,
+  CREATE_USERS_TABLE,
+  CREATE_CONVERSATIONS_TABLE,
+  CREATE_MESSAGES_TABLE,
+  CREATE_CONVERSATION_INDEXES,
   MIGRATION_ADD_AGENT_ID,
   MIGRATION_ADD_IS_PRIVATE,
   MIGRATION_ADD_SOURCE,
-  CREATE_USERS_TABLE,
+  MIGRATION_ADD_COMPRESSION_CACHE,
+  MIGRATION_ADD_MESSAGE_TYPE,
   CREATE_FOLDERS_TABLE,
   CREATE_DOCUMENTS_TABLE,
   CREATE_DOC_INDEXES,
   CREATE_USER_MODELS_TABLE,
   CREATE_USER_MODEL_INDEXES,
+  MIGRATION_ADD_CONTEXT_LIMIT,
   CREATE_USER_MCP_SERVERS_TABLE,
   CREATE_MCP_TOOLS_TABLE,
   CREATE_MCP_SERVERS_INDEXES,
-  // Agent相关表Schema
   CREATE_AGENTS_TABLE,
   CREATE_AGENT_TOOLS_TABLE,
   CREATE_AGENTS_INDEXES,
-  // Skill相关表Schema
   CREATE_USER_SKILLS_TABLE,
   CREATE_AGENT_SKILLS_TABLE,
   CREATE_SKILLS_INDEXES,
-  // API Key相关表Schema
   CREATE_USER_API_KEYS_TABLE,
   CREATE_API_KEYS_INDEXES,
-  // 新增：context_limit 迁移和消息归档表
-  MIGRATION_ADD_CONTEXT_LIMIT,
   CREATE_DELETED_MESSAGES_TABLE,
   CREATE_DELETED_MESSAGES_INDEXES,
-  // Token统计字段迁移
-  MIGRATION_ADD_MESSAGE_TOKEN_FIELDS,
-  MIGRATION_ADD_CONVERSATION_TOKEN_FIELDS,
-} from "./schema";
+  CREATE_COMPRESSION_TASKS_TABLE,
+  CREATE_COMPRESSION_TASKS_INDEXES,
+  CREATE_CHECKPOINTS_TABLE,
+  MIGRATION_ADD_CHECKPOINT_CACHE_CONTENT,
+  CREATE_CHECKPOINTS_INDEXES,
+} from "@/lib/schemas";
 
 /**
  * 初始化数据库表结构
@@ -43,8 +46,12 @@ export async function initDatabase(): Promise<void> {
   // 先创建users表
   await db.execute(CREATE_USERS_TABLE);
 
-  // 执行所有初始化SQL语句
-  for (const sql of INIT_SQL) {
+  // 创建conversations和messages表
+  await db.execute(CREATE_CONVERSATIONS_TABLE);
+  await db.execute(CREATE_MESSAGES_TABLE);
+
+  // 创建对话相关索引
+  for (const sql of CREATE_CONVERSATION_INDEXES) {
     await db.execute(sql);
   }
 
@@ -413,6 +420,84 @@ export async function migrateDatabase(): Promise<void> {
       console.error("添加 conversations.total_tokens 字段失败:", error);
     }
   }
+
+  // 迁移：为 conversations 表添加 compression_cache 字段
+  try {
+    await db.execute(MIGRATION_ADD_COMPRESSION_CACHE);
+    console.log("数据库迁移成功：已添加 compression_cache 字段");
+  } catch (error) {
+    if (String(error).includes("duplicate column")) {
+      console.log("compression_cache 字段已存在，跳过迁移");
+    } else {
+      console.error("添加 compression_cache 字段失败:", error);
+    }
+  }
+
+  // 迁移：为 messages 表添加 type 字段
+  try {
+    await db.execute(MIGRATION_ADD_MESSAGE_TYPE);
+    console.log("数据库迁移成功：已添加 messages.type 字段");
+  } catch (error) {
+    if (String(error).includes("duplicate column")) {
+      console.log("messages.type 字段已存在，跳过迁移");
+    } else {
+      console.error("添加 messages.type 字段失败:", error);
+    }
+  }
+
+  // 迁移：创建压缩任务表
+  try {
+    await db.execute(CREATE_COMPRESSION_TASKS_TABLE);
+    console.log("compression_tasks 表已创建或已存在");
+  } catch (error) {
+    console.error("创建 compression_tasks 表失败:", error);
+  }
+
+  // 迁移：创建压缩任务索引
+  for (const sql of CREATE_COMPRESSION_TASKS_INDEXES) {
+    try {
+      await db.execute(sql);
+    } catch (error) {
+      if (String(error).includes("already exists")) {
+        console.log("压缩任务索引已存在，跳过");
+      } else {
+        console.error("创建压缩任务索引失败:", error);
+      }
+    }
+  }
+
+  // 迁移：创建检查点表
+  try {
+    await db.execute(CREATE_CHECKPOINTS_TABLE);
+    console.log("checkpoints 表已创建或已存在");
+  } catch (error) {
+    console.error("创建 checkpoints 表失败:", error);
+  }
+
+  // 迁移：为 checkpoints 表添加 cache_content 字段
+  try {
+    await db.execute(MIGRATION_ADD_CHECKPOINT_CACHE_CONTENT);
+    console.log("数据库迁移成功：已添加 checkpoints.cache_content 字段");
+  } catch (error) {
+    if (String(error).includes("duplicate column")) {
+      console.log("checkpoints.cache_content 字段已存在，跳过迁移");
+    } else {
+      console.error("添加 checkpoints.cache_content 字段失败:", error);
+    }
+  }
+
+  // 迁移：创建检查点索引
+  for (const sql of CREATE_CHECKPOINTS_INDEXES) {
+    try {
+      await db.execute(sql);
+    } catch (error) {
+      if (String(error).includes("already exists")) {
+        console.log("检查点索引已存在，跳过");
+      } else {
+        console.error("创建检查点索引失败:", error);
+      }
+    }
+  }
 }
 
 /**
@@ -438,8 +523,8 @@ export async function isDatabaseInitialized(): Promise<boolean> {
 // 导出数据库客户端
 export { getDb, resetDb } from "./client";
 
-// 导出schema类型和常量
-export * from "./schema";
+// 导出schema类型和常量（从schemas目录导入）
+export * from "@/lib/schemas";
 
 // 导出用户数据访问方法
 export * from "./users";

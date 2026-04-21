@@ -65,7 +65,11 @@ docs/
 
 .claude/
 
-/skills-lock.json
+skills-lock.json
 /.claude/settings.local.json
 .impeccable.md
 CLAUDE.md
+
+skillconfig.json
+
+/workplace
