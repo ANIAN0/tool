@@ -14,38 +14,58 @@
 
 ## 核心架构
 
-```
-┌─────────────────────────────────────────────────────────────┐
-│                      前端层 (Next.js)                        │
-│  ┌─────────┐  ┌─────────┐  ┌─────────┐  ┌─────────┐       │
-│  │Agent Chat│  │设置页面 │  │认证页面 │  │API Keys │       │
-│  └────┬────┘  └────┬────┘  └────┬────┘  └────┬────┘       │
-└───────┼────────────┼────────────┼────────────┼─────────────┘
-        │            │            │            │
-┌───────┼────────────┼────────────┼────────────┼─────────────┐
-│       │            API 层 (Next.js API Routes)             │
-│  ┌────┴────┐  ┌────┴────┐  ┌────┴────┐  ┌────┴────┐       │
-│  │/api/    │  │/api/    │  │/api/    │  │/api/v1/ │       │
-│  │agent-chat│  │agents   │  │skills   │  │chat     │       │
-│  └────┬────┘  └────┬────┘  └────┬────┘  └────┬────┘       │
-└───────┼────────────┼────────────┼────────────┼─────────────┘
-        │            │            │            │
-┌───────┼────────────┼────────────┼────────────┼─────────────┐
-│       │            业务逻辑层                               │
-│  ┌────┴────┐  ┌────┴────┐  ┌────┴────┐  ┌────┴────┐       │
-│  │沙盒工具  │  │MCP 运行时│  │Skill加载│  │Agent配置│       │
-│  │bash/    │  │动态挂载  │  │预置提示词│  │模板校验 │       │
-│  │read/write│  │         │  │         │  │         │       │
-│  └────┬────┘  └────┬────┘  └────┬────┘  └────┬────┘       │
-└───────┼────────────┼────────────┼────────────┼─────────────┘
-        │            │            │            │
-┌───────┼────────────┼────────────┼────────────┼─────────────┐
-│       │            数据存储层                               │
-│  ┌────┴────┐  ┌────┴────┐  ┌────┴────┐  ┌────┴────┐       │
-│  │Turso    │  │Supabase │  │沙盒服务 │  │外部MCP  │       │
-│  │(SQLite) │  │Storage  │  │(nsjail) │  │服务     │       │
-│  └─────────┘  └─────────┘  └─────────┘  └─────────┘       │
-└─────────────────────────────────────────────────────────────┘
+```mermaid
+flowchart TB
+    subgraph frontend["前端层（Next.js）"]
+        chat["Agent Chat"]
+        settings["设置页面"]
+        auth["认证页面"]
+        apiKeys["API Keys"]
+    end
+
+    subgraph api["API 层（Next.js API Routes）"]
+        apiChat["/api/agent-chat"]
+        apiAgents["/api/agents"]
+        apiSkills["/api/skills"]
+        apiV1["/api/v1/chat"]
+    end
+
+    subgraph business["业务逻辑层"]
+        sandboxTools["沙盒工具<br/>bash / read / write"]
+        mcpRuntime["MCP 运行时<br/>动态挂载"]
+        skillLoader["Skill 加载<br/>预置提示词"]
+        agentConfig["Agent 配置<br/>模板校验"]
+    end
+
+    subgraph storage["数据存储层"]
+        turso["Turso<br/>（SQLite）"]
+        supabase["Supabase<br/>Storage"]
+        sandboxService["沙盒服务<br/>（nsjail）"]
+        externalMcp["外部 MCP 服务"]
+    end
+
+    chat --> apiChat
+    settings --> apiAgents
+    settings --> apiSkills
+    apiKeys --> apiV1
+    auth --> apiChat
+
+    apiChat --> sandboxTools
+    apiChat --> mcpRuntime
+    apiChat --> skillLoader
+    apiAgents --> agentConfig
+    apiSkills --> skillLoader
+    apiV1 --> sandboxTools
+    apiV1 --> mcpRuntime
+
+    sandboxTools --> sandboxService
+    mcpRuntime --> externalMcp
+    skillLoader --> supabase
+    agentConfig --> turso
+    apiChat --> turso
+    apiAgents --> turso
+    apiSkills --> supabase
+    apiV1 --> turso
 ```
 
 ## 主要功能模块
@@ -174,8 +194,6 @@ SANDBOX_IDLE_TIMEOUT_MS=1800000  # 闲置超时，默认 30 分钟
 SANDBOX_REQUEST_TIMEOUT_MS=60000 # 请求超时，默认 60 秒
 
 # 预置模型 API Key（可通过界面配置替代）
-OPENROUTER_API_KEY=            # OpenRouter
-OPENROUTER_MODEL=openai/gpt-4o-mini
 SILICONFLOW_API_KEY=           # SiliconFlow
 STEPFUN_API_KEY=               # StepFun
 ```

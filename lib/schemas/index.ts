@@ -133,3 +133,25 @@ export type {
   CreateUserModelParams,
   UpdateUserModelParams,
 } from './model';
+
+// WorkflowChat表
+export {
+  CREATE_WORKFLOWCHAT_CONVERSATIONS_TABLE,
+  CREATE_WORKFLOWCHAT_MESSAGES_TABLE,
+  CREATE_WORKFLOWCHAT_RUNS_TABLE,
+  CREATE_WORKFLOWCHAT_RUN_STEPS_TABLE,
+  CREATE_WORKFLOWCHAT_CONVERSATION_INDEXES,
+  CREATE_WORKFLOWCHAT_MESSAGE_INDEXES,
+  CREATE_WORKFLOWCHAT_RUN_INDEXES,
+  CREATE_WORKFLOWCHAT_RUN_STEP_INDEXES,
+  CREATE_WORKFLOWCHAT_INDEXES,
+} from './workflowchat';
+export type {
+  WorkflowChatConversationStatus,
+  WorkflowChatRunStatus,
+  WorkflowChatStepStatus,
+  WorkflowChatConversation,
+  WorkflowChatMessage,
+  WorkflowChatRun,
+  WorkflowChatRunStep,
+} from './workflowchat';

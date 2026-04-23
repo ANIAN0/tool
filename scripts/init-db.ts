@@ -39,6 +39,12 @@ import {
   // 消息撤回相关表Schema
   CREATE_DELETED_MESSAGES_TABLE,
   CREATE_DELETED_MESSAGES_INDEXES,
+  // WorkflowChat相关表Schema
+  CREATE_WORKFLOWCHAT_CONVERSATIONS_TABLE,
+  CREATE_WORKFLOWCHAT_MESSAGES_TABLE,
+  CREATE_WORKFLOWCHAT_RUNS_TABLE,
+  CREATE_WORKFLOWCHAT_RUN_STEPS_TABLE,
+  CREATE_WORKFLOWCHAT_INDEXES,
 } from "../lib/db/schema";
 
 /**
@@ -138,6 +144,26 @@ async function initDatabase(db: Client): Promise<void> {
   await db.execute(CREATE_DELETED_MESSAGES_TABLE);
   console.log("✅ deleted_messages 表创建成功");
 
+  // 15. 创建 workflowchat_conversations 表
+  console.log("创建 workflowchat_conversations 表...");
+  await db.execute(CREATE_WORKFLOWCHAT_CONVERSATIONS_TABLE);
+  console.log("✅ workflowchat_conversations 表创建成功");
+
+  // 16. 创建 workflowchat_runs 表（messages 有外键引用，需先创建 runs）
+  console.log("创建 workflowchat_runs 表...");
+  await db.execute(CREATE_WORKFLOWCHAT_RUNS_TABLE);
+  console.log("✅ workflowchat_runs 表创建成功");
+
+  // 17. 创建 workflowchat_messages 表
+  console.log("创建 workflowchat_messages 表...");
+  await db.execute(CREATE_WORKFLOWCHAT_MESSAGES_TABLE);
+  console.log("✅ workflowchat_messages 表创建成功");
+
+  // 18. 创建 workflowchat_run_steps 表
+  console.log("创建 workflowchat_run_steps 表...");
+  await db.execute(CREATE_WORKFLOWCHAT_RUN_STEPS_TABLE);
+  console.log("✅ workflowchat_run_steps 表创建成功");
+
   console.log("\n");
 }
 
@@ -224,6 +250,20 @@ async function createIndexes(db: Client): Promise<void> {
       console.log(`✅ deleted_messages索引创建成功: ${sql.substring(0, 60)}...`);
     } catch (error) {
       console.log(`⚠️ deleted_messages索引创建跳过: ${sql.substring(0, 60)}...`);
+    }
+  }
+
+  // 创建 WorkflowChat 相关索引
+  for (const sql of CREATE_WORKFLOWCHAT_INDEXES) {
+    try {
+      await db.execute(sql);
+      console.log(`✅ WorkflowChat索引创建成功: ${sql.substring(0, 60)}...`);
+    } catch (error) {
+      if (String(error).includes("already exists")) {
+        console.log("✅ WorkflowChat索引已存在，跳过");
+      } else {
+        console.error("创建 WorkflowChat 索引失败:", error);
+      }
     }
   }
 
@@ -567,6 +607,57 @@ async function migrateDatabase(db: Client): Promise<void> {
     }
   }
 
+  // 迁移26: 创建 workflowchat_conversations 表（如果不存在）
+  if (!(await tableExists(db, "workflowchat_conversations"))) {
+    console.log("创建 workflowchat_conversations 表...");
+    await db.execute(CREATE_WORKFLOWCHAT_CONVERSATIONS_TABLE);
+    console.log("✅ workflowchat_conversations 表创建成功");
+  } else {
+    console.log("✅ workflowchat_conversations 表已存在，跳过迁移");
+  }
+
+  // 迁移27: 创建 workflowchat_runs 表（如果不存在）
+  // 注意：runs 表必须先于 messages 表创建，因为 messages 有外键引用 runs
+  if (!(await tableExists(db, "workflowchat_runs"))) {
+    console.log("创建 workflowchat_runs 表...");
+    await db.execute(CREATE_WORKFLOWCHAT_RUNS_TABLE);
+    console.log("✅ workflowchat_runs 表创建成功");
+  } else {
+    console.log("✅ workflowchat_runs 表已存在，跳过迁移");
+  }
+
+  // 迁移28: 创建 workflowchat_messages 表（如果不存在）
+  if (!(await tableExists(db, "workflowchat_messages"))) {
+    console.log("创建 workflowchat_messages 表...");
+    await db.execute(CREATE_WORKFLOWCHAT_MESSAGES_TABLE);
+    console.log("✅ workflowchat_messages 表创建成功");
+  } else {
+    console.log("✅ workflowchat_messages 表已存在，跳过迁移");
+  }
+
+  // 迁移29: 创建 workflowchat_run_steps 表（如果不存在）
+  if (!(await tableExists(db, "workflowchat_run_steps"))) {
+    console.log("创建 workflowchat_run_steps 表...");
+    await db.execute(CREATE_WORKFLOWCHAT_RUN_STEPS_TABLE);
+    console.log("✅ workflowchat_run_steps 表创建成功");
+  } else {
+    console.log("✅ workflowchat_run_steps 表已存在，跳过迁移");
+  }
+
+  // 迁移30: 创建 WorkflowChat 相关索引（如果不存在）
+  for (const sql of CREATE_WORKFLOWCHAT_INDEXES) {
+    try {
+      await db.execute(sql);
+      console.log(`✅ WorkflowChat索引创建成功: ${sql.substring(0, 60)}...`);
+    } catch (error) {
+      if (String(error).includes("already exists")) {
+        console.log("✅ WorkflowChat索引已存在，跳过");
+      } else {
+        console.error("创建 WorkflowChat 索引失败:", error);
+      }
+    }
+  }
+
   console.log("\n");
 }
 
@@ -591,6 +682,10 @@ async function showDatabaseStatus(db: Client): Promise<void> {
     "agent_skills",
     "user_api_keys",
     "deleted_messages",
+    "workflowchat_conversations",
+    "workflowchat_messages",
+    "workflowchat_runs",
+    "workflowchat_run_steps",
   ];
 
   for (const table of tables) {

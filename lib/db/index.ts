@@ -34,6 +34,11 @@ import {
   CREATE_CHECKPOINTS_TABLE,
   MIGRATION_ADD_CHECKPOINT_CACHE_CONTENT,
   CREATE_CHECKPOINTS_INDEXES,
+  CREATE_WORKFLOWCHAT_CONVERSATIONS_TABLE,
+  CREATE_WORKFLOWCHAT_MESSAGES_TABLE,
+  CREATE_WORKFLOWCHAT_RUNS_TABLE,
+  CREATE_WORKFLOWCHAT_RUN_STEPS_TABLE,
+  CREATE_WORKFLOWCHAT_INDEXES,
 } from "./schema";
 
 /**
@@ -135,6 +140,21 @@ export async function initDatabase(): Promise<void> {
       await db.execute(sql);
     } catch (error) {
       console.log("API Key 索引创建跳过或失败:", error);
+    }
+  }
+
+  // 创建 WorkflowChat 相关表（runs 必须先于 messages，因外键依赖）
+  await db.execute(CREATE_WORKFLOWCHAT_CONVERSATIONS_TABLE);
+  await db.execute(CREATE_WORKFLOWCHAT_RUNS_TABLE);
+  await db.execute(CREATE_WORKFLOWCHAT_MESSAGES_TABLE);
+  await db.execute(CREATE_WORKFLOWCHAT_RUN_STEPS_TABLE);
+
+  // 创建 WorkflowChat 相关索引
+  for (const sql of CREATE_WORKFLOWCHAT_INDEXES) {
+    try {
+      await db.execute(sql);
+    } catch (error) {
+      console.log("WorkflowChat 索引创建跳过或失败:", error);
     }
   }
 }
@@ -495,6 +515,48 @@ export async function migrateDatabase(): Promise<void> {
         console.log("检查点索引已存在，跳过");
       } else {
         console.error("创建检查点索引失败:", error);
+      }
+    }
+  }
+
+  // 迁移：创建 WorkflowChat 相关表
+  try {
+    await db.execute(CREATE_WORKFLOWCHAT_CONVERSATIONS_TABLE);
+    console.log("workflowchat_conversations 表已创建或已存在");
+  } catch (error) {
+    console.error("创建 workflowchat_conversations 表失败:", error);
+  }
+
+  try {
+    await db.execute(CREATE_WORKFLOWCHAT_RUNS_TABLE);
+    console.log("workflowchat_runs 表已创建或已存在");
+  } catch (error) {
+    console.error("创建 workflowchat_runs 表失败:", error);
+  }
+
+  try {
+    await db.execute(CREATE_WORKFLOWCHAT_MESSAGES_TABLE);
+    console.log("workflowchat_messages 表已创建或已存在");
+  } catch (error) {
+    console.error("创建 workflowchat_messages 表失败:", error);
+  }
+
+  try {
+    await db.execute(CREATE_WORKFLOWCHAT_RUN_STEPS_TABLE);
+    console.log("workflowchat_run_steps 表已创建或已存在");
+  } catch (error) {
+    console.error("创建 workflowchat_run_steps 表失败:", error);
+  }
+
+  // 迁移：创建 WorkflowChat 相关索引
+  for (const sql of CREATE_WORKFLOWCHAT_INDEXES) {
+    try {
+      await db.execute(sql);
+    } catch (error) {
+      if (String(error).includes("already exists")) {
+        console.log("WorkflowChat 索引已存在，跳过");
+      } else {
+        console.error("创建 WorkflowChat 索引失败:", error);
       }
     }
   }
