@@ -45,7 +45,7 @@ import {
   Lock,
   Pencil,
 } from "lucide-react";
-import type { AgentWithTools, PublicAgentWithCreator } from "@/lib/db/schema";
+import type { AgentWithTools, PublicAgentWithCreator } from "@/lib/schemas";
 
 // Agent 列表数据类型（合并我的和公开的）
 interface AgentListItem {

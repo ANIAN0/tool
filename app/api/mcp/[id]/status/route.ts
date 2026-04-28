@@ -5,8 +5,8 @@
 
 import { type NextRequest, NextResponse } from "next/server";
 import { getDb } from "@/lib/db/client";
-import { authenticateRequestOptional } from "@/lib/auth/middleware";
-import type { McpStatusResult } from "@/lib/db/schema";
+import { authenticateRequestOptional } from "@/lib/infra/user/middleware";
+import type { McpStatusResult } from "@/lib/schemas";
 import { createMCPClient } from "@ai-sdk/mcp";
 
 /**

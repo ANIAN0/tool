@@ -4,7 +4,7 @@
  */
 
 import { type NextRequest, NextResponse } from 'next/server';
-import { getDebugRunDetail } from '@/lib/workflow-debug/service';
+import { getDebugRunDetail } from '@/lib/workflowchat/debug';
 
 interface RouteParams {
   params: Promise<{ runId: string }>;

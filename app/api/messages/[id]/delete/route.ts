@@ -8,7 +8,7 @@
 
 import { NextRequest } from "next/server";
 import { retractMessage } from "@/lib/db/message-retract";
-import { authenticateRequestOptional } from "@/lib/auth/middleware";
+import { authenticateRequestOptional } from "@/lib/infra/user/middleware";
 
 /**
  * DELETE /api/messages/[id]/delete

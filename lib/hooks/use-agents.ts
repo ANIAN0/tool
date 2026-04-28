@@ -11,7 +11,7 @@ import type {
   PublicAgentWithCreator,
   CreateAgentParams,
   UpdateAgentParams,
-} from "@/lib/db/schema";
+} from "@/lib/schemas";
 
 // ==================== 类型定义 ====================
 

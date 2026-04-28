@@ -3,11 +3,11 @@
 /**
  * 认证状态管理Hook
  * 管理登录状态、令牌存储、自动刷新和登出
+ * 注意：本系统不再支持匿名用户，所有用户必须是注册用户
  */
 
 import { useCallback, useEffect, useState } from "react";
 import { useRouter } from "next/navigation";
-import { getAnonId } from "@/lib/anon-id";
 
 // 用户信息类型
 export interface AuthUser {
@@ -21,7 +21,7 @@ export interface AuthUser {
 export interface AuthState {
   // 用户信息
   user: AuthUser | null;
-  // 是否已登录（非匿名用户）
+  // 是否已登录
   isAuthenticated: boolean;
   // 是否正在加载
   isLoading: boolean;
@@ -102,9 +102,6 @@ export function useAuth() {
     accessToken: null,
   });
 
-  // 匿名用户ID状态
-  const [anonymousId, setAnonymousId] = useState<string | null>(null);
-
   // 从 localStorage 加载令牌（带缓存）
   const loadTokens = useCallback(() => {
     return getTokensFromStorage();
@@ -116,7 +113,7 @@ export function useAuth() {
 
     localStorage.setItem(STORAGE_KEYS.ACCESS_TOKEN, accessToken);
     localStorage.setItem(STORAGE_KEYS.REFRESH_TOKEN, refreshToken);
-    
+
     // 更新内存缓存
     tokensCache = {
       accessToken,
@@ -132,7 +129,7 @@ export function useAuth() {
     localStorage.removeItem(STORAGE_KEYS.ACCESS_TOKEN);
     localStorage.removeItem(STORAGE_KEYS.REFRESH_TOKEN);
     localStorage.removeItem(STORAGE_KEYS.USER_ID);
-    
+
     // 清空内存缓存
     tokensCache = { accessToken: null, refreshToken: null, cachedAt: Date.now() };
   }, []);
@@ -196,9 +193,6 @@ export function useAuth() {
   // 初始化认证状态
   useEffect(() => {
     const initAuth = async () => {
-      // 获取匿名用户ID
-      setAnonymousId(getAnonId());
-
       const { accessToken } = loadTokens();
 
       if (!accessToken) {
@@ -224,7 +218,7 @@ export function useAuth() {
           if (user) {
             setState({
               user,
-              isAuthenticated: !user.isAnonymous,
+              isAuthenticated: true,
               isLoading: false,
               accessToken: newAccessToken,
             });
@@ -245,7 +239,7 @@ export function useAuth() {
 
       setState({
         user,
-        isAuthenticated: !user.isAnonymous,
+        isAuthenticated: true,
         isLoading: false,
         accessToken,
       });
@@ -271,7 +265,7 @@ export function useAuth() {
     saveTokens(accessToken, refreshToken);
     setState({
       user,
-      isAuthenticated: !user.isAnonymous,
+      isAuthenticated: true,
       isLoading: false,
       accessToken,
     });
@@ -279,18 +273,11 @@ export function useAuth() {
 
   // 获取认证头（用于API请求）
   const getAuthHeader = useCallback((): Record<string, string> => {
-    // 已登录用户使用 JWT Token
     const { accessToken } = state;
     if (accessToken) {
       return { Authorization: `Bearer ${accessToken}` };
     }
-
-    // 未登录用户使用匿名 ID
-    const anonId = getAnonId();
-    if (anonId) {
-      return { "X-Anonymous-Id": anonId };
-    }
-
+    // 未登录时返回空对象，API 将返回 401 错误
     return {};
   }, [state]);
 
@@ -359,15 +346,13 @@ export function useAuth() {
     return response;
   }, [getAuthHeader, refreshAccessToken, setState]);
 
-  // 检查是否需要登录（用于私有Agent）
-  const checkAuth = useCallback((requiresAuth: boolean): boolean => {
-    if (!requiresAuth) return true;
+  // 检查是否需要登录
+  const checkAuth = useCallback((): boolean => {
     return state.isAuthenticated;
   }, [state.isAuthenticated]);
 
   return {
     ...state,
-    anonymousId,
     login,
     logout,
     getAuthHeader,

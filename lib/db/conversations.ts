@@ -1,7 +1,6 @@
 import { cache } from "react";
 import { getDb } from "./client";
 import type { Conversation, CreateConversationParams, CompressionCache } from "./schema";
-import { DEFAULT_AGENT_ID } from "../agents/config";
 
 /**
  * 将数据库行转换为Conversation类型
@@ -12,8 +11,8 @@ function rowToConversation(row: Record<string, unknown>): Conversation {
     user_id: row.user_id as string,
     title: row.title as string | null,
     model: row.model as string | null,
-    // agent_id 默认为 'production'
-    agent_id: (row.agent_id as string) || DEFAULT_AGENT_ID,
+    // agent_id 使用数据库默认值（已迁移时设置）
+    agent_id: row.agent_id as string,
     // is_private 默认为 false
     is_private: Boolean(row.is_private),
     // source 默认为 'chat'（兼容旧数据）
@@ -39,8 +38,8 @@ export async function createConversation(
 ): Promise<Conversation> {
   const db = getDb();
   const now = Date.now();
-  // 获取 agentId，默认为正式Agent
-  const agentId = params.agentId || DEFAULT_AGENT_ID;
+  // agentId 必须显式传入（前端已强制要求）
+  const agentId = params.agentId;
   // 获取 isPrivate，默认为 false
   const isPrivate = params.isPrivate ? 1 : 0;
   // 获取 source，默认为 'chat'

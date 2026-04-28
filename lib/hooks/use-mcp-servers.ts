@@ -5,7 +5,7 @@
 
 import { useState, useCallback, useEffect, useRef } from "react";
 import { useAuth } from "./use-auth";
-import type { McpServer, CreateMcpServerParams, UpdateMcpServerParams, McpStatusResult } from "@/lib/db/schema";
+import type { McpServer, CreateMcpServerParams, UpdateMcpServerParams, McpStatusResult } from "@/lib/schemas";
 
 // API响应类型
 interface McpServersResponse {

@@ -8,7 +8,7 @@
  */
 
 import { NextResponse } from "next/server";
-import { withAuth } from "@/lib/auth/middleware";
+import { withAuth } from "@/lib/infra/user/middleware";
 import {
   getUserModels,
   createUserModel,

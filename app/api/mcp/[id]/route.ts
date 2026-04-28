@@ -5,8 +5,8 @@
 
 import { type NextRequest, NextResponse } from "next/server";
 import { getDb } from "@/lib/db/client";
-import { authenticateRequestOptional } from "@/lib/auth/middleware";
-import type { McpServer, McpStatus } from "@/lib/db/schema";
+import { authenticateRequestOptional } from "@/lib/infra/user/middleware";
+import type { McpServer, McpStatus } from "@/lib/schemas";
 
 /**
  * 验证URL格式是否有效

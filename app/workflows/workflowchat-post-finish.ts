@@ -6,7 +6,7 @@
  * 2. persistRunResult — 更新 run 状态为 completed/failed
  * 3. persistRunSteps — 批量写入 step 耗时数据
  * 4. clearActiveStream — CAS 清除，带重试
- * 5. recordWorkflowUsage — 记录 usage 数据
+ * 5. recordWorkflowUsage — 汇总并持久化 token 统计到 workflowchat_runs
  */
 
 import { sleep } from "workflow";
@@ -100,7 +100,7 @@ async function persistRunResult(input: PostFinishInput) {
  * Step 3: persistRunSteps
  *
  * 将 stepTimings 批量写入 workflowchat_run_steps
- * 首版牺牲实时 step 可见性，post-finish 中一次性批量写入
+ * 包含 step 耗时数据和 Token 统计
  */
 async function persistRunSteps(input: PostFinishInput) {
   "use step";
@@ -125,13 +125,17 @@ async function persistRunSteps(input: PostFinishInput) {
       stepName: timing.stepName,
     });
 
-    // 再更新耗时和状态数据
+    // 再更新耗时、状态和 Token 统计数据
     await updateWfChatRunStep(stepId, {
       status: stepStatus,
       startedAt: timing.startedAt,
       finishedAt: timing.finishedAt,
       durationMs: timing.durationMs,
       finishReason: timing.finishReason,
+      // 持久化 Token 统计
+      promptTokens: timing.promptTokens,
+      completionTokens: timing.completionTokens,
+      totalTokens: timing.totalTokens,
     });
   }
 }
@@ -174,13 +178,38 @@ async function clearActiveStream(input: PostFinishInput) {
 /**
  * Step 5: recordWorkflowUsage
  *
- * 记录 usage 数据，首版简单记录，可选后续扩展
+ * 汇总所有 step 的 Token 使用情况并持久化到 workflowchat_runs 表
+ * 计算整个 workflow run 的 token 消耗总和
  */
-async function recordWorkflowUsage(_input: PostFinishInput) {
+async function recordWorkflowUsage(input: PostFinishInput) {
   "use step";
 
-  // 首版：预留扩展点，暂不实现
-  // 后续可接入 usage 统计服务，记录 token 消耗、模型调用次数等
+  const { stepTimings, runId } = input;
+  if (!stepTimings.length) return;
+
+  // 汇总所有 step 的 token 使用情况
+  const totalUsage = stepTimings.reduce(
+    (acc, step) => ({
+      promptTokens: acc.promptTokens + (step.promptTokens ?? 0),
+      completionTokens: acc.completionTokens + (step.completionTokens ?? 0),
+      totalTokens: acc.totalTokens + (step.totalTokens ?? 0),
+    }),
+    { promptTokens: 0, completionTokens: 0, totalTokens: 0 }
+  );
+
+  // 持久化到 workflowchat_runs 表
+  await updateWfChatRun(runId, {
+    promptTokens: totalUsage.promptTokens,
+    completionTokens: totalUsage.completionTokens,
+    totalTokens: totalUsage.totalTokens,
+  });
+
+  // 日志记录（可选，便于调试）
+  console.log(`[recordWorkflowUsage] Run ${runId} Token 持久化完成:`, {
+    promptTokens: totalUsage.promptTokens,
+    completionTokens: totalUsage.completionTokens,
+    totalTokens: totalUsage.totalTokens,
+  });
 }
 
 // ==================== 主 Workflow ====================

@@ -5,7 +5,7 @@
  */
 
 import { type NextRequest, NextResponse } from "next/server";
-import { authenticateApiKey, apiKeyErrorResponse } from "@/lib/auth/api-key-middleware";
+import { authenticateApiKey, apiKeyErrorResponse } from "@/lib/infra/user/api-key";
 import { getConversationsWithFilter, createConversation } from "@/lib/db";
 import { nanoid } from "nanoid";
 
@@ -62,12 +62,20 @@ export async function POST(request: NextRequest) {
     const body = await request.json();
     const { title, agentId } = body;
 
+    // agentId 必填校验
+    if (!agentId) {
+      return NextResponse.json(
+        { error: { code: "BAD_REQUEST", message: "agentId 是必填字段" } },
+        { status: 400 }
+      );
+    }
+
     // 创建会话
     const conversation = await createConversation({
       id: nanoid(),
       userId,
       title: title || "新对话",
-      agentId: agentId || "production",
+      agentId,
       source: "api-v1",
     });
 

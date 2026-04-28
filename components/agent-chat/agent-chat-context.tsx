@@ -11,7 +11,7 @@
  */
 
 import { createContext, use, useCallback, useEffect, useMemo, useRef, useState } from "react";
-import type { Conversation } from "@/lib/db/schema";
+import type { Conversation } from "@/lib/schemas";
 import type { MessageMetadata } from "./message-actions";
 import type { UIMessage } from "ai";
 import { useChat } from "@ai-sdk/react";

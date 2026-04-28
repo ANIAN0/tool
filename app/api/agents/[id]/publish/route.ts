@@ -4,7 +4,7 @@
  */
 
 import { type NextRequest, NextResponse } from "next/server";
-import { authenticateRequest } from "@/lib/auth/middleware";
+import { authenticateRequest } from "@/lib/infra/user/middleware";
 import { setAgentPublic, isAgentCreator, getAgentById } from "@/lib/db/agents";
 
 interface RouteParams {

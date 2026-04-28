@@ -6,7 +6,7 @@
  */
 
 import { Button } from "@/components/ui/button";
-import type { Conversation } from "@/lib/db/schema";
+import type { Conversation } from "@/lib/schemas";
 import { MessageSquarePlus, PanelLeftClose, Pencil, Trash2 } from "lucide-react";
 import { useState } from "react";
 import { Input } from "@/components/ui/input";

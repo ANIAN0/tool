@@ -7,7 +7,7 @@
 
 /**
  * conversations表 - 存储对话信息
- * agent_id: 关联的Agent ID，默认为 'production'
+ * agent_id: 关联的Agent ID，必填字段（前端必须传入）
  * is_private: 是否私有对话（0:公开, 1:私有）
  */
 export const CREATE_CONVERSATIONS_TABLE = `
@@ -16,7 +16,7 @@ CREATE TABLE IF NOT EXISTS conversations (
   user_id TEXT NOT NULL,
   title TEXT,
   model TEXT,
-  agent_id TEXT DEFAULT 'production',
+  agent_id TEXT NOT NULL,
   is_private INTEGER DEFAULT 0,
   created_at INTEGER NOT NULL,
   updated_at INTEGER NOT NULL
@@ -25,10 +25,10 @@ CREATE TABLE IF NOT EXISTS conversations (
 
 /**
  * 迁移SQL：为现有conversations表添加agent_id字段
- * 用于数据库升级
+ * 用于数据库升级（历史数据需要手动设置 agent_id）
  */
 export const MIGRATION_ADD_AGENT_ID = `
-ALTER TABLE conversations ADD COLUMN agent_id TEXT DEFAULT 'production';
+ALTER TABLE conversations ADD COLUMN agent_id TEXT NOT NULL DEFAULT 'production';
 `;
 
 /**
@@ -130,7 +130,7 @@ export interface Conversation {
   user_id: string;
   title: string | null;
   model: string | null;
-  // 关联的Agent ID，默认为 'production'
+  // 关联的Agent ID，必填字段
   agent_id: string;
   // 是否私有对话
   is_private: boolean;
@@ -200,8 +200,8 @@ export interface CreateConversationParams {
   userId: string;
   title?: string;
   model?: string;
-  // Agent ID，默认为 'production'
-  agentId?: string;
+  // Agent ID，必填字段
+  agentId: string;
   // 是否私有对话，默认为 false
   isPrivate?: boolean;
   // 对话来源，默认为 'chat'

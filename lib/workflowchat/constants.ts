@@ -59,4 +59,10 @@ export interface StepTiming {
   durationMs: number | null;
   /** 完成原因 */
   finishReason: string | null;
+  /** Prompt token 数量 */
+  promptTokens?: number;
+  /** Completion token 数量 */
+  completionTokens?: number;
+  /** 总 token 数量 */
+  totalTokens?: number;
 }

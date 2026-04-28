@@ -1,6 +1,6 @@
 import { getConversations } from "@/lib/db";
 import { NextRequest, NextResponse } from "next/server";
-import { authenticateRequestOptional } from "@/lib/auth/middleware";
+import { authenticateRequestOptional } from "@/lib/infra/user/middleware";
 
 /**
  * 对话列表 API

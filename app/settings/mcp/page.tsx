@@ -11,7 +11,7 @@ import { useAuth } from "@/lib/hooks/use-auth";
 import { McpTable } from "@/components/settings/mcp/mcp-table";
 import { McpSheet } from "@/components/settings/mcp/mcp-sheet";
 import { McpFormDialog, type McpFormData } from "@/components/settings/mcp/mcp-form-dialog";
-import type { McpServer } from "@/lib/db/schema";
+import type { McpServer } from "@/lib/schemas";
 
 /**
  * MCP 管理页面组件

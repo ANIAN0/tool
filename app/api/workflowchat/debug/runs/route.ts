@@ -4,8 +4,8 @@
  */
 
 import { type NextRequest, NextResponse } from 'next/server';
-import { listDebugRuns } from '@/lib/workflow-debug/service';
-import type { DebugRunListFilters } from '@/lib/workflow-debug/dto';
+import { listDebugRuns } from '@/lib/workflowchat/debug';
+import type { DebugRunListFilters } from '@/lib/workflowchat/debug';
 import { WORKFLOWCHAT_RUN_STATUS } from '@/lib/workflowchat/constants';
 
 /** 合法的 run 状态值 */

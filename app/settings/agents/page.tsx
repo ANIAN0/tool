@@ -10,7 +10,7 @@ import { useAgents, type CreateAgentInput, type UpdateAgentInput } from "@/lib/h
 import { AgentTable } from "@/components/settings/agent-table";
 import { AgentSheet } from "@/components/settings/agent-sheet";
 import { AgentForm, type AgentFormData } from "@/components/settings/agent-form";
-import type { AgentWithTools } from "@/lib/db/schema";
+import type { AgentWithTools } from "@/lib/schemas";
 
 /**
  * Agent 配置管理页面组件

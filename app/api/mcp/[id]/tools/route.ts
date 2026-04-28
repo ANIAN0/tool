@@ -5,8 +5,8 @@
 
 import { type NextRequest, NextResponse } from "next/server";
 import { getDb } from "@/lib/db/client";
-import { authenticateRequestOptional } from "@/lib/auth/middleware";
-import type { McpTool } from "@/lib/db/schema";
+import { authenticateRequestOptional } from "@/lib/infra/user/middleware";
+import type { McpTool } from "@/lib/schemas";
 
 /**
  * 获取MCP服务器工具列表

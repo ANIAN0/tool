@@ -11,7 +11,7 @@ import {
 // 新增：压缩数据清理函数和 checkpoint 获取函数
 import { cleanupCompressionData, getLatestCheckpoint } from "@/lib/db/compression";
 import { NextRequest, NextResponse } from "next/server";
-import { authenticateRequestOptional } from "@/lib/auth/middleware";
+import { authenticateRequestOptional } from "@/lib/infra/user/middleware";
 
 /**
  * 单个对话详情 API
@@ -87,7 +87,7 @@ export async function GET(
     // 从 conversation.agent_id -> agent -> userModel 获取 contextLimit 和 modelName
     let metadataContext: { contextLimit: number; modelName: string } | undefined;
 
-    // 只有 agent-chat 来源的对话才需要 metadata
+    // 历史兼容：agent-chat 来源的对话需要 metadata（contextLimit 和 modelName）
     if (conversation.source === 'agent-chat' && conversation.agent_id) {
       try {
         // 🚀 性能优化：Early-start pattern - 提前启动 defaultModel Promise

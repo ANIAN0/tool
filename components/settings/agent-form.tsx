@@ -40,8 +40,8 @@ import {
   getTemplateDefaultConfig,
   getTemplateById,
 } from "@/lib/agents/templates";
-import type { AgentWithTools } from "@/lib/db/schema";
-import { getDefaultSystemTools, SYSTEM_TOOL_IDS, type SystemToolId, validateSystemToolIds } from "@/lib/constants/system-tools";
+import type { AgentWithTools } from "@/lib/schemas";
+import { getDefaultSystemTools, SYSTEM_TOOL_IDS, type SystemToolId, validateSystemToolIds } from "@/lib/infra/tools/system";
 import { SkillSelector } from "./skill-selector";
 import { SkillPresetPreview } from "./skill-preset-preview";
 

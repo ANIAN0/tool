@@ -1,6 +1,8 @@
 /**
  * 模型设置页面
  * 表格布局展示模型列表，详情通过右侧抽屉展示
+ *
+ * 注意：middleware 已配置登录保护，未登录会重定向到登录页
  */
 
 "use client";
@@ -8,14 +10,12 @@
 import { useUserModels } from "@/lib/hooks/use-user-models";
 import { useAuth } from "@/lib/hooks/use-auth";
 import { ModelTable } from "./components/model-table";
-import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
-import { Info } from "lucide-react";
 
 /**
  * 模型设置页面组件
  */
 export default function ModelsSettingsPage() {
-  const { isAuthenticated, isLoading: authLoading, anonymousId } = useAuth();
+  const { isLoading: authLoading } = useAuth();
 
   const {
     models,
@@ -27,7 +27,7 @@ export default function ModelsSettingsPage() {
     setDefaultModel,
     refreshModels,
     clearError,
-  } = useUserModels(anonymousId ?? undefined);
+  } = useUserModels();
 
   // 如果认证状态还在加载中，显示加载状态
   if (authLoading) {
@@ -48,18 +48,6 @@ export default function ModelsSettingsPage() {
 
   return (
     <div className="flex flex-col gap-6">
-      {/* 未登录用户提示 */}
-      {!isAuthenticated && (
-        <Alert variant="default">
-          <Info className="h-4 w-4" />
-          <AlertTitle>提示</AlertTitle>
-          <AlertDescription>
-            您当前处于未登录状态，模型配置将保存在本地浏览器中。
-            登录后可以将本地配置同步到云端。
-          </AlertDescription>
-        </Alert>
-      )}
-
       {/* 模型表格 */}
       <ModelTable
         models={models}

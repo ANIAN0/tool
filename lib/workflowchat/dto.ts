@@ -3,8 +3,9 @@
  * 包含请求/响应 DTO、Workflow 输入参数类型等
  */
 
-import type { UIMessage } from 'ai';
+import type { UIMessage, ToolSet } from 'ai';
 import type { StepTiming } from './constants';
+import type { SkillConfig } from './agent-loader';
 import type {
   WorkflowChatConversationStatus,
   WorkflowChatRunStatus,
@@ -17,6 +18,7 @@ import type {
 export interface ConversationDTO {
   id: string;
   userId: string | null;
+  agentId: string;
   title: string | null;
   status: WorkflowChatConversationStatus;
   activeStreamId: string | null;
@@ -78,12 +80,16 @@ export interface ConversationDetailDTO {
 
 /** 创建会话请求 */
 export interface CreateConversationRequest {
+  /** Agent ID，必填 */
+  agentId: string;
   /** 可选标题 */
   title?: string;
 }
 
 /** 发送消息请求 */
 export interface SendMessageRequest {
+  /** Agent ID，用于校验与会话绑定的 Agent 是否一致 */
+  agentId: string;
   /** 用户消息内容（AI SDK UIMessage 格式） */
   message: UIMessage;
   /** 可选模型 id，覆盖默认模型 */
@@ -100,12 +106,22 @@ export interface WorkflowChatRunInput {
   runId: string;
   /** 请求消息 id */
   requestMessageId: string;
+  /** Agent ID */
+  agentId: string;
   /** 用户 id，首版不强制登录，可为 null */
   userId: string | null;
   /** 模型 id */
   modelId: string;
   /** 消息历史（AI SDK UIMessage 格式，传递给 ToolLoopAgent） */
   messages: UIMessage[];
+  /** 最大执行步数，默认 50 */
+  maxSteps?: number;
+  /** 自定义指令，覆盖默认系统提示词 */
+  customInstructions?: string;
+  /** 工具集合（已创建的 ToolSet 实例） */
+  tools?: ToolSet;
+  /** Skill 配置列表 */
+  skills?: SkillConfig[];
 }
 
 /** Post-finish Workflow 输入参数 */

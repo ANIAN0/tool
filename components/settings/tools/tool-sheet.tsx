@@ -24,7 +24,7 @@ import {
   Server,
   FileText,
 } from "lucide-react";
-import type { Tool } from "@/lib/db/schema";
+import type { Tool } from "@/lib/schemas";
 
 /**
  * 工具详情抽屉组件属性

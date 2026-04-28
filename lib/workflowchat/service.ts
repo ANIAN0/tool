@@ -6,9 +6,12 @@
 import { nanoid } from 'nanoid';
 import { start, getRun } from 'workflow/api';
 import type { Run } from 'workflow/api';
-import type { UIMessage } from 'ai';
+import type { UIMessage, ToolSet } from 'ai';
 
 import { workflowchatReplyWorkflow } from '@/app/workflows/workflowchat';
+import { loadAgentConfig } from '@/lib/workflowchat/agent-loader';
+import { createTools, initTools } from '@/lib/infra/tools';
+import type { AgentConfig, SkillConfig } from '@/lib/workflowchat/agent-loader';
 
 import {
   createWfChatConversation,
@@ -18,7 +21,6 @@ import {
   updateWfChatConversation,
   deleteWfChatConversation,
   touchWfChatConversation,
-  claimChatActiveStreamId,
   compareAndSetActiveStreamId,
   createWfChatMessage,
   getWfChatMessagesByConversationId,
@@ -32,8 +34,6 @@ import {
   WORKFLOWCHAT_REPLY_WORKFLOW_NAME,
   WORKFLOWCHAT_RUN_STATUS,
 } from './constants';
-import { resolveWorkflowChatModel } from './model-resolver';
-import { resolveWorkflowChatModelId } from './model-resolver';
 import type {
   ConversationDTO,
   MessageDTO,
@@ -61,6 +61,7 @@ function conversationToDTO(conv: WorkflowChatConversation): ConversationDTO {
   return {
     id: conv.id,
     userId: conv.user_id,
+    agentId: conv.agent_id,
     title: conv.title,
     status: conv.status,
     activeStreamId: conv.active_stream_id,
@@ -102,6 +103,17 @@ function runToDTO(run: WorkflowChatRun): RunDTO {
 
 // ==================== 自定义错误 ====================
 
+/** 发送消息时遇到 Agent 配置加载失败 */
+export class SendMessageAgentConfigError extends Error {
+  constructor(
+    message: string,
+    public readonly status: number,
+  ) {
+    super(message);
+    this.name = 'SendMessageAgentConfigError';
+  }
+}
+
 /** 发送消息时遇到冲突（CAS claim 失败或已有活跃 run） */
 export class SendMessageConflictError extends Error {
   constructor(
@@ -118,6 +130,18 @@ export class SendMessageConfigError extends Error {
   constructor(message: string) {
     super(message);
     this.name = 'SendMessageConfigError';
+  }
+}
+
+/** 发送消息时 Agent ID 不匹配 */
+export class SendMessageAgentMismatchError extends Error {
+  constructor(
+    message: string,
+    public readonly expectedAgentId: string,
+    public readonly providedAgentId: string,
+  ) {
+    super(message);
+    this.name = 'SendMessageAgentMismatchError';
   }
 }
 
@@ -170,31 +194,62 @@ export async function reconcileExistingActiveStream(
 /**
  * sendMessage 完整流程
  *
- * 1. 写入 user message
- * 2. 创建 run 记录（status=pending，workflow_run_id 为 null）
- * 3. reconcileExistingActiveStream：检查 active_stream_id 是否有 stale 残留
- * 4. 如果 active_stream_id 非空且对应 run 仍在运行，重连已有 stream
- * 5. start(workflowchatReplyWorkflow) 启动 workflow
- * 6. claimChatActiveStreamId CAS claim（双保障第一层）
- * 7. 如果 CAS 失败（slot 已被其他 run 占用），取消刚启动的 workflow，返回 409
- * 8. 回填 workflow_run_id 到 run 记录
- * 9. 返回 SendMessageResult
+ * 1. 加载 Agent 配置（loadAgentConfig）获取 maxSteps、tools、skills
+ * 2. 校验 agentId 与会话绑定的 agentId 是否一致
+ * 3. 创建工具实例（createAgentTools）
+ * 4. 写入 user message
+ * 5. 创建 run 记录（status=pending，workflow_run_id 为 null）
+ * 6. reconcileExistingActiveStream：检查 active_stream_id 是否有 stale 残留
+ * 7. 如果 active_stream_id 非空且对应 run 仍在运行，重连已有 stream
+ * 8. start(workflowchatReplyWorkflow) 启动 workflow
+ * 9. claimChatActiveStreamId CAS claim（双保障第一层）
+ * 10. 如果 CAS 失败（slot 已被其他 run 占用），取消刚启动的 workflow，返回 409
+ * 11. 回填 workflow_run_id 到 run 记录
+ * 12. 返回 SendMessageResult
  *
  * @param conversationId - 会话 id
- * @param userId - 用户 id，首版可为 null
+ * @param agentId - Agent ID，用于校验与会话绑定的 Agent 是否一致
+ * @param userId - 用户 id，必填（用于加载 Agent 配置）
  * @param content - 消息内容（AI SDK UIMessage 格式的 parts JSON 字符串）
- * @param modelId - 可选模型 id，不传时使用环境变量默认值
+ * @param modelId - 可选模型 id，不传时使用 Agent 配置中的 modelId
  * @returns SendMessageResult 包含 run 信息和 workflow Run 句柄
+ * @throws SendMessageAgentConfigError - Agent 配置加载失败
+ * @throws SendMessageAgentMismatchError - agentId 与会话绑定的 agentId 不一致
  * @throws SendMessageConflictError - CAS claim 失败或已有活跃 run
  * @throws SendMessageConfigError - 环境变量缺失
  */
 export async function sendMessage(
   conversationId: string,
+  agentId: string,
   userId: string | null,
   content: string,
   modelId?: string,
 ): Promise<{ runDTO: RunDTO; workflowRun: Run<unknown> }> {
-  console.log("[sendMessage] 入口, conversationId:", conversationId, "content:", content.slice(0, 100), "modelId:", modelId);
+  console.log("[sendMessage] 入口, conversationId:", conversationId, "agentId:", agentId, "userId:", userId, "content:", content.slice(0, 100), "modelId:", modelId);
+
+  // 步骤 0：验证用户身份（必须登录才能使用 Agent）
+  if (!userId) {
+    throw new SendMessageConfigError('用户身份验证失败，请先登录');
+  }
+
+  // 步骤 1：加载 Agent 配置（关键步骤）
+  const agentConfigResult = await loadAgentConfig(userId, agentId);
+  if (!agentConfigResult.ok) {
+    throw new SendMessageAgentConfigError(
+      agentConfigResult.error ?? 'Agent 配置加载失败',
+      agentConfigResult.status ?? 500,
+    );
+  }
+  const agentConfig: AgentConfig = agentConfigResult.agent!;
+
+  console.log("[sendMessage] Agent 配置加载成功:", {
+    id: agentConfig.id,
+    name: agentConfig.name,
+    modelId: agentConfig.modelId,
+    maxSteps: agentConfig.maxSteps,
+    toolsCount: agentConfig.tools.length,
+    skillsCount: agentConfig.skills.length,
+  });
 
   // 验证会话存在
   const conversation = await getWfChatConversation(conversationId);
@@ -202,17 +257,28 @@ export async function sendMessage(
     throw new Error(`会话不存在: ${conversationId}`);
   }
 
-  // 解析模型 ID（校验环境变量 + 获取 modelId）
-  let resolvedModelId: string;
-  try {
-    resolvedModelId = resolveWorkflowChatModelId(modelId);
-  } catch {
-    throw new SendMessageConfigError(
-      '环境变量缺失：WORKFLOWCHAT_API_KEY 或 WORKFLOWCHAT_MODEL 未配置',
+  // 校验 agentId：确保传入的 agentId 与会话绑定的 agentId 一致
+  if (conversation.agent_id !== agentId) {
+    throw new SendMessageAgentMismatchError(
+      `Agent ID 不匹配：会话绑定的 agent_id 为 ${conversation.agent_id}，传入的为 ${agentId}`,
+      conversation.agent_id,
+      agentId,
     );
   }
 
-  // 步骤 1：写入 user message
+  // 步骤 2：创建工具实例（关键步骤）
+  const tools = await createAgentTools(agentConfig);
+  console.log("[sendMessage] 工具创建成功，工具数量:", Object.keys(tools).length);
+
+  // 使用传入的 modelId 或 Agent 配置中的 modelId
+  const resolvedModelId = modelId ?? agentConfig.modelId ?? '';
+  if (!resolvedModelId) {
+    throw new SendMessageConfigError(
+      '模型 ID 未指定且 Agent 配置中无默认模型',
+    );
+  }
+
+  // 步骤 3：写入 user message
   const userMessageId = nanoid();
   await createWfChatMessage({
     id: userMessageId,
@@ -225,7 +291,7 @@ export async function sendMessage(
   // 更新会话最后消息时间
   await touchWfChatConversation(conversationId);
 
-  // 步骤 2：创建 run 记录（status=pending，workflow_run_id 为 null）
+  // 步骤 4：创建 run 记录（status=pending，workflow_run_id 为 null）
   const runId = nanoid();
   const run = await createWfChatRun({
     id: runId,
@@ -236,10 +302,10 @@ export async function sendMessage(
     requestMessageId: userMessageId,
   });
 
-  // 步骤 3：reconcile stale activeStreamId
+  // 步骤 5：reconcile stale activeStreamId
   const activeRun = await reconcileExistingActiveStream(conversationId);
 
-  // 步骤 4：如果 active run 仍在运行，标记刚创建的 run 为 failed 并返回冲突
+  // 步骤 6：如果 active run 仍在运行，标记刚创建的 run 为 failed 并返回冲突
   if (activeRun) {
     await updateWfChatRun(runId, {
       status: WORKFLOWCHAT_RUN_STATUS.FAILED,
@@ -276,21 +342,33 @@ export async function sendMessage(
     };
   });
 
+  // 构建完整的 workflow 输入参数（包含 Agent 配置）
   const workflowInput: WorkflowChatRunInput = {
     conversationId,
     runId,
     requestMessageId: userMessageId,
+    agentId,
     userId,
     modelId: resolvedModelId,
     messages: uiMessages,
+    // Agent 运行时配置
+    maxSteps: agentConfig.maxSteps,
+    customInstructions: agentConfig.customInstructions,
+    // 工具集合（已创建的实例）
+    tools,
+    // Skill 配置
+    skills: agentConfig.skills,
   };
 
+  console.log("[sendMessage] workflowInput 构建完成:", {
+    maxSteps: workflowInput.maxSteps,
+    customInstructions: workflowInput.customInstructions ? '已设置' : '无',
+    toolsCount: Object.keys(workflowInput.tools ?? {}).length,
+    skillsCount: workflowInput.skills?.length ?? 0,
+  });
   console.log("[sendMessage] workflowInput.messages 数量:", uiMessages.length);
-  console.log("[sendMessage] workflowInput.messages 详情:", JSON.stringify(uiMessages.map(m => ({ role: m.role, partsPreview: JSON.stringify(m.parts).slice(0, 200) }))));
 
-  // 步骤 5：启动 workflow
-  // 注意：主 workflow 文件（T3-6）还未实现，此处调用签名已写好
-  // workflow 函数将在 app/workflows/workflowchat.ts 中定义
+  // 步骤 7：启动 workflow
   let workflowRun: Run<unknown>;
   try {
     workflowRun = await start(
@@ -310,13 +388,13 @@ export async function sendMessage(
     throw new Error(`启动 workflow 失败: ${String(error)}`);
   }
 
-  // 步骤 6：CAS claim active_stream_id
+  // 步骤 8：CAS claim active_stream_id
   const claimSuccess = await claimChatActiveStreamId(
     conversationId,
     workflowRun.runId,
   );
 
-  // 步骤 7：CAS 失败，取消刚启动的 workflow，返回 409
+  // 步骤 9：CAS 失败，取消刚启动的 workflow，返回 409
   if (!claimSuccess) {
     // 取消刚启动的 workflow
     await workflowRun.cancel();
@@ -336,19 +414,52 @@ export async function sendMessage(
     );
   }
 
-  // 步骤 8：回填 workflow_run_id 到 run 记录
+  // 步骤 10：回填 workflow_run_id 到 run 记录
   await updateWfChatRun(runId, {
     workflowRunId: workflowRun.runId,
     status: WORKFLOWCHAT_RUN_STATUS.RUNNING,
     startedAt: Date.now(),
   });
 
-  // 步骤 9：返回结果
+  // 步骤 11：返回结果
   const updatedRun = await getWfChatRun(runId);
   return {
     runDTO: runToDTO(updatedRun!),
     workflowRun,
   };
+}
+
+/**
+ * 创建 Agent 工具集合
+ * 将配置中的工具定义转换为实际可用的 Tool 实例
+ *
+ * @param agentConfig - Agent 配置
+ * @returns 工具集合（ToolSet）
+ */
+async function createAgentTools(agentConfig: AgentConfig): Promise<ToolSet> {
+  const tools: ToolSet = {};
+
+  // 根据工具配置创建工具实例
+  if (agentConfig.tools.length > 0) {
+    // 将工具名称转换为工具类型列表
+    const toolNames = agentConfig.tools.map((tool) => tool.name);
+
+    try {
+      // 按需初始化工具定义
+      initTools(toolNames);
+      // 创建工具实例
+      const result = await createTools(toolNames);
+      Object.assign(tools, result.tools);
+    } catch (error) {
+      console.error("[createAgentTools] 工具创建失败:", error);
+      // 工具创建失败不阻塞流程，继续使用空工具集
+    }
+  }
+
+  // TODO: 创建 Skill 工具（后续迭代）
+  // 当 Skill 工具集成完成后，在此处调用 createAgentSkillTools
+
+  return tools;
 }
 
 /**
@@ -358,11 +469,12 @@ export async function sendMessage(
  */
 export async function startWorkflowRun(
   conversationId: string,
+  agentId: string,
   userId: string | null,
   content: string,
   modelId?: string,
 ): Promise<{ runDTO: RunDTO; workflowRun: Run<unknown> }> {
-  return sendMessage(conversationId, userId, content, modelId);
+  return sendMessage(conversationId, agentId, userId, content, modelId);
 }
 
 /**
@@ -383,13 +495,18 @@ export async function reconnectWorkflowRun(
 
 /**
  * 创建会话
+ * @param agentId - Agent ID，必填
+ * @param userId - 用户 ID，可选
+ * @param title - 会话标题，可选
  */
 export async function createConversation(
+  agentId: string,
   userId?: string | null,
   title?: string | null,
 ): Promise<ConversationDTO> {
   const conversation = await createWfChatConversation({
     id: nanoid(),
+    agentId,
     userId,
     title,
   });

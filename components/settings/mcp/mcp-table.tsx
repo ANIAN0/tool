@@ -35,7 +35,7 @@ import {
   PowerOff,
   AlertCircle,
 } from "lucide-react";
-import type { McpServer, McpStatus } from "@/lib/db/schema";
+import type { McpServer, McpStatus } from "@/lib/schemas";
 
 /**
  * MCP 表格组件属性

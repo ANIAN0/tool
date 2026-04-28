@@ -8,7 +8,6 @@
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
-import { getAnonId, setAnonId } from "@/lib/anon-id";
 import { Loader2, UserPlus } from "lucide-react";
 import { useRouter } from "next/navigation";
 import { useState } from "react";
@@ -116,9 +115,6 @@ export function RegisterForm({ onSuccess, onSwitchToLogin }: RegisterFormProps) 
     setError(null);
 
     try {
-      // 获取当前匿名用户ID
-      const anonymousId = getAnonId();
-
       const response = await fetch("/api/auth/register", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
@@ -126,7 +122,6 @@ export function RegisterForm({ onSuccess, onSwitchToLogin }: RegisterFormProps) 
           username: formData.username,
           password: formData.password,
           inviteCode: formData.inviteCode,
-          anonymousId,
         }),
       });
 
@@ -141,10 +136,6 @@ export function RegisterForm({ onSuccess, onSwitchToLogin }: RegisterFormProps) 
       localStorage.setItem("accessToken", data.accessToken);
       localStorage.setItem("refreshToken", data.refreshToken);
       localStorage.setItem("userId", data.user.id);
-      
-      // 更新本地用户ID为注册用户的ID（场景1：保留原匿名ID 或 场景2：登录已有用户）
-      // 这样后续请求将使用新的用户ID
-      setAnonId(data.user.id);
 
       // 调用成功回调或跳转
       if (onSuccess) {

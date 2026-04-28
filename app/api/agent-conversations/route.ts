@@ -1,6 +1,6 @@
 import { getConversationsWithFilter } from "@/lib/db";
 import { NextRequest, NextResponse } from "next/server";
-import { authenticateRequestOptional } from "@/lib/auth/middleware";
+import { authenticateRequestOptional } from "@/lib/infra/user/middleware";
 
 /**
  * Agent对话列表 API

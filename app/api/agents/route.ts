@@ -8,7 +8,7 @@ import {
   authenticateRequest,
   authenticateRequestOptional,
   isRegisteredUser,
-} from "@/lib/auth/middleware";
+} from "@/lib/infra/user/middleware";
 import {
   getAgentsByUserId,
   getPublicAgents,

@@ -4,7 +4,7 @@
  */
 
 import { type NextRequest, NextResponse } from "next/server";
-import { authenticateRequest, isRegisteredUser } from "@/lib/auth/middleware";
+import { authenticateRequest, isRegisteredUser } from "@/lib/infra/user/middleware";
 import {
   getUserApiKeysByUserId,
   createUserApiKey,

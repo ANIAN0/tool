@@ -3,7 +3,7 @@
  */
 
 import type { UIMessage, LanguageModelUsage } from "ai";
-import type { Message as DBMessage, CheckpointContent } from "@/lib/db/schema";
+import type { Message as DBMessage, CheckpointContent } from "@/lib/schemas";
 
 /**
  * 消息元数据类型（用于历史消息显示）

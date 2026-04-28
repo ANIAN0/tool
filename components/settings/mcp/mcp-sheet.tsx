@@ -41,7 +41,7 @@ import {
   RefreshCw,
 } from "lucide-react";
 import { authenticatedFetch } from "@/lib/utils/authenticated-fetch";
-import type { McpServer, McpStatus } from "@/lib/db/schema";
+import type { McpServer, McpStatus } from "@/lib/schemas";
 
 /**
  * MCP 服务器详情数据类型

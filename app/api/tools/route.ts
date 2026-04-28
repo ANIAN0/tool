@@ -5,9 +5,9 @@
 
 import { type NextRequest, NextResponse } from "next/server";
 import { getDb } from "@/lib/db/client";
-import { authenticateRequestOptional } from "@/lib/auth/middleware";
-import type { Tool } from "@/lib/db/schema";
-import { SYSTEM_TOOLS_META } from "@/lib/constants/system-tools";
+import { authenticateRequestOptional } from "@/lib/infra/user/middleware";
+import type { Tool } from "@/lib/schemas";
+import { SYSTEM_TOOLS_META } from "@/lib/infra/tools/system";
 
 /**
  * 获取所有可用工具

@@ -1,13 +1,20 @@
 import { NextRequest, NextResponse } from "next/server";
-import { verifyPassword, generateTokenPair } from "@/lib/auth";
+import { verifyPassword, generateTokenPair } from "@/lib/infra/user";
 import { getUserByUsername } from "@/lib/db/users";
-import { migrateMcpData } from "@/lib/db/mcp";
+
+// Cookie 配置常量
+const COOKIE_CONFIG = {
+  ACCESS_TOKEN: "accessToken",
+  REFRESH_TOKEN: "refreshToken",
+  // Cookie 有效期（秒）
+  ACCESS_TOKEN_MAX_AGE: 60 * 15, // 15分钟，与 JWT 有效期同步
+  REFRESH_TOKEN_MAX_AGE: 60 * 60 * 24 * 7, // 7天，与 JWT 有效期同步
+};
 
 // 登录请求类型
 interface LoginRequest {
   username: string;
   password: string;
-  anonymousId?: string; // 匿名用户ID，用于数据迁移
 }
 
 // 登录响应类型
@@ -26,7 +33,7 @@ interface LoginResponse {
 /**
  * 登录API
  * POST /api/auth/login
- * 
+ *
  * 功能：
  * 1. 验证用户名和密码
  * 2. 返回JWT令牌对
@@ -55,7 +62,7 @@ export async function POST(request: NextRequest): Promise<NextResponse<LoginResp
       );
     }
 
-    // 检查是否为认证用户
+    // 检查是否为认证用户（非匿名）
     if (user.is_anonymous) {
       return NextResponse.json(
         { success: false, error: "用户名或密码错误" },
@@ -83,18 +90,8 @@ export async function POST(request: NextRequest): Promise<NextResponse<LoginResp
     // 生成令牌对
     const { accessToken, refreshToken } = generateTokenPair(user.id);
 
-    // 迁移匿名用户数据
-    const anonId = body.anonymousId;
-    if (anonId && anonId !== user.id) {
-      try {
-        await migrateMcpData(anonId, user.id);
-      } catch (error) {
-        // 迁移失败不影响登录流程，仅记录日志
-        console.error("迁移 MCP 数据失败:", error);
-      }
-    }
-
-    return NextResponse.json({
+    // 创建响应对象
+    const response = NextResponse.json({
       success: true,
       user: {
         id: user.id,
@@ -104,6 +101,25 @@ export async function POST(request: NextRequest): Promise<NextResponse<LoginResp
       accessToken,
       refreshToken,
     });
+
+    // 设置 cookie 存储 token，供 Server Component 和 middleware 使用
+    response.cookies.set(COOKIE_CONFIG.ACCESS_TOKEN, accessToken, {
+      httpOnly: true, // 防止 XSS 攻击
+      secure: process.env.NODE_ENV === "production", // 生产环境启用 HTTPS
+      sameSite: "lax", // 防止 CSRF 攻击
+      maxAge: COOKIE_CONFIG.ACCESS_TOKEN_MAX_AGE,
+      path: "/", // 全站可用
+    });
+
+    response.cookies.set(COOKIE_CONFIG.REFRESH_TOKEN, refreshToken, {
+      httpOnly: true,
+      secure: process.env.NODE_ENV === "production",
+      sameSite: "lax",
+      maxAge: COOKIE_CONFIG.REFRESH_TOKEN_MAX_AGE,
+      path: "/",
+    });
+
+    return response;
   } catch (error) {
     console.error("登录失败:", error);
     return NextResponse.json(

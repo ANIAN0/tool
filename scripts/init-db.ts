@@ -658,6 +658,68 @@ async function migrateDatabase(db: Client): Promise<void> {
     }
   }
 
+  // 迁移31: 为 workflowchat_run_steps 表添加 token 统计字段
+  if (await tableExists(db, "workflowchat_run_steps")) {
+    if (!(await columnExists(db, "workflowchat_run_steps", "prompt_tokens"))) {
+      console.log("添加 prompt_tokens 字段到 workflowchat_run_steps 表...");
+      await db.execute(
+        "ALTER TABLE workflowchat_run_steps ADD COLUMN prompt_tokens INTEGER DEFAULT 0"
+      );
+      console.log("✅ workflowchat_run_steps.prompt_tokens 字段添加成功");
+    } else {
+      console.log("✅ workflowchat_run_steps.prompt_tokens 字段已存在，跳过迁移");
+    }
+
+    if (!(await columnExists(db, "workflowchat_run_steps", "completion_tokens"))) {
+      console.log("添加 completion_tokens 字段到 workflowchat_run_steps 表...");
+      await db.execute(
+        "ALTER TABLE workflowchat_run_steps ADD COLUMN completion_tokens INTEGER DEFAULT 0"
+      );
+      console.log("✅ workflowchat_run_steps.completion_tokens 字段添加成功");
+    } else {
+      console.log("✅ workflowchat_run_steps.completion_tokens 字段已存在，跳过迁移");
+    }
+
+    if (!(await columnExists(db, "workflowchat_run_steps", "total_tokens"))) {
+      console.log("添加 total_tokens 字段到 workflowchat_run_steps 表...");
+      await db.execute(
+        "ALTER TABLE workflowchat_run_steps ADD COLUMN total_tokens INTEGER DEFAULT 0"
+      );
+      console.log("✅ workflowchat_run_steps.total_tokens 字段添加成功");
+    } else {
+      console.log("✅ workflowchat_run_steps.total_tokens 字段已存在，跳过迁移");
+    }
+  }
+
+  // 迁移32: 为 workflowchat_conversations 表添加 agent_id 字段
+  if (await tableExists(db, "workflowchat_conversations")) {
+    if (!(await columnExists(db, "workflowchat_conversations", "agent_id"))) {
+      console.log("添加 agent_id 字段到 workflowchat_conversations 表...");
+      await db.execute(
+        "ALTER TABLE workflowchat_conversations ADD COLUMN agent_id TEXT NOT NULL DEFAULT 'default'"
+      );
+      console.log("✅ workflowchat_conversations.agent_id 字段添加成功");
+    } else {
+      console.log("✅ workflowchat_conversations.agent_id 字段已存在，跳过迁移");
+    }
+  }
+
+  // 迁移33: 创建 WorkflowChat agent_id 索引
+  if (await tableExists(db, "workflowchat_conversations")) {
+    try {
+      await db.execute(
+        "CREATE INDEX IF NOT EXISTS idx_wfchat_conv_agent_id ON workflowchat_conversations(agent_id)"
+      );
+      console.log("✅ workflowchat_conversations.agent_id 索引创建成功");
+    } catch (error) {
+      if (String(error).includes("already exists")) {
+        console.log("✅ workflowchat_conversations.agent_id 索引已存在，跳过");
+      } else {
+        console.error("创建 workflowchat_conversations.agent_id 索引失败:", error);
+      }
+    }
+  }
+
   console.log("\n");
 }
 

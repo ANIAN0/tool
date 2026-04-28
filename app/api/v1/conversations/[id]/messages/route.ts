@@ -4,7 +4,7 @@
  */
 
 import { type NextRequest, NextResponse } from "next/server";
-import { authenticateApiKey, apiKeyErrorResponse } from "@/lib/auth/api-key-middleware";
+import { authenticateApiKey, apiKeyErrorResponse } from "@/lib/infra/user/api-key";
 import { getConversation, getMessages } from "@/lib/db";
 
 interface RouteParams {

@@ -1,5 +1,5 @@
 import { getDb } from "./client";
-import type { User, CreateUserParams } from "./schema";
+import type { User } from "./schema";
 import { cache } from 'react';
 
 /**
@@ -55,31 +55,6 @@ const getUserByUsernameCached = cache(async (username: string): Promise<User | n
 });
 
 /**
- * 创建匿名用户
- * @param id - 用户ID（通常由前端匿名ID生成）
- * @returns 新创建的用户记录
- */
-export async function createAnonymousUser(id: string): Promise<User> {
-  const db = getDb();
-  const now = Date.now();
-
-  await db.execute({
-    sql: `INSERT INTO users (id, username, password_hash, is_anonymous, created_at, updated_at)
-          VALUES (?, NULL, NULL, 1, ?, ?)`,
-    args: [id, now, now],
-  });
-
-  return {
-    id,
-    username: null,
-    password_hash: null,
-    is_anonymous: true,
-    created_at: now,
-    updated_at: now,
-  };
-}
-
-/**
  * 根据ID获取用户
  * @param id - 用户ID
  * @returns 用户记录，不存在则返回null
@@ -98,56 +73,34 @@ export async function getUserByUsername(username: string): Promise<User | null> 
 }
 
 /**
- * 获取或创建用户
- * 如果用户存在则返回，不存在则创建匿名用户
- * @param id - 用户ID
- * @returns 用户记录
- */
-export async function getOrCreateUser(id: string): Promise<User> {
-  // 先尝试获取已有用户
-  const existingUser = await getUserById(id);
-  if (existingUser) {
-    return existingUser;
-  }
-
-  // 不存在则创建匿名用户
-  return createAnonymousUser(id);
-}
-
-/**
- * 匿名用户升级为认证用户
+ * 创建注册用户
  * @param id - 用户ID
  * @param username - 用户名
  * @param passwordHash - 密码哈希
- * @returns 更新后的用户记录，不存在则返回null
+ * @returns 新创建的用户记录
  */
-export async function upgradeToRegisteredUser(
+export async function createUser(
   id: string,
   username: string,
   passwordHash: string
-): Promise<User | null> {
+): Promise<User> {
   const db = getDb();
   const now = Date.now();
 
-  // 检查用户名是否已被使用
-  const existingUser = await getUserByUsername(username);
-  if (existingUser && existingUser.id !== id) {
-    throw new Error("用户名已被使用");
-  }
-
-  // 更新用户信息
-  const result = await db.execute({
-    sql: `UPDATE users 
-          SET username = ?, password_hash = ?, is_anonymous = 0, updated_at = ?
-          WHERE id = ?`,
-    args: [username, passwordHash, now, id],
+  await db.execute({
+    sql: `INSERT INTO users (id, username, password_hash, is_anonymous, created_at, updated_at)
+          VALUES (?, ?, ?, 0, ?, ?)`,
+    args: [id, username, passwordHash, now, now],
   });
 
-  if (result.rowsAffected === 0) {
-    return null;
-  }
-
-  return getUserById(id);
+  return {
+    id,
+    username,
+    password_hash: passwordHash,
+    is_anonymous: false,
+    created_at: now,
+    updated_at: now,
+  };
 }
 
 /**

@@ -99,7 +99,7 @@
 <!-- gitnexus:start -->
 # GitNexus — Code Intelligence
 
-This project is indexed by GitNexus as **tool** (5715 symbols, 10661 relationships, 300 execution flows). Use the GitNexus MCP tools to understand code, assess impact, and navigate safely.
+This project is indexed by GitNexus as **tool** (6571 symbols, 12173 relationships, 300 execution flows). Use the GitNexus MCP tools to understand code, assess impact, and navigate safely.
 
 > If any GitNexus tool warns the index is stale, run `npx gitnexus analyze` in terminal first.
 
@@ -139,3 +139,16 @@ This project is indexed by GitNexus as **tool** (5715 symbols, 10661 relationshi
 | Index, status, clean, wiki CLI commands | `.claude/skills/gitnexus/gitnexus-cli/SKILL.md` |
 
 <!-- gitnexus:end -->
+
+## 9. 终端编码问题
+
+**问题：** 在 Windows PowerShell 中，中文目录和文件名显示为乱码（如 `���ܿ���`）。
+
+**原因：** PowerShell 默认使用 GBK 编码（代码页 936），而文件系统实际存储为 UTF-8。
+
+**解决方案：**
+1. **临时修复**（当前会话）：
+   ```powershell
+   chcp 65001
+   [Console]::OutputEncoding = [System.Text.Encoding]::UTF8
+   ```

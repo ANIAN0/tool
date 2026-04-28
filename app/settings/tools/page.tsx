@@ -9,7 +9,7 @@ import { useState, useCallback } from "react";
 import { useTools } from "@/lib/hooks/use-tools";
 import { ToolTable } from "@/components/settings/tools/tool-table";
 import { ToolSheet } from "@/components/settings/tools/tool-sheet";
-import type { Tool } from "@/lib/db/schema";
+import type { Tool } from "@/lib/schemas";
 
 /**
  * 工具管理页面组件

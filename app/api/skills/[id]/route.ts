@@ -4,7 +4,7 @@
  */
 
 import { type NextRequest, NextResponse } from "next/server";
-import { authenticateRequest } from "@/lib/auth/middleware";
+import { authenticateRequest } from "@/lib/infra/user/middleware";
 import {
   getUserSkillById,
   updateUserSkill,
@@ -12,8 +12,8 @@ import {
   getSkillAgents,
   getUserSkillsByUserId,
 } from "@/lib/db/skills";
-import { validateSkillFile } from "@/lib/utils/skill-validator";
-import { uploadSkillFile, calculateFileHash, deleteSkillDirectory, downloadSkillDirectory } from "@/lib/supabase/storage";
+import { validateSkillFile } from "@/lib/infra/skills";
+import { uploadSkillFile, calculateFileHash, deleteSkillDirectory, downloadSkillDirectory } from "@/lib/infra/supabase";
 
 /**
  * 统一错误响应格式

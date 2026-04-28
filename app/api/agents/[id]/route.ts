@@ -8,7 +8,7 @@
  */
 
 import { type NextRequest, NextResponse } from "next/server";
-import { authenticateRequestOptional, authenticateRequest } from "@/lib/auth/middleware";
+import { authenticateRequestOptional, authenticateRequest } from "@/lib/infra/user/middleware";
 import {
   getAgentById,
   updateAgent,
@@ -19,7 +19,7 @@ import {
   validateToolNamesUniqueness,
 } from "@/lib/db/agents";
 import { validateTemplateConfig } from "@/lib/agents/templates";
-import type { UpdateAgentParams } from "@/lib/db/schema";
+import type { UpdateAgentParams } from "@/lib/schemas";
 
 /**
  * GET /api/agents/[id]

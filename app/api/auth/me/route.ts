@@ -1,5 +1,5 @@
 import { NextResponse } from "next/server";
-import { withOptionalAuth, type AuthContext } from "@/lib/auth/middleware";
+import { withOptionalAuth, type AuthContext } from "@/lib/infra/user/middleware";
 import { getUserById } from "@/lib/db/users";
 
 // 用户信息响应类型

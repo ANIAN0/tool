@@ -15,6 +15,7 @@ function rowToWfChatConversation(row: Record<string, unknown>): WorkflowChatConv
   return {
     id: row.id as string,
     user_id: row.user_id as string | null,
+    agent_id: row.agent_id as string,
     title: row.title as string | null,
     status: row.status as WorkflowChatConversationStatus,
     active_stream_id: row.active_stream_id as string | null,
@@ -49,6 +50,9 @@ function rowToWfChatRun(row: Record<string, unknown>): WorkflowChatRun {
     started_at: row.started_at as number | null,
     finished_at: row.finished_at as number | null,
     total_duration_ms: row.total_duration_ms as number | null,
+    prompt_tokens: row.prompt_tokens as number ?? 0,
+    completion_tokens: row.completion_tokens as number ?? 0,
+    total_tokens: row.total_tokens as number ?? 0,
     created_at: row.created_at as number,
     updated_at: row.updated_at as number,
   };
@@ -65,6 +69,9 @@ function rowToWfChatRunStep(row: Record<string, unknown>): WorkflowChatRunStep {
     finished_at: row.finished_at as number | null,
     duration_ms: row.duration_ms as number | null,
     finish_reason: row.finish_reason as string | null,
+    prompt_tokens: row.prompt_tokens as number | undefined,
+    completion_tokens: row.completion_tokens as number | undefined,
+    total_tokens: row.total_tokens as number | undefined,
     created_at: row.created_at as number,
   };
 }
@@ -74,20 +81,22 @@ function rowToWfChatRunStep(row: Record<string, unknown>): WorkflowChatRunStep {
 export async function createWfChatConversation(params: {
   id: string;
   userId?: string | null;
+  agentId: string;
   title?: string | null;
 }): Promise<WorkflowChatConversation> {
   const db = getDb();
   const now = Date.now();
 
   await db.execute({
-    sql: `INSERT INTO workflowchat_conversations (id, user_id, title, status, active_stream_id, last_message_at, created_at, updated_at)
-          VALUES (?, ?, ?, 'active', NULL, ?, ?, ?)`,
-    args: [params.id, params.userId ?? null, params.title ?? null, now, now, now],
+    sql: `INSERT INTO workflowchat_conversations (id, user_id, agent_id, title, status, active_stream_id, last_message_at, created_at, updated_at)
+          VALUES (?, ?, ?, ?, 'active', NULL, ?, ?, ?)`,
+    args: [params.id, params.userId ?? null, params.agentId, params.title ?? null, now, now, now],
   });
 
   return {
     id: params.id,
     user_id: params.userId ?? null,
+    agent_id: params.agentId,
     title: params.title ?? null,
     status: 'active',
     active_stream_id: null,
@@ -388,6 +397,9 @@ export async function updateWfChatRun(
     startedAt?: number | null;
     finishedAt?: number | null;
     totalDurationMs?: number | null;
+    promptTokens?: number;
+    completionTokens?: number;
+    totalTokens?: number;
   }
 ): Promise<WorkflowChatRun | null> {
   const db = getDb();
@@ -422,6 +434,18 @@ export async function updateWfChatRun(
   if (data.totalDurationMs !== undefined) {
     updates.push('total_duration_ms = ?');
     args.push(data.totalDurationMs);
+  }
+  if (data.promptTokens !== undefined) {
+    updates.push('prompt_tokens = ?');
+    args.push(data.promptTokens);
+  }
+  if (data.completionTokens !== undefined) {
+    updates.push('completion_tokens = ?');
+    args.push(data.completionTokens);
+  }
+  if (data.totalTokens !== undefined) {
+    updates.push('total_tokens = ?');
+    args.push(data.totalTokens);
   }
 
   args.push(id);
@@ -484,6 +508,9 @@ export async function updateWfChatRunStep(
     finishedAt?: number | null;
     durationMs?: number | null;
     finishReason?: string | null;
+    promptTokens?: number;
+    completionTokens?: number;
+    totalTokens?: number;
   }
 ): Promise<WorkflowChatRunStep | null> {
   const db = getDb();
@@ -509,6 +536,18 @@ export async function updateWfChatRunStep(
   if (data.finishReason !== undefined) {
     updates.push('finish_reason = ?');
     args.push(data.finishReason);
+  }
+  if (data.promptTokens !== undefined) {
+    updates.push('prompt_tokens = ?');
+    args.push(data.promptTokens);
+  }
+  if (data.completionTokens !== undefined) {
+    updates.push('completion_tokens = ?');
+    args.push(data.completionTokens);
+  }
+  if (data.totalTokens !== undefined) {
+    updates.push('total_tokens = ?');
+    args.push(data.totalTokens);
   }
 
   if (updates.length === 0) return getWfChatRunStep(id);

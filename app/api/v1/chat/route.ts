@@ -7,63 +7,39 @@
  * Body: { message: UIMessage, conversationId?: string, agentId: string }
  */
 
-import { createOpenAICompatible } from "@ai-sdk/openai-compatible";
 import { convertToModelMessages, UIMessage } from "ai";
 import type { ToolSet } from "ai";
 import { nanoid } from "nanoid";
 import {
-  createConversation,
-  createMessage,
   getConversation,
-  touchConversation,
   getAgentById,
   getUserModelById,
   getDefaultUserModel,
-  updateConversationTokenTotals,
   type UserModel,
 } from "@/lib/db";
-// 新增：压缩相关函数（异步压缩方案）
+// 压缩相关函数（异步压缩方案）
 import {
   getPendingCompressionTask,
   completeCompressionTask,
   loadHistoryMessages,
   executeCompressionTask,
 } from "@/lib/db/compression";
-import { wrapModelWithAllMiddlewares } from "@/lib/ai";
-import { authenticateApiKey, apiKeyErrorResponse } from "@/lib/auth/api-key-middleware";
-import { decryptApiKey } from "@/lib/encryption";
+import { createModel } from "@/lib/infra/model";
+import { createChatSessionService } from "@/lib/infra/session";
+import { createMessageService } from "@/lib/infra/message";
+import { authenticateApiKey, apiKeyErrorResponse } from "@/lib/infra/user/api-key";
 import { ToolLoopAgent, stepCountIs } from "ai";
-import { getSandboxToolsWithContext } from "@/lib/sandbox";
-import { loadSkillsToSandbox } from "@/lib/sandbox/skill-loader";
-import { isSandboxEnabled } from "@/lib/sandbox/config";
-import {
-  createAgentMcpRuntimeTools,
-} from "@/lib/agents/mcp-runtime";
+import { getSandboxToolsWithContext, loadSkillsToSandbox, isSandboxEnabled } from "@/lib/infra/sandbox";
 import { mergeAgentToolSets } from "@/lib/agents/toolset-merge";
-import { getAgentSkillsInfo } from "@/lib/db/agents";
+import { createMcpRuntime } from "@/lib/infra/mcp";
+import { getAgentMcpRuntimeToolConfigs, getAgentSkillsInfo } from "@/lib/db/agents";
+
+// 服务实例（需要在所有导入之后创建）
+const sessionService = createChatSessionService();
+const messageService = createMessageService();
 
 // 设置最大响应时间为 60 秒
 export const maxDuration = 60;
-
-/**
- * 根据用户模型配置构建聊天模型
- */
-function buildChatModelFromUserModel(userModel: UserModel) {
-  if (userModel.provider !== "openai") {
-    throw new Error("当前仅支持 OpenAI-Compatible（provider=openai）");
-  }
-
-  const decryptedApiKey = decryptApiKey(userModel.api_key);
-  const baseURL = userModel.base_url || "https://api.openai.com/v1";
-
-  const provider = createOpenAICompatible({
-    name: "user-openai-compatible",
-    baseURL,
-    apiKey: decryptedApiKey,
-  });
-
-  return provider.chatModel(userModel.model);
-}
 
 /**
  * 从消息内容提取对话标题
@@ -153,14 +129,14 @@ export async function POST(request: Request) {
     // 如果没有提供 conversationId，创建新会话
     if (!currentConversationId) {
       const content = message?.parts?.find((p) => p.type === "text")?.text || "";
-      const newConversation = await createConversation({
+      const session = await sessionService.create({
         id: nanoid(),
         userId,
         title: extractTitle(content),
         agentId,
         source: "api-v1",
       });
-      currentConversationId = newConversation.id;
+      currentConversationId = session.id;
     }
 
     // 获取用户模型配置
@@ -182,12 +158,13 @@ export async function POST(request: Request) {
     // 获取模型上下文上限
     const contextLimit = userModel?.context_limit ?? 32000;
 
-    // 构建聊天模型（使用中间件包装，传入压缩检测配置）
-    const baseModel = buildChatModelFromUserModel(userModel);
-    const wrappedModel = wrapModelWithAllMiddlewares(baseModel, {
-      conversationId: currentConversationId!,
-      contextLimit,
+    // 创建模型实例（ModelService 内部已包装 DevTools）
+    const modelResult = await createModel({
+      modelId: userModel!.id,
+      userId,
     });
+    // 直接使用模型，跳过外部包装（避免重复包装）
+    const wrappedModel = modelResult.model;
 
     // 🚀 性能优化：等待提前启动的 Skills Promise 完成（可能已在之前操作期间完成）
     const agentSkills = await agentSkillsPromise;
@@ -215,17 +192,43 @@ export async function POST(request: Request) {
         })
       : {};
 
-    // 获取 MCP 运行时工具
+    // 获取 MCP 运行时工具（使用新服务）
     let mcpRuntimeCleanup: (() => Promise<void>) | null = null;
     let mcpTools: ToolSet = {};
 
     try {
-      const mcpRuntime = await createAgentMcpRuntimeTools({
-        agentId: agent.id,
-        agentOwnerUserId: agent.user_id,
-      });
-      mcpRuntimeCleanup = mcpRuntime.cleanup;
-      mcpTools = mcpRuntime.tools;
+      // 查询 Agent 绑定的 MCP 工具配置
+      const mcpToolConfigs = await getAgentMcpRuntimeToolConfigs(agent.id, agent.user_id);
+      
+      if (mcpToolConfigs.length > 0) {
+        // 转换为 MCP 运行时配置
+        const serversMap = new Map<string, { id: string; name: string; url: string; headers: Record<string, string>; enabled: boolean }>();
+        const toolsList: Array<{ serverId: string; toolName: string }> = [];
+        
+        for (const config of mcpToolConfigs) {
+          if (!serversMap.has(config.serverId)) {
+            serversMap.set(config.serverId, {
+              id: config.serverId,
+              name: config.serverName,
+              url: config.serverUrl,
+              headers: config.serverHeaders,
+              enabled: config.serverEnabled,
+            });
+          }
+          toolsList.push({
+            serverId: config.serverId,
+            toolName: config.toolName,
+          });
+        }
+        
+        const mcpRuntime = await createMcpRuntime({
+          servers: Array.from(serversMap.values()),
+          tools: toolsList,
+        });
+        
+        mcpRuntimeCleanup = mcpRuntime.cleanup;
+        mcpTools = mcpRuntime.tools;
+      }
     } catch (mcpBuildError) {
       console.error("构建 MCP 运行时工具失败，已降级为仅系统工具:", mcpBuildError);
     }
@@ -281,7 +284,7 @@ export async function POST(request: Request) {
         parts: message.parts,
       };
 
-      await createMessage({
+      await messageService.create({
         id: userMessageId,
         conversationId: currentConversationId!,
         role: "user",
@@ -314,7 +317,7 @@ export async function POST(request: Request) {
     streamResult.consumeStream(); // 无需 await，后台执行
 
     // 更新会话时间戳
-    await touchConversation(currentConversationId!);
+    await sessionService.touch(currentConversationId!);
 
     // 返回流式响应
     const modelName = userModel?.model ?? "";
@@ -350,7 +353,7 @@ export async function POST(request: Request) {
                 parts,
               };
 
-              await createMessage({
+              await messageService.create({
                 id: messageId,
                 conversationId: currentConversationId,
                 role: "assistant",
@@ -363,14 +366,14 @@ export async function POST(request: Request) {
 
               // 更新对话的 token 汇总
               if (usage) {
-                await updateConversationTokenTotals(currentConversationId, {
+                await sessionService.updateTokenTotals(currentConversationId, {
                   inputTokens: usage.inputTokens || 0,
                   outputTokens: usage.outputTokens || 0,
                   totalTokens: usage.totalTokens || 0,
                 });
               }
 
-              await touchConversation(currentConversationId);
+              await sessionService.touch(currentConversationId);
             } catch (saveError) {
               console.error("保存消息失败:", saveError);
             }

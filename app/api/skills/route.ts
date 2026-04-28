@@ -4,14 +4,14 @@
  */
 
 import { type NextRequest, NextResponse } from "next/server";
-import { authenticateRequest, isRegisteredUser } from "@/lib/auth/middleware";
+import { authenticateRequest, isRegisteredUser } from "@/lib/infra/user/middleware";
 import {
   getUserSkillsByUserId,
   createUserSkill,
   isSkillNameExists,
 } from "@/lib/db/skills";
-import { validateSkillDirectory } from "@/lib/utils/skill-validator";
-import { uploadSkillDirectory, calculateDirectoryHash } from "@/lib/supabase/storage";
+import { validateSkillDirectory } from "@/lib/infra/skills";
+import { uploadSkillDirectory, calculateDirectoryHash } from "@/lib/infra/supabase";
 
 /**
  * 统一错误响应格式

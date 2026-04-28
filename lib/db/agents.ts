@@ -21,7 +21,7 @@ import {
   serializeSystemTools,
   isSystemToolId,
   type SystemToolId,
-} from "@/lib/constants/system-tools";
+} from "@/lib/infra/tools/system";
 import { getAgentsSkillsBatch, setAgentSkills } from "./skills";
 
 // ==================== 辅助函数 ====================

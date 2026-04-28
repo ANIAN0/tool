@@ -5,7 +5,7 @@
 
 import { useState, useCallback, useEffect, useMemo } from "react";
 import { useAuth } from "./use-auth";
-import type { Tool } from "@/lib/db/schema";
+import type { Tool } from "@/lib/schemas";
 
 // API响应类型
 interface ToolsResponse {

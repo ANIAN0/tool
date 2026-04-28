@@ -9,11 +9,13 @@
  * workflowchat_conversations表 - WorkflowChat会话
  * 独立于 conversations 表，用于 workflow 驱动的对话场景
  * active_stream_id: 当前活跃的 workflow runId，用于 CAS 抢占
+ * agent_id: 关联的 Agent ID，必填字段，会话创建时绑定
  */
 export const CREATE_WORKFLOWCHAT_CONVERSATIONS_TABLE = `
 CREATE TABLE IF NOT EXISTS workflowchat_conversations (
   id TEXT PRIMARY KEY,
   user_id TEXT,
+  agent_id TEXT NOT NULL,
   title TEXT,
   status TEXT NOT NULL DEFAULT 'active',
   active_stream_id TEXT,
@@ -44,6 +46,7 @@ CREATE TABLE IF NOT EXISTS workflowchat_messages (
  * workflowchat_runs表 - WorkflowChat业务Run
  * 记录每一轮 workflow 执行的完整生命周期
  * workflow_run_id: World 侧的 runId，非空时唯一
+ * token 统计字段：prompt_tokens、completion_tokens、total_tokens
  */
 export const CREATE_WORKFLOWCHAT_RUNS_TABLE = `
 CREATE TABLE IF NOT EXISTS workflowchat_runs (
@@ -59,6 +62,9 @@ CREATE TABLE IF NOT EXISTS workflowchat_runs (
   started_at INTEGER,
   finished_at INTEGER,
   total_duration_ms INTEGER,
+  prompt_tokens INTEGER DEFAULT 0,
+  completion_tokens INTEGER DEFAULT 0,
+  total_tokens INTEGER DEFAULT 0,
   created_at INTEGER NOT NULL,
   updated_at INTEGER NOT NULL,
   FOREIGN KEY (conversation_id) REFERENCES workflowchat_conversations(id) ON DELETE CASCADE
@@ -93,6 +99,10 @@ CREATE TABLE IF NOT EXISTS workflowchat_run_steps (
 export const CREATE_WORKFLOWCHAT_CONVERSATION_INDEXES = [
   // 会话列表按更新时间降序排序
   `CREATE INDEX IF NOT EXISTS idx_wfchat_conv_updated_at ON workflowchat_conversations(updated_at DESC);`,
+  // 按用户ID查询会话
+  `CREATE INDEX IF NOT EXISTS idx_wfchat_conv_user_id ON workflowchat_conversations(user_id);`,
+  // 按AgentID查询会话
+  `CREATE INDEX IF NOT EXISTS idx_wfchat_conv_agent_id ON workflowchat_conversations(agent_id);`,
 ];
 
 /**
@@ -158,6 +168,7 @@ export type WorkflowChatStepStatus = 'pending' | 'running' | 'completed' | 'fail
 export interface WorkflowChatConversation {
   id: string;
   user_id: string | null;
+  agent_id: string;
   title: string | null;
   status: WorkflowChatConversationStatus;
   active_stream_id: string | null;
@@ -194,6 +205,9 @@ export interface WorkflowChatRun {
   started_at: number | null;
   finished_at: number | null;
   total_duration_ms: number | null;
+  prompt_tokens: number;
+  completion_tokens: number;
+  total_tokens: number;
   created_at: number;
   updated_at: number;
 }
@@ -211,5 +225,35 @@ export interface WorkflowChatRunStep {
   finished_at: number | null;
   duration_ms: number | null;
   finish_reason: string | null;
+  prompt_tokens?: number;
+  completion_tokens?: number;
+  total_tokens?: number;
   created_at: number;
 }
+
+// ==================== 迁移定义 ====================
+
+/**
+ * 迁移：为 workflowchat_conversations 表添加 agent_id 字段
+ */
+export const MIGRATION_WORKFLOWCHAT_ADD_AGENT_ID = `
+ALTER TABLE workflowchat_conversations ADD COLUMN agent_id TEXT NOT NULL DEFAULT 'default'
+`;
+
+/**
+ * 迁移：为 workflowchat_runs 表添加 token 统计字段
+ */
+export const MIGRATION_WORKFLOWCHAT_ADD_RUN_TOKEN_FIELDS = `
+ALTER TABLE workflowchat_runs ADD COLUMN prompt_tokens INTEGER DEFAULT 0;
+ALTER TABLE workflowchat_runs ADD COLUMN completion_tokens INTEGER DEFAULT 0;
+ALTER TABLE workflowchat_runs ADD COLUMN total_tokens INTEGER DEFAULT 0;
+`;
+
+/**
+ * 迁移：为 workflowchat_run_steps 表添加 token 统计字段
+ */
+export const MIGRATION_WORKFLOWCHAT_ADD_STEP_TOKEN_FIELDS = `
+ALTER TABLE workflowchat_run_steps ADD COLUMN prompt_tokens INTEGER DEFAULT 0;
+ALTER TABLE workflowchat_run_steps ADD COLUMN completion_tokens INTEGER DEFAULT 0;
+ALTER TABLE workflowchat_run_steps ADD COLUMN total_tokens INTEGER DEFAULT 0;
+`;

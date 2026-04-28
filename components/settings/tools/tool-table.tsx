@@ -32,7 +32,7 @@ import {
   CheckCircle2,
   XCircle,
 } from "lucide-react";
-import type { Tool } from "@/lib/db/schema";
+import type { Tool } from "@/lib/schemas";
 
 /**
  * 工具表格组件属性

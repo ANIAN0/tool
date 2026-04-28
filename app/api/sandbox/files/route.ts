@@ -4,11 +4,8 @@
  */
 
 import { type NextRequest, NextResponse } from "next/server";
-import { authenticateRequest } from "@/lib/auth/middleware";
-import { getSandboxManager } from "@/lib/sandbox/session-manager";
-import { isSandboxEnabled } from "@/lib/sandbox/config";
-// 导入路径验证器，防止命令注入攻击
-import { validateSandboxPath } from '@/lib/utils/sandbox-path-validator';
+import { authenticateRequest } from "@/lib/infra/user/middleware";
+import { getSandboxManager, isSandboxEnabled, validateSandboxPath } from "@/lib/infra/sandbox";
 
 /**
  * 统一错误响应格式

@@ -6,7 +6,7 @@
  */
 
 import { NextResponse } from "next/server";
-import { withOptionalAuth } from "@/lib/auth/middleware";
+import { withOptionalAuth } from "@/lib/infra/user/middleware";
 import {
   getUserModelById,
   updateUserModel,

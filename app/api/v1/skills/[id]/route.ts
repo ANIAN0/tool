@@ -5,10 +5,10 @@
  */
 
 import { type NextRequest, NextResponse } from "next/server";
-import { authenticateApiKey, apiKeyErrorResponse } from "@/lib/auth/api-key-middleware";
+import { authenticateApiKey, apiKeyErrorResponse } from "@/lib/infra/user/api-key";
 import { getUserSkillById, updateUserSkill } from "@/lib/db/skills";
-import { validateSkillFile } from "@/lib/utils/skill-validator";
-import { uploadSkillFile, calculateFileHash } from "@/lib/supabase/storage";
+import { validateSkillFile } from "@/lib/infra/skills";
+import { uploadSkillFile, calculateFileHash } from "@/lib/infra/supabase";
 
 /**
  * 统一错误响应格式

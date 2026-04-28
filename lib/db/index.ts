@@ -39,7 +39,7 @@ import {
   CREATE_WORKFLOWCHAT_RUNS_TABLE,
   CREATE_WORKFLOWCHAT_RUN_STEPS_TABLE,
   CREATE_WORKFLOWCHAT_INDEXES,
-} from "./schema";
+} from "@/lib/schemas";
 
 /**
  * 初始化数据库表结构
@@ -558,6 +558,99 @@ export async function migrateDatabase(): Promise<void> {
       } else {
         console.error("创建 WorkflowChat 索引失败:", error);
       }
+    }
+  }
+
+  // 迁移：为 workflowchat_run_steps 表添加 token 统计字段
+  // 注意：SQLite 每条 ALTER TABLE 只能添加一个字段
+  try {
+    await db.execute(`ALTER TABLE workflowchat_run_steps ADD COLUMN prompt_tokens INTEGER DEFAULT 0`);
+    console.log("数据库迁移成功：已添加 workflowchat_run_steps.prompt_tokens 字段");
+  } catch (error) {
+    if (String(error).includes("duplicate column")) {
+      console.log("workflowchat_run_steps.prompt_tokens 字段已存在，跳过迁移");
+    } else {
+      console.error("添加 workflowchat_run_steps.prompt_tokens 字段失败:", error);
+    }
+  }
+
+  try {
+    await db.execute(`ALTER TABLE workflowchat_run_steps ADD COLUMN completion_tokens INTEGER DEFAULT 0`);
+    console.log("数据库迁移成功：已添加 workflowchat_run_steps.completion_tokens 字段");
+  } catch (error) {
+    if (String(error).includes("duplicate column")) {
+      console.log("workflowchat_run_steps.completion_tokens 字段已存在，跳过迁移");
+    } else {
+      console.error("添加 workflowchat_run_steps.completion_tokens 字段失败:", error);
+    }
+  }
+
+  try {
+    await db.execute(`ALTER TABLE workflowchat_run_steps ADD COLUMN total_tokens INTEGER DEFAULT 0`);
+    console.log("数据库迁移成功：已添加 workflowchat_run_steps.total_tokens 字段");
+  } catch (error) {
+    if (String(error).includes("duplicate column")) {
+      console.log("workflowchat_run_steps.total_tokens 字段已存在，跳过迁移");
+    } else {
+      console.error("添加 workflowchat_run_steps.total_tokens 字段失败:", error);
+    }
+  }
+
+  // 迁移：为 workflowchat_runs 表添加 token 统计汇总字段
+  try {
+    await db.execute(`ALTER TABLE workflowchat_runs ADD COLUMN prompt_tokens INTEGER DEFAULT 0`);
+    console.log("数据库迁移成功：已添加 workflowchat_runs.prompt_tokens 字段");
+  } catch (error) {
+    if (String(error).includes("duplicate column")) {
+      console.log("workflowchat_runs.prompt_tokens 字段已存在，跳过迁移");
+    } else {
+      console.error("添加 workflowchat_runs.prompt_tokens 字段失败:", error);
+    }
+  }
+
+  try {
+    await db.execute(`ALTER TABLE workflowchat_runs ADD COLUMN completion_tokens INTEGER DEFAULT 0`);
+    console.log("数据库迁移成功：已添加 workflowchat_runs.completion_tokens 字段");
+  } catch (error) {
+    if (String(error).includes("duplicate column")) {
+      console.log("workflowchat_runs.completion_tokens 字段已存在，跳过迁移");
+    } else {
+      console.error("添加 workflowchat_runs.completion_tokens 字段失败:", error);
+    }
+  }
+
+  try {
+    await db.execute(`ALTER TABLE workflowchat_runs ADD COLUMN total_tokens INTEGER DEFAULT 0`);
+    console.log("数据库迁移成功：已添加 workflowchat_runs.total_tokens 字段");
+  } catch (error) {
+    if (String(error).includes("duplicate column")) {
+      console.log("workflowchat_runs.total_tokens 字段已存在，跳过迁移");
+    } else {
+      console.error("添加 workflowchat_runs.total_tokens 字段失败:", error);
+    }
+  }
+
+  // 迁移：为 workflowchat_conversations 表添加 agent_id 字段
+  try {
+    await db.execute(`ALTER TABLE workflowchat_conversations ADD COLUMN agent_id TEXT NOT NULL DEFAULT 'default'`);
+    console.log("数据库迁移成功：已添加 workflowchat_conversations.agent_id 字段");
+  } catch (error) {
+    if (String(error).includes("duplicate column")) {
+      console.log("workflowchat_conversations.agent_id 字段已存在，跳过迁移");
+    } else {
+      console.error("添加 workflowchat_conversations.agent_id 字段失败:", error);
+    }
+  }
+
+  // 迁移：创建 workflowchat_conversations.agent_id 索引
+  try {
+    await db.execute(`CREATE INDEX IF NOT EXISTS idx_wfchat_conv_agent_id ON workflowchat_conversations(agent_id)`);
+    console.log("数据库迁移成功：已创建 workflowchat_conversations.agent_id 索引");
+  } catch (error) {
+    if (String(error).includes("already exists")) {
+      console.log("workflowchat_conversations.agent_id 索引已存在，跳过迁移");
+    } else {
+      console.error("创建 workflowchat_conversations.agent_id 索引失败:", error);
     }
   }
 }

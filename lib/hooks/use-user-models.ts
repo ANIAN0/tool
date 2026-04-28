@@ -1,21 +1,10 @@
 /**
  * 用户模型管理 Hook
- * 统一管理认证用户和匿名用户的模型操作
+ * 仅支持已登录用户的模型操作
  */
 
 import { useState, useEffect, useCallback } from "react";
 import { useAuth } from "./use-auth";
-import { nanoid } from "nanoid";
-import {
-  getLocalModels,
-  addLocalModel,
-  updateLocalModel,
-  deleteLocalModel,
-  setDefaultLocalModel,
-  getDefaultLocalModel,
-  clearModelsAfterSync,
-  type LocalUserModel,
-} from "./user-models-storage";
 
 // API 模型数据类型（与后端返回的数据一致）
 export interface ApiUserModel {
@@ -26,13 +15,13 @@ export interface ApiUserModel {
   model: string;
   base_url: string | null;
   is_default: boolean;
-  context_limit: number; // 新增：上下文上限
+  context_limit: number;
   created_at: number;
   updated_at: number;
 }
 
 // 统一的模型数据类型
-export type UserModel = LocalUserModel | ApiUserModel;
+export type UserModel = ApiUserModel;
 
 // 创建模型的参数
 export interface CreateModelParams {
@@ -42,7 +31,7 @@ export interface CreateModelParams {
   apiKey: string;
   baseUrl?: string;
   isDefault?: boolean;
-  contextLimit?: number; // 新增：上下文上限
+  contextLimit?: number;
 }
 
 // 更新模型的参数
@@ -53,7 +42,7 @@ export interface UpdateModelParams {
   apiKey?: string;
   baseUrl?: string;
   isDefault?: boolean;
-  contextLimit?: number; // 新增：上下文上限
+  contextLimit?: number;
 }
 
 // Hook 返回类型
@@ -71,17 +60,14 @@ export interface UseUserModelsReturn {
   getDefaultModel: () => UserModel | null;
   refreshModels: () => Promise<void>;
 
-  // 同步相关（仅认证用户）
-  syncLocalModels: (anonymousId: string) => Promise<boolean>;
-
   // 辅助函数
   clearError: () => void;
 }
 
 /**
  * 用户模型管理 Hook
+ * 仅支持已登录用户，未登录用户调用将返回空列表
  *
- * @param anonymousId - 匿名用户ID（可选）
  * @returns 模型管理方法和状态
  *
  * @example
@@ -92,16 +78,11 @@ export interface UseUserModelsReturn {
  *   createModel,
  *   deleteModel,
  *   getDefaultModel,
- * } = useUserModels(anonymousId);
+ * } = useUserModels();
  * ```
  */
-export function useUserModels(
-  anonymousId?: string
-): UseUserModelsReturn {
-  // 使用项目自定义的 useAuth hook 获取认证状态
-  // 替代错误的 next-auth useSession 调用
-  // 使用项目内认证 Hook 统一读取登录状态，避免再次引入废弃认证方案。
-  const { isAuthenticated, getAuthHeader } = useAuth();
+export function useUserModels(): UseUserModelsReturn {
+  const { isAuthenticated, user, getAuthHeader } = useAuth();
 
   const [models, setModels] = useState<UserModel[]>([]);
   const [isLoading, setIsLoading] = useState(true);
@@ -113,7 +94,6 @@ export function useUserModels(
       setIsLoading(true);
       setError(null);
 
-      // 使用 getAuthHeader 添加 Authorization 请求头
       const response = await fetch("/api/user/models", {
         headers: {
           ...getAuthHeader(),
@@ -134,36 +114,16 @@ export function useUserModels(
     }
   }, [getAuthHeader]);
 
-  // 获取匿名用户的模型列表
-  const fetchAnonymousModels = useCallback(() => {
-    if (!anonymousId) {
-      setModels([]);
-      setIsLoading(false);
-      return;
-    }
-
-    setIsLoading(true);
-    setError(null);
-
-    try {
-      const localModels = getLocalModels(anonymousId);
-      setModels(localModels);
-    } catch (err) {
-      setError(err instanceof Error ? err.message : "获取本地模型失败");
-      console.error("获取本地模型失败:", err);
-    } finally {
-      setIsLoading(false);
-    }
-  }, [anonymousId]);
-
   // 初始加载
   useEffect(() => {
     if (isAuthenticated) {
       fetchAuthModels();
     } else {
-      fetchAnonymousModels();
+      // 未登录用户返回空列表
+      setModels([]);
+      setIsLoading(false);
     }
-  }, [isAuthenticated, fetchAuthModels, fetchAnonymousModels]);
+  }, [isAuthenticated, fetchAuthModels]);
 
   // 创建模型
   const createModel = useCallback(
@@ -171,52 +131,34 @@ export function useUserModels(
       try {
         setError(null);
 
-        if (isAuthenticated) {
-          // 认证用户：调用 API
-          const response = await fetch("/api/user/models", {
-            method: "POST",
-            headers: {
-              "Content-Type": "application/json",
-              ...getAuthHeader(),
-            },
-            body: JSON.stringify(params),
-          });
-
-          const data = await response.json();
-
-          if (!response.ok || !data.success) {
-            throw new Error(data.error || "创建模型失败");
-          }
-
-          // 刷新列表
-          await fetchAuthModels();
-        } else {
-          // 匿名用户：保存到 LocalStorage
-          if (!anonymousId) {
-            throw new Error("匿名用户ID不能为空");
-          }
-
-          const newModel = {
-            id: nanoid(),
-            name: params.name,
-            provider: params.provider,
-            model: params.model,
-            apiKey: params.apiKey,
-            baseUrl: params.baseUrl,
-            isDefault: params.isDefault ?? false,
-          };
-
-          const updated = addLocalModel(anonymousId, newModel);
-          setModels(updated);
+        if (!isAuthenticated || !user) {
+          setError("请先登录");
+          return false;
         }
 
+        const response = await fetch("/api/user/models", {
+          method: "POST",
+          headers: {
+            "Content-Type": "application/json",
+            ...getAuthHeader(),
+          },
+          body: JSON.stringify(params),
+        });
+
+        const data = await response.json();
+
+        if (!response.ok || !data.success) {
+          throw new Error(data.error || "创建模型失败");
+        }
+
+        await fetchAuthModels();
         return true;
       } catch (err) {
         setError(err instanceof Error ? err.message : "创建模型失败");
         return false;
       }
     },
-    [isAuthenticated, anonymousId, fetchAuthModels, getAuthHeader]
+    [isAuthenticated, user, fetchAuthModels, getAuthHeader]
   );
 
   // 更新模型
@@ -225,54 +167,34 @@ export function useUserModels(
       try {
         setError(null);
 
-        if (isAuthenticated) {
-          // 认证用户：调用 API
-          const response = await fetch(`/api/user/models/${id}`, {
-            method: "PUT",
-            headers: {
-              "Content-Type": "application/json",
-              ...getAuthHeader(),
-            },
-            body: JSON.stringify(params),
-          });
-
-          const data = await response.json();
-
-          if (!response.ok || !data.success) {
-            throw new Error(data.error || "更新模型失败");
-          }
-
-          await fetchAuthModels();
-        } else {
-          // 匿名用户：更新 LocalStorage
-          if (!anonymousId) {
-            throw new Error("匿名用户ID不能为空");
-          }
-
-          const updated = updateLocalModel(anonymousId, id, {
-            name: params.name,
-            provider: params.provider,
-            model: params.model,
-            apiKey: params.apiKey,
-            baseUrl: params.baseUrl,
-            isDefault: params.isDefault,
-            updatedAt: Date.now(),
-          });
-
-          if (updated) {
-            setModels(updated);
-          } else {
-            throw new Error("模型不存在");
-          }
+        if (!isAuthenticated) {
+          setError("请先登录");
+          return false;
         }
 
+        const response = await fetch(`/api/user/models/${id}`, {
+          method: "PUT",
+          headers: {
+            "Content-Type": "application/json",
+            ...getAuthHeader(),
+          },
+          body: JSON.stringify(params),
+        });
+
+        const data = await response.json();
+
+        if (!response.ok || !data.success) {
+          throw new Error(data.error || "更新模型失败");
+        }
+
+        await fetchAuthModels();
         return true;
       } catch (err) {
         setError(err instanceof Error ? err.message : "更新模型失败");
         return false;
       }
     },
-    [isAuthenticated, anonymousId, fetchAuthModels, getAuthHeader]
+    [isAuthenticated, fetchAuthModels, getAuthHeader]
   );
 
   // 删除模型
@@ -281,44 +203,32 @@ export function useUserModels(
       try {
         setError(null);
 
-        if (isAuthenticated) {
-          // 认证用户：调用 API
-          const response = await fetch(`/api/user/models/${id}`, {
-            method: "DELETE",
-            headers: {
-              ...getAuthHeader(),
-            },
-          });
-
-          const data = await response.json();
-
-          if (!response.ok || !data.success) {
-            throw new Error(data.error || "删除模型失败");
-          }
-
-          await fetchAuthModels();
-        } else {
-          // 匿名用户：从 LocalStorage 删除
-          if (!anonymousId) {
-            throw new Error("匿名用户ID不能为空");
-          }
-
-          const updated = deleteLocalModel(anonymousId, id);
-
-          if (updated) {
-            setModels(updated);
-          } else {
-            throw new Error("模型不存在");
-          }
+        if (!isAuthenticated) {
+          setError("请先登录");
+          return false;
         }
 
+        const response = await fetch(`/api/user/models/${id}`, {
+          method: "DELETE",
+          headers: {
+            ...getAuthHeader(),
+          },
+        });
+
+        const data = await response.json();
+
+        if (!response.ok || !data.success) {
+          throw new Error(data.error || "删除模型失败");
+        }
+
+        await fetchAuthModels();
         return true;
       } catch (err) {
         setError(err instanceof Error ? err.message : "删除模型失败");
         return false;
       }
     },
-    [isAuthenticated, anonymousId, fetchAuthModels, getAuthHeader]
+    [isAuthenticated, fetchAuthModels, getAuthHeader]
   );
 
   // 设置默认模型
@@ -327,44 +237,32 @@ export function useUserModels(
       try {
         setError(null);
 
-        if (isAuthenticated) {
-          // 认证用户：调用 API
-          const response = await fetch(`/api/user/models/${id}/default`, {
-            method: "PATCH",
-            headers: {
-              ...getAuthHeader(),
-            },
-          });
-
-          const data = await response.json();
-
-          if (!response.ok || !data.success) {
-            throw new Error(data.error || "设置默认模型失败");
-          }
-
-          await fetchAuthModels();
-        } else {
-          // 匿名用户：更新 LocalStorage
-          if (!anonymousId) {
-            throw new Error("匿名用户ID不能为空");
-          }
-
-          const updated = setDefaultLocalModel(anonymousId, id);
-
-          if (updated) {
-            setModels(updated);
-          } else {
-            throw new Error("模型不存在");
-          }
+        if (!isAuthenticated) {
+          setError("请先登录");
+          return false;
         }
 
+        const response = await fetch(`/api/user/models/${id}/default`, {
+          method: "PATCH",
+          headers: {
+            ...getAuthHeader(),
+          },
+        });
+
+        const data = await response.json();
+
+        if (!response.ok || !data.success) {
+          throw new Error(data.error || "设置默认模型失败");
+        }
+
+        await fetchAuthModels();
         return true;
       } catch (err) {
         setError(err instanceof Error ? err.message : "设置默认模型失败");
         return false;
       }
     },
-    [isAuthenticated, anonymousId, fetchAuthModels, getAuthHeader]
+    [isAuthenticated, fetchAuthModels, getAuthHeader]
   );
 
   // 获取默认模型
@@ -378,69 +276,8 @@ export function useUserModels(
   const refreshModels = useCallback(async () => {
     if (isAuthenticated) {
       await fetchAuthModels();
-    } else {
-      fetchAnonymousModels();
     }
-  }, [isAuthenticated, fetchAuthModels, fetchAnonymousModels]);
-
-  // 同步本地模型（认证用户使用）
-  const syncLocalModels = useCallback(
-    async (localAnonymousId: string): Promise<boolean> => {
-      if (!isAuthenticated) {
-        setError("只有认证用户可以同步模型");
-        return false;
-      }
-
-      try {
-        setError(null);
-
-        // 获取本地模型
-        const localModels = getLocalModels(localAnonymousId);
-
-        if (localModels.length === 0) {
-          return true; // 没有需要同步的模型
-        }
-
-        // 准备同步数据
-        const modelsToSync = localModels.map((m) => ({
-          name: m.name,
-          provider: m.provider,
-          model: m.model,
-          apiKey: m.apiKey,
-          baseUrl: m.baseUrl,
-          isDefault: m.isDefault,
-        }));
-
-        // 调用同步 API
-        const response = await fetch("/api/user/models/sync", {
-          method: "POST",
-          headers: {
-            "Content-Type": "application/json",
-            ...getAuthHeader(),
-          },
-          body: JSON.stringify({ models: modelsToSync }),
-        });
-
-        const data = await response.json();
-
-        if (!response.ok || !data.success) {
-          throw new Error(data.error || "同步模型失败");
-        }
-
-        // 清空本地模型
-        clearModelsAfterSync(localAnonymousId);
-
-        // 刷新列表
-        await fetchAuthModels();
-
-        return true;
-      } catch (err) {
-        setError(err instanceof Error ? err.message : "同步模型失败");
-        return false;
-      }
-    },
-    [isAuthenticated, fetchAuthModels, getAuthHeader]
-  );
+  }, [isAuthenticated, fetchAuthModels]);
 
   // 清除错误
   const clearError = useCallback(() => {
@@ -457,7 +294,6 @@ export function useUserModels(
     setDefaultModel,
     getDefaultModel,
     refreshModels,
-    syncLocalModels,
     clearError,
   };
 }
