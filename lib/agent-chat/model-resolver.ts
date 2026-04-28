@@ -10,7 +10,7 @@ import {
   type UserModel,
 } from "@/lib/db";
 import { decryptApiKey } from "@/lib/encryption";
-import { wrapModelWithAllMiddlewares } from "@/lib/ai";
+import { wrapModelWithAllMiddlewares } from "@/lib/infra/model/middleware";
 import type { ModelResolveResult } from "./types";
 
 /**
@@ -26,7 +26,7 @@ export const wrapModel = wrapModelWithAllMiddlewares;
  * @param userModel - 用户模型配置
  * @returns 构建结果（成功返回聊天模型实例，失败返回错误信息）
  */
-export function buildChatModelFromUserModel(userModel: UserModel): { ok: true; model: LanguageModelV3 } | { ok: false; error: string } {
+export async function buildChatModelFromUserModel(userModel: UserModel): Promise<{ ok: true; model: LanguageModelV3 } | { ok: false; error: string }> {
   // 校验 provider，确保与文档和前端能力一致
   if (userModel.provider !== "openai") {
     return { ok: false, error: "当前仅支持 OpenAI-Compatible（provider=openai）" };
@@ -38,7 +38,7 @@ export function buildChatModelFromUserModel(userModel: UserModel): { ok: true; m
   const baseURL = userModel.base_url || "https://api.openai.com/v1";
 
   // 动态导入避免循环依赖
-  const { createOpenAICompatible } = require("@ai-sdk/openai-compatible");
+  const { createOpenAICompatible } = await import("@ai-sdk/openai-compatible");
 
   // 创建 OpenAI-Compatible provider
   const provider = createOpenAICompatible({
@@ -96,7 +96,7 @@ export async function resolveModel(
   }
 
   // 构建聊天模型实例
-  const buildResult = buildChatModelFromUserModel(userModel);
+  const buildResult = await buildChatModelFromUserModel(userModel);
   if (!buildResult.ok) {
     // 模型构建失败（如 provider 不支持）
     return {

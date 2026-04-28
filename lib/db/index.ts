@@ -680,7 +680,7 @@ export { getDb, resetDb } from "./client";
 
 // 导出schema类型和常量（从schemas目录导入）
 // 统一从兼容层导出，避免外部继续感知底层 schema 目录结构。
-export * from "./schema";
+export * from "@/lib/schemas";
 
 // 导出用户数据访问方法
 export * from "./users";

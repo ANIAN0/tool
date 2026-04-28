@@ -18,12 +18,12 @@ import type {
   MessagePart,
   CompressionTaskStatus,
   CreateCheckpointRecordParams,
-} from "./schema";
-import { CompressionTaskStatus as TaskStatus } from "./schema";
+} from "@/lib/schemas";
+import { CompressionTaskStatus as TaskStatus } from "@/lib/schemas";
 import type { UIMessage } from "ai";
 
 // 重新导出枚举，方便外部使用
-export { CompressionTaskStatus } from "./schema";
+export { CompressionTaskStatus } from "@/lib/schemas";
 
 // ==================== 压缩任务 CRUD ====================
 

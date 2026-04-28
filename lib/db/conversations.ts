@@ -1,6 +1,6 @@
 import { cache } from "react";
 import { getDb } from "./client";
-import type { Conversation, CreateConversationParams, CompressionCache } from "./schema";
+import type { Conversation, CreateConversationParams, CompressionCache } from "@/lib/schemas";
 
 /**
  * 将数据库行转换为Conversation类型

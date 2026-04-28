@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
 import { verifyAccessToken, extractAccessToken } from "./jwt";
+import { getUserById } from "@/lib/db/users";
 
 // 认证上下文，传递给被包装的处理器
 export interface AuthContext {
@@ -254,4 +255,16 @@ export async function authenticateRequestOptional(
     error: result.error || "无效的令牌",
     status: 401,
   };
+}
+
+/**
+ * 检查用户是否为注册用户（非匿名）
+ * 用于限制某些操作仅限注册用户执行
+ *
+ * @param userId - 用户ID
+ * @returns 是否为注册用户
+ */
+export async function isRegisteredUser(userId: string): Promise<boolean> {
+  const user = await getUserById(userId);
+  return user !== null && !user.is_anonymous;
 }

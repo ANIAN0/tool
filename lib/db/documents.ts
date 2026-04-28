@@ -4,7 +4,7 @@
  */
 
 import { getDb } from "./client";
-import type { Document, CreateDocumentParams } from "./schema";
+import type { Document, CreateDocumentParams } from "@/lib/schemas";
 
 /**
  * 获取用户的所有文档

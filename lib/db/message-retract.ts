@@ -4,7 +4,7 @@
  */
 
 import { getDb } from "./client";
-import type { DeletedMessage } from "./schema";
+import type { DeletedMessage } from "@/lib/schemas";
 
 /**
  * 撤回消息结果

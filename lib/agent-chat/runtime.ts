@@ -14,13 +14,14 @@ import { ToolLoopAgent, stepCountIs, convertToModelMessages } from "ai";
 import type {
   CreateRuntimeParams,
   RuntimeSuccessResult,
-  RuntimeErrorResult,
   RuntimeResult,
 } from "./types";
 import type { AgentWithTools } from "@/lib/schemas";
 import { getSandboxToolsWithContext, loadSkillsToSandbox, isSandboxEnabled } from "@/lib/infra/sandbox";
-import { getAgentSkillsInfo } from "@/lib/db/agents";
+import { getAgentSkillsInfo, getAgentMcpRuntimeToolConfigs } from "@/lib/db/agents";
 import { getTemplateById, getTemplateDefaultConfig } from "@/lib/agents/templates";
+import { createAgentMcpRuntimeTools } from "@/lib/agents/mcp-runtime";
+import { mergeAgentToolSets } from "@/lib/agents/toolset-merge";
 
 /**
  * 解析模板配置生成停止条件
@@ -52,11 +53,11 @@ function parseStopConditionFromTemplate(
       config = JSON.parse(agent.template_config);
     } catch {
       console.warn("[Runtime] 模板配置JSON解析失败，使用默认配置");
-      config = template.defaultConfig;
+      config = getTemplateDefaultConfig(agent.template_id);
     }
   } else {
     // 无配置时使用模板默认配置
-    config = template.defaultConfig;
+    config = getTemplateDefaultConfig(agent.template_id);
   }
 
   // 使用模板的 createStopCondition 生成停止条件对象
@@ -181,30 +182,6 @@ export async function createRuntime(
 }
 
 /**
- * 构建安全的 MCP 清理函数
- * 用于在请求结束后安全释放 MCP 连接
- *
- * @param mcpCleanup MCP 运行时清理函数（可能为 null）
- * @returns 安全的清理函数（不会抛出错误）
- */
-export function buildSafeMcpCleanup(
-  mcpCleanup: (() => Promise<void>) | null
-): () => Promise<void> {
-  // 返回安全清理函数
-  return async () => {
-    // 没有 MCP 清理函数时直接返回
-    if (!mcpCleanup) return;
-    try {
-      // 执行 MCP 客户端关闭流程
-      await mcpCleanup();
-    } catch (cleanupError) {
-      // 清理失败仅记录告警，不影响主响应
-      console.warn("MCP运行时清理失败:", cleanupError);
-    }
-  };
-}
-
-/**
  * 执行 Agent 流式响应
  *
  * @param wrappedModel - 包装后的聊天模型实例
@@ -240,7 +217,5 @@ export async function executeAgent(
   });
   // 执行流式响应
   const result = await agentInstance.stream({ messages: modelMessages });
-  // 消费流以确保即使客户端断开，服务端也会完成生成
-  result.consumeStream();
   return result;
 }

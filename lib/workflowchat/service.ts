@@ -11,6 +11,7 @@ import type { UIMessage, ToolSet } from 'ai';
 import { workflowchatReplyWorkflow } from '@/app/workflows/workflowchat';
 import { loadAgentConfig } from '@/lib/workflowchat/agent-loader';
 import { createTools, initTools } from '@/lib/infra/tools';
+import { createAgentSkillTools } from '@/lib/infra/skills';
 import type { AgentConfig, SkillConfig } from '@/lib/workflowchat/agent-loader';
 
 import {
@@ -145,16 +146,56 @@ export class SendMessageAgentMismatchError extends Error {
   }
 }
 
-// ==================== reconcileExistingActiveStream ====================
+// ==================== Active Stream 内部检查 ====================
 
 /**
- * reconcile stale activeStreamId
+ * 检查会话活跃流状态（公共底层逻辑）
  *
  * 检查会话的 active_stream_id 是否有残留：
  * 1. 如果 active_stream_id 为空，直接返回
  * 2. 查找对应的 run，如果 run 已终态，CAS 清除并返回
- * 3. 如果 run 存在且仍在运行，返回 run 信息（由调用方处理重连）
+ * 3. 如果 run 存在且仍在运行，返回 run 信息
  * 4. 如果找不到对应 run 记录，直接清除残留
+ *
+ * @param conversationId - 会话 id
+ * @returns 活跃流检查结果
+ */
+async function inspectActiveStream(
+  conversationId: string,
+): Promise<{
+  activeStreamId: string | null;
+  run: WorkflowChatRun | null;
+  isStale: boolean;
+  isActive: boolean;
+}> {
+  const conversation = await getWfChatConversation(conversationId);
+  if (!conversation || !conversation.active_stream_id) {
+    return { activeStreamId: null, run: null, isStale: false, isActive: false };
+  }
+
+  const activeStreamId = conversation.active_stream_id;
+  const run = await getWfChatRunByWorkflowRunId(activeStreamId);
+
+  if (!run) {
+    // 找不到对应 run 记录，CAS 清除残留（避免竞态抹掉新 claim）
+    await compareAndSetActiveStreamId(conversationId, activeStreamId, null);
+    return { activeStreamId, run: null, isStale: true, isActive: false };
+  }
+
+  // run 已终态，CAS 清除 stale activeStreamId
+  if (TERMINAL_STATUSES.has(run.status)) {
+    await compareAndSetActiveStreamId(conversationId, activeStreamId, null);
+    return { activeStreamId, run, isStale: true, isActive: false };
+  }
+
+  // run 仍在运行
+  return { activeStreamId, run, isStale: false, isActive: true };
+}
+
+// ==================== reconcileExistingActiveStream ====================
+
+/**
+ * reconcile stale activeStreamId
  *
  * @param conversationId - 会话 id
  * @returns 如果发现仍在运行的活跃 run，返回其 DTO；否则返回 null
@@ -162,31 +203,9 @@ export class SendMessageAgentMismatchError extends Error {
 export async function reconcileExistingActiveStream(
   conversationId: string,
 ): Promise<RunDTO | null> {
-  // 读取会话，获取 active_stream_id
-  const conversation = await getWfChatConversation(conversationId);
-  if (!conversation || !conversation.active_stream_id) {
-    return null;
-  }
-
-  const activeStreamId = conversation.active_stream_id;
-
-  // 尝试通过 workflow_run_id 查找 run
-  const run = await getWfChatRunByWorkflowRunId(activeStreamId);
-
-  if (!run) {
-    // 找不到对应 run 记录，CAS 清除残留（避免竞态抹掉新 claim）
-    await compareAndSetActiveStreamId(conversationId, activeStreamId, null);
-    return null;
-  }
-
-  // run 已终态，CAS 清除 stale activeStreamId
-  if (TERMINAL_STATUSES.has(run.status)) {
-    await compareAndSetActiveStreamId(conversationId, activeStreamId, null);
-    return null;
-  }
-
-  // run 仍在运行，返回 run 信息供调用方处理重连
-  return runToDTO(run);
+  const { run, isActive } = await inspectActiveStream(conversationId);
+  if (!isActive) return null;
+  return runToDTO(run!);
 }
 
 // ==================== 业务函数 ====================
@@ -267,7 +286,7 @@ export async function sendMessage(
   }
 
   // 步骤 2：创建工具实例（关键步骤）
-  const tools = await createAgentTools(agentConfig);
+  const tools = await createAgentTools(agentConfig, userId, conversationId);
   console.log("[sendMessage] 工具创建成功，工具数量:", Object.keys(tools).length);
 
   // 使用传入的 modelId 或 Agent 配置中的 modelId
@@ -431,17 +450,22 @@ export async function sendMessage(
 
 /**
  * 创建 Agent 工具集合
- * 将配置中的工具定义转换为实际可用的 Tool 实例
+ * 将配置中的工具定义和 Skill 定义转换为实际可用的 Tool 实例
  *
  * @param agentConfig - Agent 配置
+ * @param userId - 用户 ID
+ * @param conversationId - 会话 ID
  * @returns 工具集合（ToolSet）
  */
-async function createAgentTools(agentConfig: AgentConfig): Promise<ToolSet> {
+async function createAgentTools(
+  agentConfig: AgentConfig,
+  userId: string,
+  conversationId: string,
+): Promise<ToolSet> {
   const tools: ToolSet = {};
 
-  // 根据工具配置创建工具实例
+  // 1. 根据工具配置创建系统工具实例
   if (agentConfig.tools.length > 0) {
-    // 将工具名称转换为工具类型列表
     const toolNames = agentConfig.tools.map((tool) => tool.name);
 
     try {
@@ -451,13 +475,29 @@ async function createAgentTools(agentConfig: AgentConfig): Promise<ToolSet> {
       const result = await createTools(toolNames);
       Object.assign(tools, result.tools);
     } catch (error) {
-      console.error("[createAgentTools] 工具创建失败:", error);
-      // 工具创建失败不阻塞流程，继续使用空工具集
+      console.error("[createAgentTools] 系统工具创建失败:", error);
+      // 系统工具创建失败不阻塞流程，继续使用空工具集
     }
   }
 
-  // TODO: 创建 Skill 工具（后续迭代）
-  // 当 Skill 工具集成完成后，在此处调用 createAgentSkillTools
+  // 2. 根据 Skill 配置创建 Skill 工具实例
+  if (agentConfig.skills.length > 0) {
+    try {
+      const skillResult = await createAgentSkillTools(
+        agentConfig.id,
+        userId,
+        conversationId,
+      );
+      Object.assign(tools, skillResult.tools);
+      console.log("[createAgentTools] Skill 工具创建成功:", {
+        skillCount: agentConfig.skills.length,
+        toolCount: Object.keys(skillResult.tools).length,
+      });
+    } catch (error) {
+      console.error("[createAgentTools] Skill 工具创建失败:", error);
+      // Skill 工具创建失败不阻塞流程，继续使用已创建的系统工具
+    }
+  }
 
   return tools;
 }
@@ -629,26 +669,8 @@ export async function listRunsByConversationId(
 export async function getActiveStreamRun(
   conversationId: string,
 ): Promise<Run<unknown> | null> {
-  const conversation = await getWfChatConversation(conversationId);
-  if (!conversation || !conversation.active_stream_id) {
-    return null;
-  }
-
-  const activeStreamId = conversation.active_stream_id;
-
-  // 尝试查找对应的 run
-  const run = await getWfChatRunByWorkflowRunId(activeStreamId);
-  if (!run) {
-    // 找不到 run 记录，CAS 清除残留（避免竞态抹掉新 claim）
-    await compareAndSetActiveStreamId(conversationId, activeStreamId, null);
-    return null;
-  }
-
-  // run 已终态，清除 stale activeStreamId
-  if (TERMINAL_STATUSES.has(run.status)) {
-    await compareAndSetActiveStreamId(conversationId, activeStreamId, null);
-    return null;
-  }
+  const { activeStreamId, isActive } = await inspectActiveStream(conversationId);
+  if (!isActive || !activeStreamId) return null;
 
   // run 仍在运行，获取 Run 句柄
   try {

@@ -19,7 +19,7 @@ export { resolveModel, wrapModel, buildChatModelFromUserModel } from "./model-re
 export { ensureConversation, loadHistory, saveUserMessage } from "./conversation";
 
 // 运行时创建模块
-export { createRuntime, executeAgent, buildSafeMcpCleanup } from "./runtime";
+export { createRuntime, executeAgent } from "./runtime";
 
 // 响应构建模块
 export { buildStreamResponse } from "./response";

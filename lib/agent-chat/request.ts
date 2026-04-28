@@ -47,6 +47,39 @@ export async function parseChatRequestBody(
       };
     }
 
+    // 验证消息角色必须是 user
+    if (message.role !== "user") {
+      return {
+        ok: false,
+        response: NextResponse.json(
+          { error: "消息角色必须是 user" },
+          { status: 400 }
+        ),
+      };
+    }
+
+    // 验证消息 parts 必须是有效数组
+    if (!Array.isArray(message.parts) || message.parts.length === 0) {
+      return {
+        ok: false,
+        response: NextResponse.json(
+          { error: "消息内容不能为空" },
+          { status: 400 }
+        ),
+      };
+    }
+
+    // 验证对话ID不为空（必需字段）
+    if (!conversationId) {
+      return {
+        ok: false,
+        response: NextResponse.json(
+          { error: "对话ID不能为空" },
+          { status: 400 }
+        ),
+      };
+    }
+
     // 验证 Agent ID 不为空（必需字段）
     if (!agentId) {
       return {
@@ -61,7 +94,7 @@ export async function parseChatRequestBody(
     // 返回成功结果，包含解析后的完整数据
     const data: ChatRequestBody = {
       message,
-      conversationId, // 可选字段，允许为空
+      conversationId,
       agentId,
     };
 

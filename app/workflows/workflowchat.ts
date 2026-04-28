@@ -115,22 +115,25 @@ async function runAgentStep(
   let chunkCount = 0;
 
   // 遍历流式输出，逐个 chunk 写入 writable（acquire/release 循环）
-  for await (const part of result.toUIMessageStream({
-    onFinish: async (event) => {
-      responseMessage = event.responseMessage;
-    },
-  })) {
-    chunkCount++;
-    const writer = writable.getWriter();
-    try {
-      await writer.write(part);
-    } finally {
-      writer.releaseLock();
+  try {
+    for await (const part of result.toUIMessageStream({
+      onFinish: async (event) => {
+        responseMessage = event.responseMessage;
+      },
+    })) {
+      chunkCount++;
+      const writer = writable.getWriter();
+      try {
+        await writer.write(part);
+      } finally {
+        writer.releaseLock();
+      }
     }
+  } finally {
+    // 关闭流，通知消费者流已完成
+    // 即使在迭代异常时也要确保流被关闭，避免客户端挂起
+    await writable.close();
   }
-
-  // 关闭流，通知消费者流已完成
-  await writable.close();
 
   const finishReason = await result.finishReason;
   const rawUsage = await result.usage;
@@ -241,16 +244,29 @@ export async function workflowchatReplyWorkflow(input: WorkflowChatRunInput) {
 
   // ========== Step 2: claimActiveStream ==========
   stepStart = Date.now();
-  await claimActiveStream(input.conversationId, workflowRunId);
-  stepTimings.push({
-    runId: input.runId,
-    stepNumber: 1,
-    stepName: "claimActiveStream",
-    startedAt: stepStart,
-    finishedAt: Date.now(),
-    durationMs: Date.now() - stepStart,
-    finishReason: "completed",
-  });
+  try {
+    await claimActiveStream(input.conversationId, workflowRunId);
+    stepTimings.push({
+      runId: input.runId,
+      stepNumber: 1,
+      stepName: "claimActiveStream",
+      startedAt: stepStart,
+      finishedAt: Date.now(),
+      durationMs: Date.now() - stepStart,
+      finishReason: "completed",
+    });
+  } catch (e) {
+    stepTimings.push({
+      runId: input.runId,
+      stepNumber: 1,
+      stepName: "claimActiveStream",
+      startedAt: stepStart,
+      finishedAt: Date.now(),
+      durationMs: Date.now() - stepStart,
+      finishReason: "failed",
+    });
+    throw e;
+  }
 
   // ========== Step 3: runAgentStep ==========
   let responseMessage: UIMessage | null = null;

@@ -26,7 +26,7 @@ export function AgentChatInput() {
         key={meta.inputKey}
         onSubmit={actions.handleSubmit}
         onStop={actions.stop}
-        status={state.isGenerating ? "streaming" : "ready"}
+        status={state.status}
         placeholder="输入消息..."
         prefillInput={meta.prefillInput}
       />

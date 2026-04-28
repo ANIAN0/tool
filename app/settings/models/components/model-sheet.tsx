@@ -95,11 +95,11 @@ function getModelData(model: UserModel): ModelDetailData {
     name: model.name,
     provider: model.provider,
     model: model.model,
-    baseUrl: ("base_url" in model ? model.base_url : model.baseUrl) ?? null,
-    isDefault: "is_default" in model ? model.is_default : model.isDefault,
-    contextLimit: "context_limit" in model ? model.context_limit ?? 32000 : 32000,
-    createdAt: "created_at" in model ? model.created_at : model.createdAt ?? Date.now(),
-    updatedAt: "updated_at" in model ? model.updated_at : model.updatedAt ?? Date.now(),
+    baseUrl: model.base_url ?? null,
+    isDefault: model.is_default,
+    contextLimit: model.context_limit ?? 32000,
+    createdAt: model.created_at,
+    updatedAt: model.updated_at,
     linkedAgents: 0, // 暂用占位值，后续可接入 API
   };
 }

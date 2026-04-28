@@ -10,7 +10,7 @@ import {
   type CreateUserSkillParams,
   type UpdateUserSkillParams,
   type UserSkillWithAgentCount,
-} from "./schema";
+} from "@/lib/schemas";
 
 // ==================== 常量定义 ====================
 

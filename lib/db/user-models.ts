@@ -10,7 +10,7 @@ import {
   type UserModel,
   type CreateUserModelParams,
   type UpdateUserModelParams,
-} from "./schema";
+} from "@/lib/schemas";
 
 /**
  * 根据ID获取单个模型

@@ -8,7 +8,7 @@ import {
   type UserApiKey,
   type CreateUserApiKeyParams,
   type ApiKeyListItem,
-} from "./schema";
+} from "@/lib/schemas";
 
 /**
  * API Key 格式配置

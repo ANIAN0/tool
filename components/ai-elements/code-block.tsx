@@ -21,13 +21,13 @@ import {
   useRef,
   useState,
 } from "react";
-import {
-  createHighlighter,
-  type BundledLanguage,
-  type BundledTheme,
-  type HighlighterGeneric,
-  type ThemedToken,
-} from "shiki/bundle/full";
+import type {
+  BundledLanguage,
+  BundledTheme,
+  HighlighterGeneric,
+  ThemedToken,
+} from "shiki";
+import { createHighlighter } from "shiki";
 
 // Shiki uses bitflags for font styles: 1=italic, 2=bold, 4=underline
 // oxlint-disable-next-line eslint(no-bitwise)

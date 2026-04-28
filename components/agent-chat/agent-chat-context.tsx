@@ -18,7 +18,10 @@ import { useChat } from "@ai-sdk/react";
 import { DefaultChatTransport } from "ai";
 import { useRouter } from "next/navigation";
 import { useAuth } from "@/lib/hooks/use-auth";
-import { dbMessageToUIMessage } from "@/lib/agent-chat";
+import { dbMessageToUIMessage } from "@/lib/agent-chat/utils";
+
+// 路由常量
+const NEW_CHAT_PATH = "/agent-chat";
 
 // ==================== 状态接口定义 ====================
 
@@ -39,6 +42,8 @@ interface AgentChatState {
   isLoadingConversations: boolean;
   // 是否正在生成消息
   isGenerating: boolean;
+  // useChat 原始状态（submitted/streaming/ready/error）
+  status: import("ai").ChatStatus;
   // 当前选中的 Agent ID
   selectedAgentId: string;
   // Checkpoint 信息（用于消息删除权限判断）
@@ -164,8 +169,8 @@ interface AgentChatProviderProps {
  */
 export function AgentChatProvider({ conversationId, children }: AgentChatProviderProps) {
   const router = useRouter();
-  // 获取认证状态和认证头方法
-  const { getAuthHeader, authenticatedFetch } = useAuth();
+  // 获取认证请求方法
+  const { authenticatedFetch } = useAuth();
 
   // ==================== 核心状态变量 ====================
 
@@ -229,22 +234,41 @@ export function AgentChatProvider({ conversationId, children }: AgentChatProvide
 
   // 创建 transport - 使用 prepareSendMessagesRequest 只发送最后一条消息
   // 符合 AI SDK 最佳实践，避免前端发送完整消息列表导致重复
+  //
+  // 注意：不在此处使用 headers: getAuthHeader，原因是 useChat 内部的 Chat
+  // 实例会缓存 transport 引用。当 accessToken 从 null 变为有效值时，虽然
+  // transport 会重新创建，但 Chat 仍引用旧的 transport，导致旧的 getAuthHeader
+  // 闭包（返回空对象）被调用，请求不带 Authorization header，返回 401。
+  // 解决方案：在 prepareSendMessagesRequest 中直接读取 localStorage，绕过 React
+  // state 闭包问题。
   const transport = useMemo(() => {
     return new DefaultChatTransport({
       api: "/api/agent-chat",
-      headers: getAuthHeader,
-      // 使用 prepareSendMessagesRequest 只发送最后一条消息
-      prepareSendMessagesRequest({ messages, id: chatId }) {
+      // 使用 prepareSendMessagesRequest 只发送最后一条消息，并在其中动态读取 token
+      prepareSendMessagesRequest({ messages, id: chatId, headers: baseHeaders }) {
+        // 每次请求时实时读取 token，避免 React state 闭包问题
+        // Chat 实例缓存旧 transport 不影响此处，因为 prepareSendMessagesRequest
+        // 中的逻辑不依赖 React state 闭包，而是直接读取 localStorage
+        const accessToken =
+          typeof window !== "undefined"
+            ? localStorage.getItem("accessToken")
+            : null;
         return {
+          headers: {
+            ...baseHeaders,
+            ...(accessToken
+              ? { Authorization: `Bearer ${accessToken}` }
+              : {}),
+          },
           body: {
-            message: messages[messages.length - 1],  // 只发送最后一条消息
+            message: messages[messages.length - 1], // 只发送最后一条消息
             conversationId: chatId,                   // AI SDK 传入的对话 ID
             agentId: agentIdRef.current,
           },
         };
       },
     });
-  }, [conversationId, getAuthHeader]);
+  }, [conversationId]);
 
   // ==================== 刷新 checkpoint 信息 ====================
 
@@ -252,7 +276,7 @@ export function AgentChatProvider({ conversationId, children }: AgentChatProvide
   // 压缩任务在下一次 API 调用时执行，所以需要在消息完成后刷新 checkpointInfo
   const refreshCheckpointInfo = useCallback(async () => {
     // 如果没有对话 ID 或在新建对话页面，不需要刷新
-    if (!conversationId || window.location.pathname === "/agent-chat") {
+    if (!conversationId || window.location.pathname === NEW_CHAT_PATH) {
       return;
     }
 
@@ -286,10 +310,19 @@ export function AgentChatProvider({ conversationId, children }: AgentChatProvide
   } = useChat({
     transport,
     id: conversationId,
-    // 消息流结束后刷新 checkpointInfo
-    // 原因：压缩任务在下一次 API 调用时执行，导致 checkpointInfo 过期
-    onFinish: () => {
+    // 消息流结束后执行回调：刷新 checkpoint、对话列表，并更新新建对话的 URL
+    onFinish: ({ finishReason, isAbort }) => {
+      // 出错或中断时跳过非关键刷新
+      if (finishReason === "error" || isAbort) return;
+      // 刷新 checkpoint 信息（压缩任务在下一次 API 调用时执行，需要重新获取）
       refreshCheckpointInfo();
+      // 刷新对话列表（确保新对话出现在侧边栏）
+      fetchConversations();
+      // 如果在新建对话页面，更新 URL 为具体对话地址
+      if (!hasUpdatedUrl.current && window.location.pathname === NEW_CHAT_PATH) {
+        hasUpdatedUrl.current = true;
+        window.history.pushState({}, "", `/agent-chat/${conversationId}`);
+      }
     },
   });
 
@@ -335,7 +368,7 @@ export function AgentChatProvider({ conversationId, children }: AgentChatProvide
 
   useEffect(() => {
     // 如果在新建对话页面，清空消息
-    if (window.location.pathname === "/agent-chat") {
+    if (window.location.pathname === NEW_CHAT_PATH) {
       setMessages([]);
       return;
     }
@@ -389,16 +422,16 @@ export function AgentChatProvider({ conversationId, children }: AgentChatProvide
     setSelectedAgentId("");
     // 重置URL更新标志，确保新对话的URL能正确更新
     hasUpdatedUrl.current = false;
-    router.push("/agent-chat");
+    router.push(NEW_CHAT_PATH);
   }, [router]);
 
   // ==================== 操作函数：选择对话 ====================
 
-  const handleSelectConversation = useCallback((conversationId: string) => {
+  const handleSelectConversation = useCallback((targetId: string) => {
     setSidebarOpen(false);
     // 重置URL更新标志，确保切换对话后新对话的URL能正确更新
     hasUpdatedUrl.current = false;
-    router.push(`/agent-chat/${conversationId}`);
+    router.push(`/agent-chat/${targetId}`);
   }, [router]);
 
   // ==================== 操作函数：删除对话 ====================
@@ -414,7 +447,7 @@ export function AgentChatProvider({ conversationId, children }: AgentChatProvide
         setConversations((prev) => prev.filter((c) => c.id !== deleteId));
         // 如果删除的是当前对话，跳转到新建对话页面
         if (conversationId === deleteId) {
-          router.push("/agent-chat");
+          router.push(NEW_CHAT_PATH);
         }
       }
     } catch (error) {
@@ -473,11 +506,13 @@ export function AgentChatProvider({ conversationId, children }: AgentChatProvide
         throw new Error(data.error || "删除失败");
       }
 
-      // 刷新对话列表和消息
+      // 刷新对话列表
       await fetchConversations();
 
-      // 重新加载消息（从本地状态移除被删除的消息）
-      // 由于删除是级联的，需要重新获取消息
+      // 清除本地消息状态（级联删除后本地状态已失效）
+      setMessages([]);
+
+      // 刷新页面以更新消息列表
       router.refresh();
     } catch (error) {
       console.error("删除消息失败:", error);
@@ -534,8 +569,11 @@ export function AgentChatProvider({ conversationId, children }: AgentChatProvide
         throw new Error(data.error || "删除失败");
       }
 
-      // 刷新对话列表和消息
+      // 刷新对话列表
       await fetchConversations();
+
+      // 清除本地消息状态（级联删除后本地状态已失效）
+      setMessages([]);
 
       // 将消息内容填入输入框
       setPrefillInput(editContent);
@@ -573,18 +611,8 @@ export function AgentChatProvider({ conversationId, children }: AgentChatProvide
     }
 
     await sendMessage({ text: message.text });
-
-    // 发送后延迟刷新对话列表并更新 URL
-    setTimeout(async () => {
-      await fetchConversations();
-
-      // 如果在新建对话页面，更新 URL
-      if (!hasUpdatedUrl.current && window.location.pathname === "/agent-chat") {
-        hasUpdatedUrl.current = true;
-        window.history.pushState({}, "", `/agent-chat/${conversationId}`);
-      }
-    }, 1000);
-  }, [sendMessage, fetchConversations, conversationId]);
+    // 列表刷新与 URL 更新已移至 onFinish 回调，确保在流式响应完成后执行
+  }, [sendMessage]);
 
   // ==================== 计算值 ====================
 
@@ -636,6 +664,7 @@ export function AgentChatProvider({ conversationId, children }: AgentChatProvide
     messages,
     isLoadingConversations,
     isGenerating,
+    status,
     selectedAgentId,
     checkpointInfo,
     lastAssistantMetadata,

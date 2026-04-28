@@ -65,13 +65,13 @@ function formatDate(timestamp: number): string {
 function getModelProperty(model: UserModel, property: string): unknown {
   switch (property) {
     case "baseUrl":
-      return "base_url" in model ? model.base_url : model.baseUrl;
+      return model.base_url;
     case "isDefault":
-      return "is_default" in model ? model.is_default : model.isDefault;
+      return model.is_default;
     case "createdAt":
-      return "created_at" in model ? model.created_at : model.createdAt ?? Date.now();
+      return model.created_at;
     case "updatedAt":
-      return "updated_at" in model ? model.updated_at : model.updatedAt ?? Date.now();
+      return model.updated_at;
     default:
       return model[property as keyof UserModel];
   }

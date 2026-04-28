@@ -26,7 +26,7 @@ import {
 } from "@/components/ai-elements/tool";
 import { MessageActions, type MessageMetadata } from "./message-actions";
 import { useAgentChatContext } from "./agent-chat-context";
-import { isToolPart, isStepStartPart, isCheckpointPart } from "@/lib/agent-chat";
+import { isToolPart, isStepStartPart, isCheckpointPart } from "@/lib/agent-chat/utils";
 import { MessageSquareIcon } from "lucide-react";
 
 /**

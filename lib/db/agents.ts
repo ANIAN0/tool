@@ -14,7 +14,7 @@ import {
   type PublicAgentWithCreator,
   type McpTool,
   type UserSkill,
-} from "./schema";
+} from "@/lib/schemas";
 import {
   getDefaultSystemTools,
   parseSystemTools,

@@ -32,7 +32,7 @@ interface SidebarProps {
   currentConversationId: string | null;
   onNewChat: () => void;
   onSelectConversation: (id: string) => void;
-  onDeleteConversation: (id: string) => void;
+  onDeleteConversation: (id: string) => Promise<void>;
   onRenameConversation: (id: string, newTitle: string) => void;
   onClose?: () => void;
   isLoading?: boolean;

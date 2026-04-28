@@ -56,7 +56,7 @@ export function DbAgentSelector({
   disabled = false,
 }: DbAgentSelectorProps) {
   // 获取认证状态和认证头方法
-  const { isAuthenticated, getAuthHeader } = useAuth();
+  const { isAuthenticated, authenticatedFetch } = useAuth();
 
   // 我的Agent列表
   const [myAgents, setMyAgents] = useState<AgentBrief[]>([]);
@@ -70,10 +70,8 @@ export function DbAgentSelector({
     const fetchAgents = async () => {
       setIsLoading(true);
       try {
-        // 使用正确的认证头调用 /api/agents
-        const res = await fetch("/api/agents", {
-          headers: getAuthHeader(), // 使用标准认证头方法
-        });
+        // 使用 authenticatedFetch 支持自动刷新 token
+        const res = await authenticatedFetch("/api/agents");
 
         if (res.ok) {
           const data = await res.json();
@@ -105,7 +103,7 @@ export function DbAgentSelector({
     };
 
     fetchAgents();
-  }, [isAuthenticated, getAuthHeader]); // 添加 getAuthHeader 到依赖数组
+  }, [isAuthenticated, authenticatedFetch]);
 
   // 获取当前选中的Agent
   const allAgents = [...myAgents, ...publicAgents];

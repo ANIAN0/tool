@@ -13,13 +13,10 @@ import { Button } from "@/components/ui/button";
 import { Trash2Icon, PencilIcon, CopyIcon, CheckIcon } from "lucide-react";
 import type { LanguageModelUsage } from "ai";
 import { useState } from "react";
+import type { MessageMetadata } from "@/lib/agent-chat/utils";
 
-// 消息元数据类型（从流式响应获取）
-export type MessageMetadata = {
-  usage: LanguageModelUsage;
-  contextLimit: number;
-  modelName: string;
-};
+// 重新导出 MessageMetadata 供组件使用
+export type { MessageMetadata };
 
 // Token统计类型（从数据库获取，用于历史消息）
 export type TokenStats = {

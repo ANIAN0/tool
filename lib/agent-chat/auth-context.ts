@@ -44,7 +44,17 @@ export async function getAuthContext(
     };
   }
 
-  // 认证成功：返回用户ID
+  // 认证成功：拒绝匿名访问，必须存在有效用户ID
+  if (!authResult.userId) {
+    return {
+      ok: false,
+      response: new Response(
+        JSON.stringify({ error: "需要登录后才能访问" }),
+        { status: 401, headers: { "Content-Type": "application/json" } }
+      ),
+    };
+  }
+
   return {
     ok: true,
     userId: authResult.userId,

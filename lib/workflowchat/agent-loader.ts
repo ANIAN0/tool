@@ -138,16 +138,7 @@ export async function loadAgentConfig(
     };
   }
   
-  // 2. 二次验证：私有 Agent 仅创建者可访问
-  if (!agentWithTools.is_public && agentWithTools.user_id !== userId) {
-    return {
-      ok: false,
-      error: '无权访问此 Agent',
-      status: 403,
-    };
-  }
-  
-  // 3. 解析运行时配置
+  // 2. 解析运行时配置
   const runtimeConfig = parseRuntimeConfig(agentWithTools);
   
   // 4. 获取关联的 Skills

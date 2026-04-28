@@ -15,8 +15,8 @@ import type { UserModel } from "@/lib/db";
 export interface ChatRequestBody {
   /** 单条新消息（前端只发送最后一条） */
   message: UIMessage;
-  /** 对话ID（可选，首次对话时可能为空） */
-  conversationId?: string;
+  /** 对话ID（必需） */
+  conversationId: string;
   /** Agent ID（必需） */
   agentId: string;
 }
@@ -84,7 +84,7 @@ export type AuthContextResult = AuthSuccessResult | AuthErrorResult;
 export interface AgentSuccessResult {
   ok: true;
   /** Agent配置（含工具信息） */
-  agent: import('@/lib/db/schema').AgentWithTools;
+  agent: import('@/lib/schemas').AgentWithTools;
 }
 
 /**
@@ -233,7 +233,7 @@ export interface StreamResponseConfig {
  */
 export interface CreateRuntimeParams {
   /** Agent配置（含工具信息） */
-  agent: import('@/lib/db/schema').AgentWithTools;
+  agent: import('@/lib/schemas').AgentWithTools;
   /** 用户ID（用于沙盒上下文和Skill加载） */
   userId: string;
   /** 对话ID（用于沙盒上下文和Skill加载） */

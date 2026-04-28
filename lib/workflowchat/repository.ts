@@ -223,11 +223,23 @@ export async function compareAndSetActiveStreamId(
   const db = getDb();
   const now = Date.now();
 
+  if (expectedStreamId === null) {
+    const result = await db.execute({
+      sql: `UPDATE workflowchat_conversations
+            SET active_stream_id = ?, updated_at = ?
+            WHERE id = ?
+              AND active_stream_id IS NULL
+            RETURNING id`,
+      args: [nextStreamId, now, chatId],
+    });
+    return result.rows.length > 0;
+  }
+
   const result = await db.execute({
     sql: `UPDATE workflowchat_conversations
           SET active_stream_id = ?, updated_at = ?
           WHERE id = ?
-            AND active_stream_id IS ?
+            AND active_stream_id = ?
           RETURNING id`,
     args: [nextStreamId, now, chatId, expectedStreamId],
   });

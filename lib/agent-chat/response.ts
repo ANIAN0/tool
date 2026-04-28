@@ -80,6 +80,10 @@ export function buildStreamResponse<TOOLS extends ToolSet>(
               id: messageId,
               role: "assistant",
               parts,
+              // 截断时在 metadata 中标记，前端据此显示提示
+              ...(finishReason === "length" ? {
+                metadata: { truncated: true },
+              } : {}),
             };
 
             // 持久化 assistant 消息（带 token 统计）

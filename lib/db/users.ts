@@ -1,5 +1,5 @@
 import { getDb } from "./client";
-import type { User } from "./schema";
+import type { User } from "@/lib/schemas";
 import { cache } from 'react';
 
 /**

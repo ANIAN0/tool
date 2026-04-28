@@ -27,15 +27,9 @@ export async function loadAgentConfig(
   // 获取Agent配置（getAgentById 内部已做权限验证）
   const agent = await getAgentById(agentId, userId);
 
-  // Agent不存在或无权访问
+  // Agent不存在或无权访问（getAgentById 内部已做权限验证）
   if (!agent) {
     return createErrorResult(404, 'Agent不存在或无权访问');
-  }
-
-  // 二次验证：确保私有Agent仅创建者可访问
-  // 注意：getAgentById 已做此验证，但显式检查更清晰
-  if (!agent.is_public && agent.user_id !== userId) {
-    return createErrorResult(403, '无权访问此Agent');
   }
 
   // 返回成功结果

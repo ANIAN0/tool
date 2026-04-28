@@ -4,7 +4,7 @@
  */
 
 import { getDb } from "./client";
-import type { Folder, CreateFolderParams } from "./schema";
+import type { Folder, CreateFolderParams } from "@/lib/schemas";
 
 /**
  * 获取用户的所有文件夹

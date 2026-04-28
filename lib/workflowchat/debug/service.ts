@@ -13,6 +13,7 @@ import type {
 } from '@/lib/schemas/workflowchat';
 import { WORKFLOWCHAT_RUN_STATUS } from '@/lib/workflowchat/constants';
 import { getDebugWorld } from './world';
+import { hydrateResourceIO, observabilityRevivers } from 'workflow/observability';
 import {
   hydrateRunData,
   hydrateWorldStep,
@@ -240,7 +241,8 @@ export async function getDebugRunDetail(runIdOrWorkflowRunId: string): Promise<D
 
       const worldStepMap = new Map<string, DebugStepDTO>();
       for (const worldStep of worldStepsResult.data) {
-        worldStepMap.set(worldStep.stepName, hydrateWorldStep(worldStep));
+        const hydratedStep = hydrateResourceIO(worldStep, observabilityRevivers);
+        worldStepMap.set(worldStep.stepName, hydrateWorldStep(hydratedStep as Step));
       }
 
       worldStepDTOs = dbSteps.map(dbStep => {
@@ -317,9 +319,9 @@ export async function getDebugRunStream(
 ): Promise<DebugStreamDTO> {
   const world = getDebugWorld();
 
-  const streamInfo = await world.getStreamInfo(streamName, workflowRunId);
+  const streamInfo = await world.streams.getInfo(workflowRunId, streamName);
 
-  const chunksResult = await world.getStreamChunks(streamName, workflowRunId, {
+  const chunksResult = await world.streams.getChunks(workflowRunId, streamName, {
     limit: options?.limit ?? 100,
     cursor: options?.cursor,
   });

@@ -60,6 +60,10 @@ export type {
   SandboxConfig,
 } from './types';
 
+// ==================== Skill 加载导出 ====================
+
+export { loadSkillsToSandbox } from './skill-loader';
+
 // ==================== 路径验证导出 ====================
 
 export { validateSandboxPath, hashUserId, ValidationError } from './path-validator';

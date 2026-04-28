@@ -1,5 +1,5 @@
 import { getDb } from "./client";
-import type { Message, CreateMessageParams } from "./schema";
+import type { Message, CreateMessageParams } from "@/lib/schemas";
 
 /**
  * 将数据库行转换为Message类型

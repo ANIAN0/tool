@@ -4,7 +4,7 @@ import { useState } from "react";
 import { Button } from "@/components/ui/button";
 import { Textarea } from "@/components/ui/textarea";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
-import { estimateTokens } from "@/lib/utils/token-estimation";
+import { estimateTokens } from "@/lib/infra/model/token-estimation";
 
 /**
  * Token 估算测试页面

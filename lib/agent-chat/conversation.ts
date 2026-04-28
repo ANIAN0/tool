@@ -96,15 +96,33 @@ export async function ensureConversation(
       )
     : "新对话";
 
-  // 创建新对话记录
-  await createConversation({
-    id: conversationId,
-    userId,
-    title,
-    model: modelName,
-    agentId,
-    source: "agent-chat", // 标记为 AgentChat 对话来源
-  });
+  // 创建新对话记录（处理并发竞态：同一 conversationId 可能已被其他请求创建）
+  try {
+    await createConversation({
+      id: conversationId,
+      userId,
+      title,
+      model: modelName,
+      agentId,
+      source: "agent-chat",
+    });
+  } catch (createError: any) {
+    // 主键冲突说明其他请求已创建该对话，验证权限后返回即可
+    if (createError?.code === "SQLITE_CONSTRAINT_PRIMARYKEY" || createError?.message?.includes("UNIQUE constraint failed")) {
+      const existing = await getConversation(conversationId);
+      if (existing && existing.user_id === userId) {
+        return { ok: true, conversationId };
+      }
+      return {
+        ok: false,
+        response: new Response(
+          JSON.stringify({ error: "无权访问此对话" }),
+          { status: 403, headers: { "Content-Type": "application/json" } }
+        ),
+      };
+    }
+    throw createError;
+  }
 
   // 返回创建后的对话ID
   return { ok: true, conversationId };
@@ -120,9 +138,6 @@ export async function saveUserMessage(
   conversationId: string,
   message: UIMessage
 ): Promise<void> {
-  // 仅保存用户角色消息
-  if (message.role !== "user") return;
-
   // 生成消息 ID（使用传入 ID 或新生成）
   const userMessageId = message.id || nanoid();
   // 构建完整用户消息对象
