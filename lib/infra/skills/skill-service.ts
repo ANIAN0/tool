@@ -8,20 +8,21 @@
  * - 提供批量加载和注册能力
  */
 
-import { registerTool, getTool, createTools } from '@/lib/infra/tools';
-import type { ToolDefinition, ToolCreateResult } from '@/lib/infra/tools/registry';
+import { tool, type ToolSet } from 'ai';
+import { z } from 'zod';
+import { registerTool } from '@/lib/infra/tools';
+import type { ToolCreateResult } from '@/lib/infra/tools/registry';
 import {
   createSkillToolDefinition,
   createSpecificSkillToolDefinition,
-  createSkillToolDefinitions,
 } from './skill-tool';
 import type {
   SkillExecutionContext,
   SkillLoadResult,
-  SkillToolDefinition,
 } from './types';
 import { registerSkill, loadSkill, clearSkillRegistry, getRegisteredSkills } from './loader';
 import type { SkillDefinition, SkillMeta } from './core-types';
+import { extractSkillBody } from './validator';
 
 // ==================== Skill 数据模型查询 ====================
 
@@ -236,36 +237,129 @@ export async function loadAgentsSkillsBatch(
 // ==================== 创建 Skill 工具实例 ====================
 
 /**
- * 创建 Agent 的 Skill 工具实例
- * 用于 Agent 运行时
+ * Skill 配置接口（从 agent-loader 导入）
+ */
+import type { SkillConfig } from '@/lib/workflowchat/agent-loader';
+
+// ==================== 声明式 Skill 工具（闭包绑定模式） ====================
+
+/**
+ * Skill 工具上下文
+ * 包含执行 Skill 所需的配置和沙盒信息
+ */
+export interface SkillToolContext {
+  /** 会话 ID */
+  conversationId: string;
+  /** 用户 ID */
+  userId: string;
+  /** Skill 配置列表 */
+  skills: SkillConfig[];
+}
+
+/**
+ * 创建 Skill 工具（带上下文绑定）
+ * 使用闭包在创建工具时注入上下文信息
  *
- * @param agentId - Agent ID
- * @param userId - 用户 ID
- * @param conversationId - 对话 ID
- * @returns 工具集合和清理函数
+ * @param context - Skill 工具上下文
+ * @returns ToolSet 包含 skill 工具
+ */
+export function createSkillToolWithContext(context: SkillToolContext): ToolSet {
+  return {
+    skill: tool({
+      description: '加载并执行指定的 Skill',
+      inputSchema: z.object({
+        skill: z.string().describe('技能名称'),
+        arguments: z.string().optional().describe('传给技能的参数'),
+      }),
+      execute: async ({ skill: skillName, arguments: args }) => {
+        "use step"; // Workflow SDK 自动重试 + 持久化
+
+        // 1. 从闭包 context 获取 Skill 配置列表
+        const skills = context.skills;
+
+        // 2. 根据名称查找目标 Skill 配置
+        const skillConfig = skills.find(s => s.name === skillName);
+        if (!skillConfig) {
+          return { error: `Skill '${skillName}' 不存在` };
+        }
+
+        // 2.1 检查 storagePath 是否有效
+        if (!skillConfig.storagePath) {
+          return { error: `Skill '${skillName}' 未配置存储路径` };
+        }
+
+        // 3. 验证 userId 是否有效
+        if (!context.userId || context.userId.trim() === '') {
+          return { error: '用户身份验证失败，无法执行 Skill。请先登录。' };
+        }
+
+        // 4. 从沙盒读取 SKILL.md 文件
+        const { getSandboxManager } = await import('@/lib/infra/sandbox/session-manager');
+        const sandboxManager = getSandboxManager();
+
+        const skillFilePath = `${skillConfig.storagePath}/SKILL.md`;
+        const content = await sandboxManager.readFile({
+          sessionId: context.conversationId,
+          userId: context.userId,
+          relativePath: skillFilePath,
+        });
+
+        // 5. 解析 frontmatter，提取 body 内容
+        const body = extractSkillBody(content);
+
+        // 6. 替换 $ARGUMENTS 占位符为实际参数
+        const finalContent = body.replace(/\$ARGUMENTS/g, args || '');
+
+        return { content: finalContent };
+      },
+    }),
+  };
+}
+
+/**
+ * 创建统一的 Skill 工具集（无参数版本，已废弃）
+ * 警告：此版本不绑定上下文，工具执行时会失败
+ * 请使用 createSkillToolWithContext 代替
+ *
+ * @returns ToolSet 包含 skill 工具（无法执行）
+ * @deprecated 请使用 createSkillToolWithContext 传入上下文
+ */
+export function createSkillTool(): ToolSet {
+  console.warn('[Skill] createSkillTool() 无参数版本已废弃，工具无法执行。请使用 createSkillToolWithContext() 传入上下文。');
+  return {
+    skill: tool({
+      description: '加载并执行指定的 Skill',
+      inputSchema: z.object({
+        skill: z.string().describe('技能名称'),
+        arguments: z.string().optional().describe('传给技能的参数'),
+      }),
+      execute: async () => {
+        return { error: 'Skill 工具未绑定上下文，无法执行。' };
+      },
+    }),
+  };
+}
+
+/**
+ * 创建 Agent 的 Skill 工具实例
+ * 用于 Agent 运行时，委托给 createSkillTool() 创建统一的 skill 工具
+ *
+ * @param agentId - Agent ID（保留签名兼容，内部不再使用）
+ * @param userId - 用户 ID（保留签名兼容，内部不再使用）
+ * @param conversationId - 对话 ID（保留签名兼容，内部不再使用）
+ * @param skills - 可选的 Skill 配置列表（保留签名兼容，内部不再使用）
+ * @returns 工具集合（包含统一的 skill 工具）
  */
 export async function createAgentSkillTools(
   agentId: string,
   userId: string,
-  conversationId?: string
+  conversationId?: string,
+  skills?: SkillConfig[]
 ): Promise<ToolCreateResult> {
-  // 先加载 Skills 到 Registry
-  await loadAgentSkills({
-    agentId,
-    userId,
-    conversationId,
-  });
-
-  // 获取已注册的 Skill 工具名称列表
-  const skillDataInfos = await getAgentSkillDataInfos(agentId);
-  const toolNames: string[] = ['execute_skill'];
-
-  for (const skillInfo of skillDataInfos) {
-    toolNames.push(`skill_${skillInfo.id}`);
-  }
-
-  // 使用 ToolRegistry 创建工具实例
-  return createTools(toolNames);
+  // 委托给 createSkillTool()，通过 experimental_context 在运行时获取 Skill 配置
+  return {
+    tools: createSkillTool(),
+  };
 }
 
 /**

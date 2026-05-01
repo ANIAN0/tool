@@ -16,7 +16,9 @@ export interface SandboxToolContext {
 
 /**
  * 创建bash工具 - 在沙盒中执行命令
- * @param context 工具执行上下文
+ * 使用闭包绑定 context，在创建工具时注入会话信息
+ *
+ * @param context 工具执行上下文（包含 conversationId 和 userId）
  */
 function createBashTool(context: SandboxToolContext) {
   return tool({
@@ -28,6 +30,11 @@ function createBashTool(context: SandboxToolContext) {
       // 检查沙盒是否启用
       if (!isSandboxEnabled()) {
         return '沙盒服务未启用，无法执行命令。';
+      }
+
+      // 验证 userId 是否有效
+      if (!context.userId || context.userId.trim() === '') {
+        return '用户身份验证失败，无法执行命令。请先登录。';
       }
 
       try {
@@ -45,7 +52,7 @@ function createBashTool(context: SandboxToolContext) {
           output += result.stdout;
         }
         if (result.stderr) {
-          output += `\n${result.stderr}`; // 移除 [stderr] 前缀，保留换行
+          output += `\n${result.stderr}`;
         }
         if (result.exitCode !== 0) {
           output += `\n[exit code: ${result.exitCode}]`;
@@ -61,6 +68,8 @@ function createBashTool(context: SandboxToolContext) {
 
 /**
  * 创建readFile工具 - 读取沙盒中的文件
+ * 使用闭包绑定 context
+ *
  * @param context 工具执行上下文
  */
 function createReadFileTool(context: SandboxToolContext) {
@@ -73,6 +82,11 @@ function createReadFileTool(context: SandboxToolContext) {
       // 检查沙盒是否启用
       if (!isSandboxEnabled()) {
         return '沙盒服务未启用，无法读取文件。';
+      }
+
+      // 验证 userId 是否有效
+      if (!context.userId || context.userId.trim() === '') {
+        return '用户身份验证失败，无法读取文件。请先登录。';
       }
 
       try {
@@ -93,6 +107,8 @@ function createReadFileTool(context: SandboxToolContext) {
 
 /**
  * 创建writeFile工具 - 写入文件到沙盒
+ * 使用闭包绑定 context
+ *
  * @param context 工具执行上下文
  */
 function createWriteFileTool(context: SandboxToolContext) {
@@ -106,6 +122,11 @@ function createWriteFileTool(context: SandboxToolContext) {
       // 检查沙盒是否启用
       if (!isSandboxEnabled()) {
         return '沙盒服务未启用，无法写入文件。';
+      }
+
+      // 验证 userId 是否有效
+      if (!context.userId || context.userId.trim() === '') {
+        return '用户身份验证失败，无法写入文件。请先登录。';
       }
 
       try {
@@ -145,18 +166,20 @@ export function getSandboxToolsWithContext(context: SandboxToolContext): ToolSet
 }
 
 /**
- * 获取所有沙盒工具（无上下文，仅用于类型检查）
- * @deprecated 请使用 getSandboxToolsWithContext 代替
- * @returns 空对象或静态工具定义
+ * 创建沙盒工具集（无参数版本）
+ * 警告：此版本不绑定上下文，工具执行时会失败
+ * 请使用 getSandboxToolsWithContext 代替
+ *
+ * @returns 空对象（无上下文绑定时工具无法执行）
+ * @deprecated 请使用 getSandboxToolsWithContext 传入上下文
  */
-export function getSandboxTools(): ToolSet {
+export function createSandboxTools(): ToolSet {
   if (!isSandboxEnabled()) {
     return {};
   }
 
-  // 返回空对象，因为 ToolLoopAgent 需要在创建时绑定上下文
-  // 实际使用时应调用 getSandboxToolsWithContext
-  console.warn('[Sandbox] getSandboxTools() 已废弃，请使用 getSandboxToolsWithContext() 传入上下文');
+  // 无参数版本返回空对象，因为工具执行需要上下文
+  console.warn('[Sandbox] createSandboxTools() 无参数版本已废弃，工具无法执行。请使用 getSandboxToolsWithContext() 传入上下文。');
   return {};
 }
 

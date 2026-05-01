@@ -15,13 +15,11 @@ import { getAgentById, getAgentSkillsInfo } from '@/lib/db';
 export interface AgentRuntimeConfig {
   /** 最大执行步数 */
   maxSteps: number;
-  /** 自定义指令 */
-  customInstructions?: string;
 }
 
 /**
  * 解析 Agent 运行时配置
- * 从 template_config 字段解析 maxSteps 和 customInstructions
+ * 从 template_config 字段解析 maxSteps
  *
  * @param agent - Agent 数据库记录
  * @returns 运行时配置对象
@@ -32,9 +30,6 @@ export function parseRuntimeConfig(agent: Agent): AgentRuntimeConfig {
       const config = JSON.parse(agent.template_config) as Record<string, unknown>;
       return {
         maxSteps: typeof config.maxSteps === 'number' ? config.maxSteps : 50,
-        customInstructions: typeof config.customInstructions === 'string' 
-          ? config.customInstructions 
-          : undefined,
       };
     } catch {
       return { maxSteps: 50 };
@@ -84,14 +79,12 @@ export interface AgentConfig {
   id: string;
   /** Agent 名称 */
   name: string;
-  /** 系统提示词 */
+  /** 系统提示词（来自 agents.system_prompt） */
   systemPrompt: string;
   /** 模型 ID */
   modelId: string | null;
   /** 最大执行步数 */
   maxSteps: number;
-  /** 自定义指令（运行时追加到 system prompt） */
-  customInstructions?: string;
   /** 工具配置列表 */
   tools: ToolConfig[];
   /** Skill 配置列表 */
@@ -170,7 +163,6 @@ export async function loadAgentConfig(
       systemPrompt: agentWithTools.system_prompt || '',
       modelId: agentWithTools.model_id,
       maxSteps: runtimeConfig.maxSteps,
-      customInstructions: runtimeConfig.customInstructions,
       tools,
       skills,
     },

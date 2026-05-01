@@ -29,7 +29,7 @@ import { createChatSessionService } from "@/lib/infra/session";
 import { createMessageService } from "@/lib/infra/message";
 import { authenticateApiKey, apiKeyErrorResponse } from "@/lib/infra/user/api-key";
 import { ToolLoopAgent, stepCountIs } from "ai";
-import { getSandboxToolsWithContext, loadSkillsToSandbox, isSandboxEnabled } from "@/lib/infra/sandbox";
+import { createSandboxTools, loadSkillsToSandbox, isSandboxEnabled } from "@/lib/infra/sandbox";
 import { mergeAgentToolSets } from "@/lib/agents/toolset-merge";
 import { createMcpRuntime } from "@/lib/infra/mcp";
 import { getAgentMcpRuntimeToolConfigs, getAgentSkillsInfo } from "@/lib/db/agents";
@@ -184,12 +184,9 @@ export async function POST(request: Request) {
       systemPrompt = `${systemPrompt}\n\n${skillPresetPrompt}`;
     }
 
-    // 创建运行时工具
+    // 创建运行时工具（无参数版本，execute 函数通过 experimental_context 获取沙盒实例）
     const sandboxTools = isSandboxEnabled()
-      ? await getSandboxToolsWithContext({
-          conversationId: currentConversationId!,
-          userId,
-        })
+      ? createSandboxTools()
       : {};
 
     // 获取 MCP 运行时工具（使用新服务）
@@ -300,12 +297,18 @@ export async function POST(request: Request) {
       ignoreIncompleteToolCalls: true,
     });
 
-    // 创建 Agent 实例
+    // 创建 Agent 实例，传入 experimental_context 供沙盒工具获取会话信息
     const agentInstance = new ToolLoopAgent({
       model: wrappedModel,
       instructions: systemPrompt,
       tools: runtimeTools,
       stopWhen: stepCountIs(10),
+      experimental_context: {
+        getSandbox: () => ({
+          sessionId: currentConversationId!,
+          userId,
+        }),
+      },
     });
 
     // 流式执行（压缩检测通过 middleware 闭包传入）

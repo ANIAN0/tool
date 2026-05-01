@@ -25,7 +25,8 @@ export async function POST(req: NextRequest) {
     const history = await loadHistory(conv.conversationId); if (!history.ok) return history.response; // 加载历史
     await saveUserMessage(conv.conversationId, body.data.message); // 保存用户消息
     const wrappedModel = wrapModel(model.chatModel, { conversationId: conv.conversationId, contextLimit: model.contextLimit }); // 包装模型
-    const result = await executeAgent(wrappedModel, runtime.systemPrompt, runtime.tools, history.messages, body.data.message, agent.agent); // 执行Agent（传入agent配置用于模板停止条件）
+    // 执行Agent，传递 req.signal 支持前端 stop() 取消
+    const result = await executeAgent(wrappedModel, runtime.systemPrompt, runtime.tools, history.messages, body.data.message, agent.agent, undefined, req.signal);
     return buildStreamResponse(result, { conversationId: conv.conversationId, contextLimit: model.contextLimit, modelName: model.modelName, mcpCleanup: runtime.mcpCleanup }); // 构建响应
   } catch (error) {
     // 捕获未预期的异常，防止直接抛出 500

@@ -74,6 +74,8 @@ export {
   loadAgentSkills,
   loadAgentsSkillsBatch,
   createAgentSkillTools,
+  createSkillTool,
+  createSkillToolWithContext,
   registerSkillDefinition,
   registerSkillDefinitions,
   cleanupSkills,
@@ -82,4 +84,5 @@ export {
   getSkillDefinition,
   type SkillLoadOptions,
   type SkillLoadResult,
+  type SkillToolContext,
 } from './skill-service';

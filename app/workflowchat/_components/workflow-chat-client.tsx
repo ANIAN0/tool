@@ -18,6 +18,7 @@ interface ConversationDetailDTO {
     id: string;
     title: string | null;
     status: string;
+    agentId: string;
   };
   messages: {
     id: string;
@@ -55,14 +56,18 @@ export function WorkflowChatClient({ userId, conversationId }: WorkflowChatClien
 
   // 存储当前活跃的 stream ID，供 transport 重连时使用
   const activeStreamIdRef = useRef<string | null>(null);
+  // 存储会话关联的 agentId，供发送消息时使用
+  const agentIdRef = useRef<string | null>(null);
 
   // useChat transport 配置
   const transport = useMemo(
     () =>
       new DefaultChatTransport({
         api: `/api/workflowchat/conversations/${conversationId}/messages`,
-        // 将 useChat 最后一条消息转为后端期望的 { content, modelId } 格式
-        prepareSendMessagesRequest({ messages }) {
+        // 将 useChat 最后一条消息转为后端期望的 { agentId, content, modelId } 格式
+        prepareSendMessagesRequest({ messages, headers: baseHeaders }) {
+          // 从 localStorage 读取 JWT token
+          const accessToken = typeof window !== "undefined" ? localStorage.getItem("accessToken") : null;
           const lastMsg = messages[messages.length - 1];
           // 从消息 parts 中提取纯文本内容
           const textContent =
@@ -71,13 +76,19 @@ export function WorkflowChatClient({ userId, conversationId }: WorkflowChatClien
               .map((p) => p.text)
               .join("\n") ?? "";
           return {
+            headers: {
+              ...baseHeaders,
+              ...(accessToken ? { Authorization: `Bearer ${accessToken}` } : {}),
+            },
             body: {
+              agentId: agentIdRef.current,
               content: textContent,
             },
           };
         },
         // 页面刷新恢复：根据 activeStreamId 构造 stream 重连 URL
-        prepareReconnectToStreamRequest({ id }) {
+        prepareReconnectToStreamRequest({ id, headers: baseHeaders }) {
+          const accessToken = typeof window !== "undefined" ? localStorage.getItem("accessToken") : null;
           const runId = activeStreamIdRef.current;
           if (!runId) {
             // 无活跃 stream，不发起重连请求
@@ -85,6 +96,10 @@ export function WorkflowChatClient({ userId, conversationId }: WorkflowChatClien
           }
           return {
             api: `/api/workflowchat/conversations/${id}/runs/${runId}/stream`,
+            headers: {
+              ...baseHeaders,
+              ...(accessToken ? { Authorization: `Bearer ${accessToken}` } : {}),
+            },
           };
         },
       }),
@@ -92,10 +107,41 @@ export function WorkflowChatClient({ userId, conversationId }: WorkflowChatClien
   );
 
   // useChat hook — 核心聊天功能
-  const { messages, sendMessage, status, setMessages, resumeStream } = useChat({
+  const { messages, sendMessage, status, setMessages, resumeStream, stop } = useChat({
     transport,
     id: conversationId,
   });
+
+  // 当前活跃的 runId（用于调用 cancel API）
+  const currentRunIdRef = useRef<string | null>(null);
+
+  // 停止生成：调用前端 stop() 和后端 cancel API
+  const handleStop = useCallback(async () => {
+    // 先调用前端 stop，取消 stream 消费
+    stop();
+
+    // 如果有活跃的 runId，调用后端 cancel API
+    const runId = currentRunIdRef.current;
+    if (runId) {
+      try {
+        const accessToken = typeof window !== "undefined" ? localStorage.getItem("accessToken") : null;
+        const res = await authenticatedFetch(
+          `/api/workflowchat/conversations/${conversationId}/runs/${runId}/cancel`,
+          {
+            method: "POST",
+            headers: accessToken ? { Authorization: `Bearer ${accessToken}` } : {},
+          }
+        );
+        if (!res.ok) {
+          console.error("[workflowchat] 取消 run 失败:", res.status);
+        }
+      } catch (err) {
+        console.error("[workflowchat] 调用 cancel API 失败:", err);
+      }
+      // 清除 runId
+      currentRunIdRef.current = null;
+    }
+  }, [stop, conversationId]);
 
   // 消息列表底部滚动标记
   const messagesEndRef = useRef<HTMLDivElement>(null);
@@ -148,12 +194,15 @@ export function WorkflowChatClient({ userId, conversationId }: WorkflowChatClien
 
         if (!cancelled) {
           setMessages(uiMessages);
+          // 保存会话关联的 agentId，供发送消息时使用
+          agentIdRef.current = data.conversation.agentId;
           setInitialLoaded(true);
 
           // 刷新恢复：检测 activeStreamId，重连活跃 stream
           const activeStreamId = data.activeStreamId;
           if (activeStreamId) {
             activeStreamIdRef.current = activeStreamId;
+            currentRunIdRef.current = activeStreamId;
             // resumeStream 内部会通过 prepareReconnectToStreamRequest 构造重连 URL
             // 若 run 已终态，stream 端点返回 204，resumeStream 静默返回
             resumeStream().catch((err) => {
@@ -192,12 +241,29 @@ export function WorkflowChatClient({ userId, conversationId }: WorkflowChatClien
 
       try {
         await sendMessage({ text: trimmed });
+
+        // 发送消息后，请求 conversation 详情获取新的 activeStreamId
+        // 用于后续停止按钮调用 cancel API
+        try {
+          const res = await authenticatedFetch(
+            `/api/workflowchat/conversations/${conversationId}`
+          );
+          if (res.ok) {
+            const data: ConversationDetailDTO = await res.json();
+            if (data.activeStreamId) {
+              currentRunIdRef.current = data.activeStreamId;
+              activeStreamIdRef.current = data.activeStreamId;
+            }
+          }
+        } catch (fetchErr) {
+          console.error("[workflowchat] 获取 activeStreamId 失败:", fetchErr);
+        }
       } catch (err) {
         console.error("[workflowchat] 发送消息失败:", err);
         setError(err instanceof Error ? err.message : "发送失败");
       }
     },
-    [input, sendMessage]
+    [input, sendMessage, conversationId]
   );
 
   // 自动滚动到底部
@@ -303,13 +369,23 @@ export function WorkflowChatClient({ userId, conversationId }: WorkflowChatClien
             disabled={isGenerating || loadingHistory}
             className="h-9 flex-1 rounded-md border border-input bg-transparent px-3 py-1 text-sm shadow-xs outline-none transition-[color,box-shadow] placeholder:text-muted-foreground focus-visible:border-ring focus-visible:ring-[3px] focus-visible:ring-ring/50 disabled:pointer-events-none disabled:opacity-50"
           />
-          <button
-            type="submit"
-            disabled={isGenerating || !input.trim() || loadingHistory}
-            className="inline-flex h-9 items-center justify-center rounded-md bg-primary px-4 text-sm font-medium text-primary-foreground transition-colors hover:bg-primary/90 disabled:pointer-events-none disabled:opacity-50"
-          >
-            {isGenerating ? "发送中…" : "发送"}
-          </button>
+          {isGenerating ? (
+            <button
+              type="button"
+              onClick={handleStop}
+              className="inline-flex h-9 items-center justify-center rounded-md bg-destructive px-4 text-sm font-medium text-destructive-foreground transition-colors hover:bg-destructive/90"
+            >
+              停止
+            </button>
+          ) : (
+            <button
+              type="submit"
+              disabled={!input.trim() || loadingHistory}
+              className="inline-flex h-9 items-center justify-center rounded-md bg-primary px-4 text-sm font-medium text-primary-foreground transition-colors hover:bg-primary/90 disabled:pointer-events-none disabled:opacity-50"
+            >
+              发送
+            </button>
+          )}
         </form>
       </div>
     </div>

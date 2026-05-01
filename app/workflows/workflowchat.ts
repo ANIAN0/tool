@@ -15,11 +15,14 @@
 import { getWritable, getWorkflowMetadata } from "workflow";
 import { start } from "workflow/api";
 import { convertToModelMessages } from "ai";
-import type { UIMessage, UIMessageChunk, LanguageModel, ToolSet } from "ai";
+import type { UIMessage, UIMessageChunk, ToolSet, FinishReason } from "ai";
+import type { ModelMessage } from "@ai-sdk/provider-utils";
 
 import { createWorkflowChatAgent } from "@/lib/workflowchat/agent";
 import { createModel } from "@/lib/infra/model";
 import { claimChatActiveStreamId, updateWfChatRun, getWfChatRun } from "@/lib/workflowchat/repository";
+import { loadAgentConfig } from "@/lib/workflowchat/agent-loader";
+import { createAgentTools } from "@/lib/workflowchat/agent-tools";
 import { WORKFLOWCHAT_RUN_STATUS } from "@/lib/workflowchat/constants";
 import type { WorkflowChatRunInput, PostFinishInput } from "@/lib/workflowchat/dto";
 import type { StepTiming } from "@/lib/workflowchat/constants";
@@ -29,14 +32,15 @@ import { workflowchatPostFinishWorkflow } from "./workflowchat-post-finish";
 // ==================== Step 函数 ====================
 
 /**
- * Step 1: createModelStep — 使用 ModelService 创建语言模型
+ * Step 1: createModelStep — 验证模型配置并返回可序列化的元数据
  *
- * 在 step 函数中调用 ModelService.createModel() 创建语言模型实例
+ * 注意：LanguageModel 实例包含函数，无法通过 workflow 序列化传递。
+ * 因此此 step 只验证模型存在并返回元数据，实际模型创建在 runAgentStep 内部完成。
  */
 async function createModelStep(input: WorkflowChatRunInput) {
   "use step";
 
-  const { conversationId, runId, userId, modelId } = input;
+  const { userId, modelId } = input;
 
   try {
     const result = await createModel({
@@ -45,8 +49,8 @@ async function createModelStep(input: WorkflowChatRunInput) {
       wrapDevTools: process.env.NODE_ENV === "development",
     });
 
+    // 只返回可序列化的数据，不返回 model 实例
     return {
-      model: result.model,
       modelName: result.modelName,
       contextLimit: result.contextLimit,
     };
@@ -76,57 +80,138 @@ async function claimActiveStream(conversationId: string, workflowRunId: string) 
 }
 
 /**
- * Step 2: runAgentStep — 执行 Agent 推理并流式写入
+ * 辅助函数：将工具调用结果合并到 messages
  *
- * 接收 Step 1 创建的模型实例，流式推理，将输出逐 chunk 写入 workflow stream。
- * 通过 onFinish 回调捕获 responseMessage 和 usage。
+ * 从 StreamTextResult 的 response.messages 中提取 ModelMessage 格式的消息
+ *（包含 assistant 消息和 tool 消息），追加到当前消息列表。
+ *
+ * @param result - agent.stream() 的返回结果
+ * @param currentMessages - 当前 ModelMessage 列表
+ * @returns 合并后的新消息列表
+ */
+export async function buildMessagesWithToolResults(
+  result: { response: PromiseLike<{ messages: ModelMessage[] }> },
+  currentMessages: ModelMessage[],
+): Promise<ModelMessage[]> {
+  // 从 result 中获取 response.messages（已为 ModelMessage 格式）
+  const response = await result.response;
+  if (!response?.messages?.length) {
+    return currentMessages;
+  }
+
+  // 直接追加 response messages（assistant + tool 消息）
+  return [...currentMessages, ...response.messages];
+}
+
+/**
+ * Step 2: runAgentStep — 执行 Agent 推理并流式写入（外部循环控制）
+ *
+ * 设计变更：Agent 使用 stepCountIs(1) 固定单步执行，
+ * 外部 while 循环根据 finishReason 控制多轮推理。
+ *
+ * 循环逻辑：
+ * - 每次迭代创建新 Agent 实例（stepCountIs(1)）
+ * - 执行一步推理，流式输出到前端
+ * - 检查 finishReason：
+ *   - 'tool-calls'：Agent 调用了工具，合并工具结果到 messages，继续循环
+ *   - 'stop'：Agent 完成推理，退出循环
+ *   - 其他（如 'length'）：异常情况，退出循环
  */
 async function runAgentStep(
   input: WorkflowChatRunInput,
-  model: LanguageModel,
   maxSteps: number,
-  customInstructions?: string,
-  tools?: ToolSet
+  instructions?: string,
 ) {
   "use step";
 
-  // 使用外部传入的模型实例、运行时参数和工具集合
-  const agent = createWorkflowChatAgent({
-    model,
-    maxSteps,
-    customInstructions,
-    tools,
+  // 在 step 函数内部创建模型（避免 LanguageModel 实例序列化问题）
+  const modelResult = await createModel({
+    modelId: input.modelId,
+    userId: input.userId ?? "",
+    wrapDevTools: process.env.NODE_ENV === "development",
   });
+  const model = modelResult.model;
 
-  // UIMessage[] → ModelMessage[] 转换
+  // 在 step 函数内部加载 Agent 配置并创建工具（避免 Zod schema 序列化问题）
+  let tools: ToolSet | undefined;
+  if (input.userId) {
+    const agentConfigResult = await loadAgentConfig(input.userId, input.agentId);
+    if (agentConfigResult.ok && agentConfigResult.agent) {
+      // 传递 input.skills 给 createAgentTools，避免重复从 skillRegistry 加载
+      tools = await createAgentTools(agentConfigResult.agent, input.userId, input.conversationId, input.skills);
+      console.log("[runAgentStep] 工具创建成功，工具数量:", Object.keys(tools).length);
+    } else {
+      console.warn("[runAgentStep] Agent 配置加载失败，使用空工具集:", agentConfigResult.error);
+    }
+  }
+
+  // UIMessage[] → ModelMessage[] 转换（初始消息）
   const uiMessagesWithoutId = input.messages.map(({ id, ...rest }) => rest);
-  const modelMessages = await convertToModelMessages(uiMessagesWithoutId);
-
-  // 调用 Agent 流式推理
-  const result = await agent.stream({
-    messages: modelMessages,
-  });
+  let currentMessages: ModelMessage[] = await convertToModelMessages(uiMessagesWithoutId);
 
   // 获取 workflow 可写流
   const writable = getWritable<UIMessageChunk>();
 
-  // 用于收集 responseMessage（通过 onFinish 回调获取）
+  // 外部循环控制变量
+  let stepCount = 0;
   let responseMessage: UIMessage | null = null;
+  let finishReason: FinishReason = "stop";
   let chunkCount = 0;
+  // 累积 Token 用量（跨多步累加）
+  let totalPromptTokens = 0;
+  let totalCompletionTokens = 0;
+  let totalTokens = 0;
 
-  // 遍历流式输出，逐个 chunk 写入 writable（acquire/release 循环）
   try {
-    for await (const part of result.toUIMessageStream({
-      onFinish: async (event) => {
-        responseMessage = event.responseMessage;
-      },
-    })) {
-      chunkCount++;
-      const writer = writable.getWriter();
-      try {
-        await writer.write(part);
-      } finally {
-        writer.releaseLock();
+    // 外部 while 循环：每步创建新 Agent，检查 finishReason 决定是否继续
+    while (stepCount < maxSteps) {
+      // 创建 Agent（stepCountIs(1) 固定单步，每次循环重新创建）
+      const agent = createWorkflowChatAgent({
+        model,
+        instructions,
+        tools,
+      });
+
+      // 执行一步推理（工具已通过闭包绑定上下文，无需 experimental_context）
+      const result = await agent.stream({
+        messages: currentMessages,
+      });
+
+      // 流式输出到前端（逐 chunk 写入 writable）
+      for await (const part of result.toUIMessageStream({
+        onFinish: async (event) => {
+          // 每步更新 responseMessage，最终保留最后一步的值
+          responseMessage = event.responseMessage;
+        },
+      })) {
+        chunkCount++;
+        const writer = writable.getWriter();
+        try {
+          await writer.write(part);
+        } finally {
+          writer.releaseLock();
+        }
+      }
+
+      // 获取当前步的 finishReason（流消费完毕后读取）
+      finishReason = await result.finishReason;
+
+      // 累积当前步的 Token 用量
+      const stepUsage = await result.usage;
+      if (stepUsage) {
+        totalPromptTokens += stepUsage.inputTokens ?? 0;
+        totalCompletionTokens += stepUsage.outputTokens ?? 0;
+        totalTokens += stepUsage.totalTokens ?? (stepUsage.inputTokens ?? 0) + (stepUsage.outputTokens ?? 0);
+      }
+
+      if (finishReason === "tool-calls") {
+        // Agent 调用了工具，合并工具结果到 messages，继续循环
+        stepCount++;
+        currentMessages = await buildMessagesWithToolResults(result, currentMessages);
+        console.log(`[runAgentStep] 工具调用完成，当前步数: ${stepCount}/${maxSteps}`);
+      } else {
+        // Agent 完成推理（stop）或其他情况（length/error），退出循环
+        break;
       }
     }
   } finally {
@@ -135,20 +220,24 @@ async function runAgentStep(
     await writable.close();
   }
 
-  const finishReason = await result.finishReason;
-  const rawUsage = await result.usage;
+  // 达到 maxSteps 限制时的警告日志
+  if (stepCount >= maxSteps) {
+    console.warn(`[runAgentStep] 达到最大步数限制: ${maxSteps}，强制结束`);
+  }
 
-  // 处理 usage：AI SDK v4 的 LanguageModelUsage 使用 inputTokens/outputTokens
-  const usage = rawUsage ? {
-    promptTokens: rawUsage.inputTokens ?? 0,
-    completionTokens: rawUsage.outputTokens ?? 0,
-    totalTokens: rawUsage.totalTokens ?? (rawUsage.inputTokens ?? 0) + (rawUsage.outputTokens ?? 0),
+  // 确定最终 finishReason：达到步数限制时标记为 maxSteps
+  const finalFinishReason = stepCount >= maxSteps ? "maxSteps" : finishReason;
+
+  // 组装 usage（跨多步累加的 Token 统计）
+  const usage = totalTokens > 0 ? {
+    promptTokens: totalPromptTokens,
+    completionTokens: totalCompletionTokens,
+    totalTokens,
   } : null;
 
-  // 返回完成信息
   return {
     responseMessage,
-    finishReason,
+    finishReason: finalFinishReason,
     usage,
   };
 }
@@ -274,14 +363,13 @@ export async function workflowchatReplyWorkflow(input: WorkflowChatRunInput) {
   let error: string | null = null;
   let usage: { promptTokens: number; completionTokens: number; totalTokens: number } | null = null;
 
-  // 提取运行时参数和工具集合，默认值已在 agent.ts 中处理
+  // 提取运行时参数，工具在 runAgentStep 内部创建
   const maxSteps = input.maxSteps ?? 50;
-  const customInstructions = input.customInstructions;
-  const tools = input.tools;
+  const instructions = input.instructions;
 
   stepStart = Date.now();
   try {
-    const result = await runAgentStep(input, modelResult.model, maxSteps, customInstructions, tools);
+    const result = await runAgentStep(input, maxSteps, instructions);
     responseMessage = result.responseMessage;
     finishReason = result.finishReason;
     usage = result.usage;

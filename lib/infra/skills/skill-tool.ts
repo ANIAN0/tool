@@ -84,7 +84,7 @@ export function createSkillToolDefinition(
       tools: {
         execute_skill: {
           description: '执行指定的 Skill。Skill 是一组预定义的能力，可以通过输入参数进行配置和执行。',
-          parameters: executeSkillSchema,
+          inputSchema: executeSkillSchema,
           execute: async (params: SkillToolInput): Promise<SkillToolResult> => {
             // 验证必要参数
             if (!params.skillId) {
@@ -169,7 +169,7 @@ export function createSpecificSkillToolDefinition(
       tools: {
         [`skill_${skillId}`]: {
           description: skill.metadata.description || `执行 Skill: ${skill.metadata.name}`,
-          parameters: inputSchema,
+          inputSchema: inputSchema,
           execute: async (params: { input?: string }): Promise<SkillToolResult> => {
             // 解析输入参数
             const inputStr = params.input || '';
@@ -260,7 +260,7 @@ export function createToolFromSkillDefinition(
       tools: {
         [`skill_${skillDef.metadata.name.toLowerCase().replace(/\s+/g, '_')}`]: {
           description: skillDef.metadata.description,
-          parameters: z.object({
+          inputSchema: z.object({
             input: z.string().optional().describe('JSON 字符串形式的 Skill 输入参数'),
           }),
           execute: async (params: { input?: string }): Promise<SkillToolResult> => {

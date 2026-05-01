@@ -26,7 +26,7 @@ import type {
   BundledTheme,
   HighlighterGeneric,
   ThemedToken,
-} from "shiki";
+} from "@shikijs/types";
 import { createHighlighter } from "shiki";
 
 // Shiki uses bitflags for font styles: 1=italic, 2=bold, 4=underline

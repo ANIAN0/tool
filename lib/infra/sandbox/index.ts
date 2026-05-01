@@ -20,7 +20,8 @@ export { SandboxSessionManager, getSandboxManager } from './session-manager';
 
 // ==================== 工具导出 ====================
 
-export { getSandboxToolsWithContext, getSandboxTools } from './tools';
+export { createSandboxTools, getSandboxToolsWithContext } from './tools';
+// 工具上下文类型
 export type { SandboxToolContext } from './tools';
 
 // ==================== 工厂函数导出 ====================

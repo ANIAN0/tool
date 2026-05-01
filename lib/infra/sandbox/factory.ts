@@ -10,27 +10,26 @@ import type { ToolSet } from 'ai';
 import {
   type SandboxSessionInterface,
   type SandboxToolProviderInterface,
-  type SandboxToolContext,
   type SandboxInstance,
   type SandboxCreationConfig,
 } from './interface';
 import { getSandboxManager } from './session-manager';
-import { getSandboxToolsWithContext } from './tools';
+import { createSandboxTools } from './tools';
 import { isSandboxEnabled } from './config';
 
 /**
  * 现有实现的工具提供者适配器
- * 将现有的 getSandboxToolsWithContext 函数适配到接口
+ * 将现有的 createSandboxTools 函数适配到接口
  */
 class DefaultToolProvider implements SandboxToolProviderInterface {
   /**
-   * 获取沙盒工具集（带上下文绑定）
-   * @param context 工具执行上下文
+   * 获取沙盒工具集（无参数版本）
+   * execute 函数通过 experimental_context 获取沙盒实例
    * @returns AI SDK ToolSet 对象
    */
-  getToolsWithContext(context: SandboxToolContext): ToolSet {
-    // 调用现有实现获取工具
-    return getSandboxToolsWithContext(context);
+  getTools(): ToolSet {
+    // 调用新的无参数版本获取工具
+    return createSandboxTools();
   }
 
   /**

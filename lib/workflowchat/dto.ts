@@ -3,7 +3,7 @@
  * 包含请求/响应 DTO、Workflow 输入参数类型等
  */
 
-import type { UIMessage, ToolSet } from 'ai';
+import type { UIMessage } from 'ai';
 import type { StepTiming } from './constants';
 import type { SkillConfig } from './agent-loader';
 import type {
@@ -116,10 +116,8 @@ export interface WorkflowChatRunInput {
   messages: UIMessage[];
   /** 最大执行步数，默认 50 */
   maxSteps?: number;
-  /** 自定义指令，覆盖默认系统提示词 */
-  customInstructions?: string;
-  /** 工具集合（已创建的 ToolSet 实例） */
-  tools?: ToolSet;
+  /** 系统提示词（来自 agents.system_prompt） */
+  instructions?: string;
   /** Skill 配置列表 */
   skills?: SkillConfig[];
 }

@@ -6,12 +6,10 @@
 import { nanoid } from 'nanoid';
 import { start, getRun } from 'workflow/api';
 import type { Run } from 'workflow/api';
-import type { UIMessage, ToolSet } from 'ai';
+import type { UIMessage } from 'ai';
 
 import { workflowchatReplyWorkflow } from '@/app/workflows/workflowchat';
 import { loadAgentConfig } from '@/lib/workflowchat/agent-loader';
-import { createTools, initTools } from '@/lib/infra/tools';
-import { createAgentSkillTools } from '@/lib/infra/skills';
 import type { AgentConfig, SkillConfig } from '@/lib/workflowchat/agent-loader';
 
 import {
@@ -22,6 +20,7 @@ import {
   updateWfChatConversation,
   deleteWfChatConversation,
   touchWfChatConversation,
+  claimChatActiveStreamId,
   compareAndSetActiveStreamId,
   createWfChatMessage,
   getWfChatMessagesByConversationId,
@@ -285,10 +284,6 @@ export async function sendMessage(
     );
   }
 
-  // 步骤 2：创建工具实例（关键步骤）
-  const tools = await createAgentTools(agentConfig, userId, conversationId);
-  console.log("[sendMessage] 工具创建成功，工具数量:", Object.keys(tools).length);
-
   // 使用传入的 modelId 或 Agent 配置中的 modelId
   const resolvedModelId = modelId ?? agentConfig.modelId ?? '';
   if (!resolvedModelId) {
@@ -361,7 +356,7 @@ export async function sendMessage(
     };
   });
 
-  // 构建完整的 workflow 输入参数（包含 Agent 配置）
+  // 构建完整的 workflow 输入参数（工具在 step 函数内部创建，避免 Zod schema 序列化问题）
   const workflowInput: WorkflowChatRunInput = {
     conversationId,
     runId,
@@ -370,19 +365,15 @@ export async function sendMessage(
     userId,
     modelId: resolvedModelId,
     messages: uiMessages,
-    // Agent 运行时配置
     maxSteps: agentConfig.maxSteps,
-    customInstructions: agentConfig.customInstructions,
-    // 工具集合（已创建的实例）
-    tools,
-    // Skill 配置
+    // 直接使用 agents.system_prompt 作为 instructions
+    instructions: agentConfig.systemPrompt,
     skills: agentConfig.skills,
   };
 
   console.log("[sendMessage] workflowInput 构建完成:", {
     maxSteps: workflowInput.maxSteps,
-    customInstructions: workflowInput.customInstructions ? '已设置' : '无',
-    toolsCount: Object.keys(workflowInput.tools ?? {}).length,
+    instructions: workflowInput.instructions ? '已设置' : '无',
     skillsCount: workflowInput.skills?.length ?? 0,
   });
   console.log("[sendMessage] workflowInput.messages 数量:", uiMessages.length);
@@ -446,60 +437,6 @@ export async function sendMessage(
     runDTO: runToDTO(updatedRun!),
     workflowRun,
   };
-}
-
-/**
- * 创建 Agent 工具集合
- * 将配置中的工具定义和 Skill 定义转换为实际可用的 Tool 实例
- *
- * @param agentConfig - Agent 配置
- * @param userId - 用户 ID
- * @param conversationId - 会话 ID
- * @returns 工具集合（ToolSet）
- */
-async function createAgentTools(
-  agentConfig: AgentConfig,
-  userId: string,
-  conversationId: string,
-): Promise<ToolSet> {
-  const tools: ToolSet = {};
-
-  // 1. 根据工具配置创建系统工具实例
-  if (agentConfig.tools.length > 0) {
-    const toolNames = agentConfig.tools.map((tool) => tool.name);
-
-    try {
-      // 按需初始化工具定义
-      initTools(toolNames);
-      // 创建工具实例
-      const result = await createTools(toolNames);
-      Object.assign(tools, result.tools);
-    } catch (error) {
-      console.error("[createAgentTools] 系统工具创建失败:", error);
-      // 系统工具创建失败不阻塞流程，继续使用空工具集
-    }
-  }
-
-  // 2. 根据 Skill 配置创建 Skill 工具实例
-  if (agentConfig.skills.length > 0) {
-    try {
-      const skillResult = await createAgentSkillTools(
-        agentConfig.id,
-        userId,
-        conversationId,
-      );
-      Object.assign(tools, skillResult.tools);
-      console.log("[createAgentTools] Skill 工具创建成功:", {
-        skillCount: agentConfig.skills.length,
-        toolCount: Object.keys(skillResult.tools).length,
-      });
-    } catch (error) {
-      console.error("[createAgentTools] Skill 工具创建失败:", error);
-      // Skill 工具创建失败不阻塞流程，继续使用已创建的系统工具
-    }
-  }
-
-  return tools;
 }
 
 /**

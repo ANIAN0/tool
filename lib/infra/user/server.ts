@@ -1,7 +1,7 @@
 /**
  * Server Component 认证工具
  * 从 cookie 读取 JWT token 并验证用户身份
- * 仅供 Server Component 和 middleware 使用
+ * 仅供 Server Component 和 proxy 使用
  */
 
 import { cookies } from "next/headers";
@@ -26,6 +26,8 @@ export interface ServerAuthResult {
 /**
  * Server Component 认证函数
  * 从 cookie 读取 JWT token 并验证用户身份
+ *
+ * 注意：token 自动刷新由 proxy 处理，此处仅验证 token 有效性
  *
  * @returns 认证结果，包含 userId 和 isAuthenticated
  *
@@ -85,7 +87,7 @@ export async function auth(): Promise<ServerAuthResult> {
 
 /**
  * 从 cookie 读取 refresh token
- * 用于 middleware 中尝试刷新访问令牌
+ * 用于 proxy 中尝试刷新访问令牌
  *
  * @returns refresh token 或 null
  */

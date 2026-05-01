@@ -17,7 +17,7 @@ import type {
   RuntimeResult,
 } from "./types";
 import type { AgentWithTools } from "@/lib/schemas";
-import { getSandboxToolsWithContext, loadSkillsToSandbox, isSandboxEnabled } from "@/lib/infra/sandbox";
+import { getSandboxToolsWithContext, loadSkillsToSandbox, isSandboxEnabled, type SandboxToolContext } from "@/lib/infra/sandbox";
 import { getAgentSkillsInfo, getAgentMcpRuntimeToolConfigs } from "@/lib/db/agents";
 import { getTemplateById, getTemplateDefaultConfig } from "@/lib/agents/templates";
 import { createAgentMcpRuntimeTools } from "@/lib/agents/mcp-runtime";
@@ -119,11 +119,12 @@ export async function createRuntime(
       systemPrompt = `${systemPrompt}\n\n${skillPresetPrompt}`;
     }
 
-    // 创建沙盒工具（绑定会话上下文）
-    const sandboxTools = getSandboxToolsWithContext({
+    // 创建沙盒工具（使用闭包绑定上下文，在创建时注入 conversationId 和 userId）
+    const sandboxContext: SandboxToolContext = {
       conversationId,
       userId,
-    });
+    };
+    const sandboxTools = isSandboxEnabled() ? getSandboxToolsWithContext(sandboxContext) : {};
 
     // 初始化运行时工具集合，默认仅包含系统工具（sandbox）
     let runtimeTools: ToolSet = sandboxTools;
@@ -190,6 +191,8 @@ export async function createRuntime(
  * @param history - 历史消息列表
  * @param message - 当前用户消息
  * @param agent - Agent配置（用于解析模板停止条件）
+ * @param experimentalContext - 传递给工具 execute 函数的 experimental_context
+ * @param abortSignal - 用于取消流式响应的 AbortSignal
  * @returns Agent 流执行结果
  */
 export async function executeAgent(
@@ -198,7 +201,9 @@ export async function executeAgent(
   tools: ToolSet,
   history: UIMessage[],
   message: UIMessage,
-  agent: AgentWithTools
+  agent: AgentWithTools,
+  experimentalContext?: unknown,
+  abortSignal?: AbortSignal
 ): Promise<StreamTextResult<ToolSet, never>> {
   // 合并历史消息和当前新消息
   const messagesForLLM = [...history, message];
@@ -213,9 +218,12 @@ export async function executeAgent(
     model: wrappedModel,
     instructions: systemPrompt,
     tools,
-    stopWhen, // 使用模板配置的停止条件
+    stopWhen,
   });
-  // 执行流式响应
-  const result = await agentInstance.stream({ messages: modelMessages });
+  // 执行流式响应，传递 abortSignal 支持取消
+  const result = await agentInstance.stream({
+    messages: modelMessages,
+    abortSignal,
+  });
   return result;
 }

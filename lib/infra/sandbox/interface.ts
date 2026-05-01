@@ -55,25 +55,16 @@ export interface SandboxSessionInterface {
 }
 
 /**
- * 工具执行上下文
- * 包含执行沙盒工具所需的会话信息
- */
-export interface SandboxToolContext {
-  conversationId: string;
-  userId: string;
-}
-
-/**
  * 沙盒工具提供者接口
  * 定义创建沙盒工具的方法，便于不同实现提供不同的工具集
  */
 export interface SandboxToolProviderInterface {
   /**
-   * 获取沙盒工具集（带上下文绑定）
-   * @param context 工具执行上下文
+   * 获取沙盒工具集（无参数版本）
+   * execute 函数通过 experimental_context 获取沙盒实例
    * @returns AI SDK ToolSet 对象
    */
-  getToolsWithContext(context: SandboxToolContext): ToolSet;
+  getTools(): ToolSet;
 
   /**
    * 检查沙盒是否可用
