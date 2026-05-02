@@ -16,7 +16,8 @@ class TestSession:
         session = Session(
             id="session-123",
             user_id="user-456",
-            user_dir="/var/lib/sandbox/users/abc123"
+            user_dir="/var/lib/sandbox/users/abc123/def456",
+            workspace_dir="/var/lib/sandbox/users/abc123/def456/workspace"
         )
         assert session.id == "session-123"
         assert session.user_id == "user-456"
@@ -28,7 +29,8 @@ class TestSession:
         session = Session(
             id="session-123",
             user_id="user-456",
-            user_dir="/var/lib/sandbox/users/abc123",
+            user_dir="/var/lib/sandbox/users/abc123/def456",
+            workspace_dir="/var/lib/sandbox/users/abc123/def456/workspace",
             created_at=now,
             last_activity=now
         )
@@ -92,9 +94,40 @@ class TestSessionManagerGetOrCreate:
         user_dir = os.path.join(temp_data_root, user_hash)
         assert os.path.isdir(user_dir)
 
-        # 检查 workspace 目录存在
-        workspace_dir = os.path.join(user_dir, "workspace")
+        # 检查会话级 workspace 目录存在
+        session_hash = session_manager._hash_session_id("session-1")
+        workspace_dir = os.path.join(user_dir, session_hash, "workspace")
         assert os.path.isdir(workspace_dir)
+        assert session.workspace_dir == workspace_dir
+
+    def test_sessions_have_isolated_workspaces(self, session_manager):
+        """测试同一用户的不同会话使用不同 workspace"""
+        session1 = session_manager.get_or_create("session-1", "user-123")
+        session2 = session_manager.get_or_create("session-2", "user-123")
+
+        assert session1.workspace_dir != session2.workspace_dir
+        assert os.path.isdir(session1.workspace_dir)
+        assert os.path.isdir(session2.workspace_dir)
+
+    def test_register_skill_mounts(self, session_manager):
+        """测试 Skill 注册为只读挂载源，而不是复制到 workspace"""
+        session = session_manager.get_or_create("session-1", "user-123")
+        mounted = session_manager.register_skill_mounts(
+            "session-1",
+            "user-123",
+            [
+                {
+                    "id": "skill-1",
+                    "fileHash": "abc123",
+                    "files": [{"path": "SKILL.md", "content": "# Skill"}],
+                }
+            ],
+        )
+
+        assert mounted == ["skill-1"]
+        assert "skill-1" in session.skill_mounts
+        assert os.path.isfile(os.path.join(session.skill_mounts["skill-1"].host_dir, "SKILL.md"))
+        assert not os.path.isfile(os.path.join(session.workspace_dir, "skills", "skill-1", "SKILL.md"))
 
     def test_session_ownership_validation(self, session_manager):
         """测试会话归属验证"""

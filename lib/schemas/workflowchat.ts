@@ -175,6 +175,9 @@ export interface WorkflowChatConversation {
   last_message_at: number;
   created_at: number;
   updated_at: number;
+  total_input_tokens: number;
+  total_output_tokens: number;
+  total_tokens: number;
 }
 
 /**
@@ -256,4 +259,13 @@ export const MIGRATION_WORKFLOWCHAT_ADD_STEP_TOKEN_FIELDS = `
 ALTER TABLE workflowchat_run_steps ADD COLUMN prompt_tokens INTEGER DEFAULT 0;
 ALTER TABLE workflowchat_run_steps ADD COLUMN completion_tokens INTEGER DEFAULT 0;
 ALTER TABLE workflowchat_run_steps ADD COLUMN total_tokens INTEGER DEFAULT 0;
+`;
+
+/**
+ * 迁移：为 workflowchat_conversations 表添加 token 累计字段
+ */
+export const MIGRATION_WORKFLOWCHAT_ADD_CONVERSATION_TOKEN_FIELDS = `
+ALTER TABLE workflowchat_conversations ADD COLUMN total_input_tokens INTEGER DEFAULT 0;
+ALTER TABLE workflowchat_conversations ADD COLUMN total_output_tokens INTEGER DEFAULT 0;
+ALTER TABLE workflowchat_conversations ADD COLUMN total_tokens INTEGER DEFAULT 0;
 `;

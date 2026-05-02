@@ -1,34 +1,54 @@
 /**
- * WorkflowChat 聊天详情页 - Server Component
- * 在服务器端验证用户身份，未登录则重定向到登录页
+ * WorkflowChat 会话详情页
+ * 路由 /workflowchat/[id]
+ * Server Component: 验证登录 + 验证会话权限
+ * Client Component: WorkflowChatClient（详情）
  */
 
 import { redirect } from "next/navigation";
 import { auth } from "@/lib/infra/user/server";
-import { WorkflowChatClient } from "../_components/workflow-chat-client";
+import { getConversationDetail } from "@/lib/workflowchat/service";
+import { WorkflowChatClient } from "@/components/workflow-chat/workflow-chat-client";
 
-/** 路由参数类型 */
 interface RouteParams {
   params: Promise<{ id: string }>;
 }
 
+// 权限验证错误提示组件
+function ErrorDisplay({ message }: { message: string }) {
+  return (
+    <div className="flex h-screen items-center justify-center">
+      <div className="text-center">
+        <p className="text-lg text-muted-foreground">{message}</p>
+      </div>
+    </div>
+  );
+}
+
 /**
- * WorkflowChat 聊天详情页
- * Server Component: 验证登录状态
- * Client Component: 实际的聊天交互逻辑
+ * 会话详情页
+ * - Server Component: 验证登录状态，验证会话权限
+ * - Client Component: 渲染聊天客户端
  */
-export default async function WorkflowChatPage({ params }: RouteParams) {
-  // Server Component 登录检查
+export default async function WorkflowChatDetailPage({ params }: RouteParams) {
   const user = await auth();
 
-  // 未登录则重定向到登录页
   if (!user.userId) {
     redirect("/login");
   }
 
-  // 解析路由参数
-  const { id: conversationId } = await params;
+  const { id } = await params;
 
-  // 已登录，渲染客户端组件并传入 userId 和 conversationId
-  return <WorkflowChatClient userId={user.userId} conversationId={conversationId} />;
+  // 验证会话是否存在 (T-6)
+  const conversationDetail = await getConversationDetail(id);
+  if (!conversationDetail) {
+    return <ErrorDisplay message="会话不存在" />;
+  }
+
+  // 验证用户是否有权限访问该会话 (T-5)
+  if (conversationDetail.conversation.userId !== user.userId) {
+    return <ErrorDisplay message="无权访问" />;
+  }
+
+  return <WorkflowChatClient id={id} key={id} />;
 }

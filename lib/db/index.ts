@@ -277,6 +277,18 @@ export async function migrateDatabase(): Promise<void> {
     }
   }
 
+  // 迁移：为 agents 表添加 enabled_system_tools 字段
+  try {
+    await db.execute(`ALTER TABLE agents ADD COLUMN enabled_system_tools TEXT`);
+    console.log("数据库迁移成功：已添加 agents.enabled_system_tools 字段");
+  } catch (error) {
+    if (String(error).includes("duplicate column")) {
+      console.log("agents.enabled_system_tools 字段已存在，跳过迁移");
+    } else {
+      console.error("添加 agents.enabled_system_tools 字段失败:", error);
+    }
+  }
+
   // 迁移12：添加source字段
   try {
     await db.execute(MIGRATION_ADD_SOURCE);

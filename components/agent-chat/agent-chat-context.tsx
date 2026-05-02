@@ -52,6 +52,8 @@ interface AgentChatState {
   lastAssistantMetadata: MessageMetadata | undefined;
   // 侧边栏开关状态
   sidebarOpen: boolean;
+  // useChat 错误状态（用于 UI 显示错误提示）
+  error: Error | undefined;
 }
 
 /**
@@ -89,6 +91,8 @@ interface AgentChatActions {
   setSidebarOpen: (open: boolean) => void;
   // 设置选中的 Agent ID
   setSelectedAgentId: (agentId: string) => void;
+  // 重试发送消息（用于 401 等错误后手动重试）
+  reload: () => void;
 }
 
 /**
@@ -307,6 +311,8 @@ export function AgentChatProvider({ conversationId, children }: AgentChatProvide
     status,
     stop,
     setMessages,
+    error,
+    reload,
   } = useChat({
     transport,
     id: conversationId,
@@ -323,6 +329,10 @@ export function AgentChatProvider({ conversationId, children }: AgentChatProvide
         hasUpdatedUrl.current = true;
         window.history.pushState({}, "", `/agent-chat/${conversationId}`);
       }
+    },
+    // 错误处理：记录错误日志，UI 层显示错误提示和 Retry 按钮
+    onError: (error) => {
+      console.error("[agent-chat] 发送消息失败:", error);
     },
   });
 
@@ -669,6 +679,7 @@ export function AgentChatProvider({ conversationId, children }: AgentChatProvide
     checkpointInfo,
     lastAssistantMetadata,
     sidebarOpen,
+    error,
   };
 
   // 构建 actions 层：操作函数
@@ -688,6 +699,7 @@ export function AgentChatProvider({ conversationId, children }: AgentChatProvide
     stop,
     setSidebarOpen,
     setSelectedAgentId,
+    reload,
   };
 
   // 构建 meta 层：元数据状态

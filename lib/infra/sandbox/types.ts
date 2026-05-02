@@ -45,6 +45,23 @@ export interface WriteFileParams {
   content: string;
 }
 
+// Skill 文件挂载参数
+export interface SkillMountFile {
+  path: string;
+  content: string;
+}
+
+// 会话级 Skill 挂载参数
+export interface SkillMountParams {
+  sessionId: string;
+  userId: string;
+  skills: Array<{
+    id: string;
+    fileHash: string | null;
+    files: SkillMountFile[];
+  }>;
+}
+
 // Gateway API响应
 export interface GatewayResponse<T = unknown> {
   success: boolean;

@@ -49,11 +49,10 @@ class TestNsjailSandboxBuildCommand:
     def test_bash_command(self, sandbox):
         """测试 bash 命令构建"""
         cmd = sandbox._build_command(
-            script_path="/workspace/test.sh",
-            workdir="/workspace",
+            script_name="test.sh",
             language="bash",
             timeout=60,
-            user_hash="abc123"
+            workspace_dir="/var/lib/sandbox/users/userhash/sessionhash/workspace"
         )
 
         assert sandbox.nsjail_path in cmd
@@ -61,18 +60,17 @@ class TestNsjailSandboxBuildCommand:
         assert sandbox.config_path in cmd
         assert "--time_limit" in cmd
         assert "60" in cmd
-        assert "--bindmount" in cmd
+        assert "-B" in cmd
         assert "/bin/bash" in cmd
         assert "/workspace/test.sh" in cmd
 
     def test_python_command(self, sandbox):
         """测试 python 命令构建"""
         cmd = sandbox._build_command(
-            script_path="/workspace/test.py",
-            workdir="/workspace",
+            script_name="test.py",
             language="python",
             timeout=30,
-            user_hash="abc123"
+            workspace_dir="/var/lib/sandbox/users/userhash/sessionhash/workspace"
         )
 
         assert "/usr/bin/python3" in cmd
@@ -81,11 +79,10 @@ class TestNsjailSandboxBuildCommand:
     def test_node_command(self, sandbox):
         """测试 node 命令构建"""
         cmd = sandbox._build_command(
-            script_path="/workspace/test.js",
-            workdir="/workspace",
+            script_name="test.js",
             language="node",
             timeout=60,
-            user_hash="abc123"
+            workspace_dir="/var/lib/sandbox/users/userhash/sessionhash/workspace"
         )
 
         assert "/usr/bin/node" in cmd
@@ -95,28 +92,44 @@ class TestNsjailSandboxBuildCommand:
         """测试不支持的语言"""
         with pytest.raises(ValueError, match="Unsupported language"):
             sandbox._build_command(
-                script_path="/workspace/test.xyz",
-                workdir="/workspace",
+                script_name="test.xyz",
                 language="ruby",
                 timeout=60,
-                user_hash="abc123"
+                workspace_dir="/var/lib/sandbox/users/userhash/sessionhash/workspace"
             )
 
-    def test_bindmount_includes_user_hash(self, sandbox):
-        """测试 bindmount 包含用户哈希"""
+    def test_bindmount_includes_session_workspace(self, sandbox):
+        """测试 bindmount 使用会话级 workspace"""
         cmd = sandbox._build_command(
-            script_path="/workspace/test.sh",
-            workdir="/workspace",
+            script_name="test.sh",
             language="bash",
             timeout=60,
-            user_hash="userhash123"
+            workspace_dir="/var/lib/sandbox/users/userhash/sessionhash/workspace"
         )
 
-        # 检查 bindmount 参数包含正确的用户哈希
-        bindmount_idx = cmd.index("--bindmount")
+        # bind mount 必须指向会话级 workspace，避免同用户不同会话共享文件。
+        bindmount_idx = cmd.index("-B")
         bindmount_value = cmd[bindmount_idx + 1]
-        assert "userhash123" in bindmount_value
-        assert "/workspace:rw" in bindmount_value
+        assert "userhash" in bindmount_value
+        assert "sessionhash" in bindmount_value
+        assert bindmount_value.endswith(":/workspace")
+
+    def test_skill_mounts_are_read_only(self, sandbox):
+        """测试 Skill 使用只读挂载参数"""
+        class Mount:
+            host_dir = "/var/lib/sandbox/users/_skills/skill-1-abc"
+            jail_dir = "/workspace/skills/skill-1"
+
+        cmd = sandbox._build_command(
+            script_name="test.sh",
+            language="bash",
+            timeout=60,
+            workspace_dir="/var/lib/sandbox/users/userhash/sessionhash/workspace",
+            skill_mounts={"skill-1": Mount()},
+        )
+
+        readonly_idx = cmd.index("-R")
+        assert cmd[readonly_idx + 1] == "/var/lib/sandbox/users/_skills/skill-1-abc:/workspace/skills/skill-1"
 
 
 class TestNsjailSandboxExec:
@@ -127,7 +140,7 @@ class TestNsjailSandboxExec:
         """测试脚本文件创建"""
         # 创建用户工作目录
         user_hash = hash_user_id("user-123")
-        workspace = os.path.join(temp_data_root, user_hash, "workspace")
+        workspace = os.path.join(temp_data_root, user_hash, "sessionhash", "workspace")
         os.makedirs(workspace, exist_ok=True)
 
         # 检查工作目录为空

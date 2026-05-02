@@ -19,6 +19,31 @@ class ExecRequest(BaseModel):
     language: str = "bash"
 
 
+class SkillFile(BaseModel):
+    """Skill 文件内容"""
+    path: str
+    content: str
+
+
+class SkillMount(BaseModel):
+    """会话级 Skill 挂载配置"""
+    id: str
+    fileHash: Optional[str] = None
+    files: list[SkillFile]
+
+
+class SkillMountRequest(BaseModel):
+    """注册 Skill 挂载请求"""
+    userId: str
+    skills: list[SkillMount]
+
+
+class SkillMountResponse(BaseModel):
+    """注册 Skill 挂载响应"""
+    success: bool = True
+    mountedSkills: list[str]
+
+
 class ExecResponse(BaseModel):
     """执行响应"""
     success: bool = True

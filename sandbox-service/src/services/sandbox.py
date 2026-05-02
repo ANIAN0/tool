@@ -63,7 +63,8 @@ class NsjailSandbox:
         script_name: str,
         language: str,
         timeout: int,
-        user_hash: str
+        workspace_dir: str,
+        skill_mounts: Optional[dict] = None
     ) -> list:
         """
         构建 nsjail 命令
@@ -72,7 +73,8 @@ class NsjailSandbox:
             script_name: 脚本文件名（不含路径）
             language: 语言类型
             timeout: 超时秒数
-            user_hash: 用户哈希（用于动态挂载）
+            workspace_dir: 会话级工作空间目录
+            skill_mounts: 会话级 Skill 只读挂载表
 
         Returns:
             nsjail 命令参数列表
@@ -81,9 +83,13 @@ class NsjailSandbox:
             self.nsjail_path,
             "--config", self.config_path,
             "--time_limit", str(timeout),
-            # 动态绑定用户工作空间（读写模式）
-            "-B", f"/var/lib/sandbox/users/{user_hash}/workspace:/workspace",
+            # workspace 按会话隔离，避免同一用户不同对话互相污染文件。
+            "-B", f"{workspace_dir}:/workspace",
         ]
+
+        # Skill 以只读 bind mount 注入，避免把 Skill 文件复制到会话 workspace。
+        for mount in (skill_mounts or {}).values():
+            cmd.extend(["-R", f"{mount.host_dir}:{mount.jail_dir}"])
 
         # 沙盒内路径：工作区已通过 -B 挂载为 /workspace，禁止传宿主机绝对路径（否则报 No such file）
         jail_script = f"/workspace/{script_name}"
@@ -105,7 +111,7 @@ class NsjailSandbox:
         code: str,
         language: str,
         workdir: str,
-        user_hash: str,
+        skill_mounts: Optional[dict] = None,
         timeout: int = 60,
         memory_limit: int = 100 * 1024 * 1024  # 100MB
     ) -> dict:
@@ -116,7 +122,7 @@ class NsjailSandbox:
             code: 要执行的代码
             language: 语言 (bash/python/node)
             workdir: 工作目录
-            user_hash: 用户哈希（用于动态挂载）
+            skill_mounts: 会话级 Skill 只读挂载表
             timeout: 超时秒数
             memory_limit: 内存限制字节
 
@@ -145,7 +151,8 @@ class NsjailSandbox:
                 script_name=script_basename,
                 language=language,
                 timeout=timeout,
-                user_hash=user_hash
+                workspace_dir=workdir,
+                skill_mounts=skill_mounts,
             )
 
             # 执行

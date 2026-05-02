@@ -22,6 +22,9 @@ function rowToWfChatConversation(row: Record<string, unknown>): WorkflowChatConv
     last_message_at: row.last_message_at as number,
     created_at: row.created_at as number,
     updated_at: row.updated_at as number,
+    total_input_tokens: (row.total_input_tokens as number) ?? 0,
+    total_output_tokens: (row.total_output_tokens as number) ?? 0,
+    total_tokens: (row.total_tokens as number) ?? 0,
   };
 }
 
@@ -137,7 +140,13 @@ export async function getAllWfChatConversations(): Promise<WorkflowChatConversat
 
 export async function updateWfChatConversation(
   id: string,
-  data: { title?: string; status?: WorkflowChatConversationStatus }
+  data: { 
+    title?: string; 
+    status?: WorkflowChatConversationStatus;
+    totalInputTokens?: number;
+    totalOutputTokens?: number;
+    totalTokens?: number;
+  }
 ): Promise<WorkflowChatConversation | null> {
   const db = getDb();
   const now = Date.now();
@@ -152,12 +161,57 @@ export async function updateWfChatConversation(
     updates.push('status = ?');
     args.push(data.status);
   }
+  if (data.totalInputTokens !== undefined) {
+    updates.push('total_input_tokens = ?');
+    args.push(data.totalInputTokens);
+  }
+  if (data.totalOutputTokens !== undefined) {
+    updates.push('total_output_tokens = ?');
+    args.push(data.totalOutputTokens);
+  }
+  if (data.totalTokens !== undefined) {
+    updates.push('total_tokens = ?');
+    args.push(data.totalTokens);
+  }
 
   args.push(id);
 
   const result = await db.execute({
     sql: `UPDATE workflowchat_conversations SET ${updates.join(', ')} WHERE id = ?`,
     args,
+  });
+
+  if (result.rowsAffected === 0) return null;
+  return getWfChatConversation(id);
+}
+
+/**
+ * 累计更新会话的 token 统计
+ * 在 run 完成后调用，将本次 token 累加到会话的累计 token 中
+ */
+export async function updateWfChatConversationTokens(
+  id: string,
+  inputTokens: number,
+  outputTokens: number
+): Promise<WorkflowChatConversation | null> {
+  const db = getDb();
+  const now = Date.now();
+  
+  // 获取当前累计值
+  const conversation = await getWfChatConversation(id);
+  if (!conversation) {
+    return null;
+  }
+
+  const newTotalInputTokens = conversation.total_input_tokens + inputTokens;
+  const newTotalOutputTokens = conversation.total_output_tokens + outputTokens;
+  const newTotalTokens = newTotalInputTokens + newTotalOutputTokens;
+
+  const result = await db.execute({
+    sql: `UPDATE workflowchat_conversations 
+          SET total_input_tokens = ?, total_output_tokens = ?, total_tokens = ?, updated_at = ?
+          WHERE id = ?`,
+    args: [newTotalInputTokens, newTotalOutputTokens, newTotalTokens, now, id],
   });
 
   if (result.rowsAffected === 0) return null;
@@ -319,6 +373,32 @@ export async function deleteWfChatMessagesByConversationId(conversationId: strin
     sql: 'DELETE FROM workflowchat_messages WHERE conversation_id = ?',
     args: [conversationId],
   });
+  return result.rowsAffected;
+}
+
+/**
+ * 级联删除：从指定消息开始（包括该消息）删除该会话的所有后续消息
+ * 用于消息编辑场景：删除指定消息及其后续消息
+ */
+export async function deleteWfChatMessagesFromId(
+  conversationId: string,
+  messageId: string,
+): Promise<number> {
+  const db = getDb();
+
+  // 获取目标消息的创建时间戳
+  const targetMsg = await getWfChatMessage(messageId);
+  if (!targetMsg) {
+    return 0;
+  }
+
+  // 删除该会话中 created_at >= target_created_at 的所有消息
+  const result = await db.execute({
+    sql: `DELETE FROM workflowchat_messages 
+          WHERE conversation_id = ? AND created_at >= ?`,
+    args: [conversationId, targetMsg.created_at],
+  });
+
   return result.rowsAffected;
 }
 

@@ -4,7 +4,7 @@
  */
 
 import { useState, useCallback, useEffect, useMemo } from "react";
-import { useAuth } from "./use-auth";
+import { authenticatedFetch } from "@/lib/utils/authenticated-fetch";
 import type { Tool } from "@/lib/schemas";
 
 // API响应类型
@@ -35,7 +35,6 @@ export interface ToolFilter {
  * 提供获取工具列表、筛选等功能
  */
 export function useTools() {
-  const { getAuthHeader } = useAuth();
   const [tools, setTools] = useState<Tool[]>([]);
   const [stats, setStats] = useState<ToolsResponse["stats"] | null>(null);
   const [isLoading, setIsLoading] = useState(false);
@@ -49,11 +48,7 @@ export function useTools() {
     setError(null);
 
     try {
-      const response = await fetch("/api/tools", {
-        headers: {
-          ...getAuthHeader(),
-        },
-      });
+      const response = await authenticatedFetch("/api/tools");
 
       if (!response.ok) {
         const data = await response.json();
@@ -68,7 +63,7 @@ export function useTools() {
     } finally {
       setIsLoading(false);
     }
-  }, [getAuthHeader]);
+  }, []);
 
   // 组件挂载时自动获取列表
   useEffect(() => {
@@ -154,7 +149,6 @@ export function useToolFiltering(tools: Tool[], filter: ToolFilter) {
  * @param serverId - MCP服务器ID
  */
 export function useMcpServerTools(serverId: string | null) {
-  const { getAuthHeader } = useAuth();
   const [tools, setTools] = useState<Array<{
     id: string;
     name: string;
@@ -172,11 +166,7 @@ export function useMcpServerTools(serverId: string | null) {
     setError(null);
 
     try {
-      const response = await fetch(`/api/mcp/${serverId}/tools`, {
-        headers: {
-          ...getAuthHeader(),
-        },
-      });
+      const response = await authenticatedFetch(`/api/mcp/${serverId}/tools`);
 
       if (!response.ok) {
         const data = await response.json();
@@ -205,7 +195,7 @@ export function useMcpServerTools(serverId: string | null) {
     } finally {
       setIsLoading(false);
     }
-  }, [serverId, getAuthHeader]);
+  }, [serverId]);
 
   useEffect(() => {
     fetchTools();

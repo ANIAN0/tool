@@ -1,6 +1,6 @@
 /**
  * Skill 运行时加载器
- * 在对话开始时将 Skill 文件加载到沙盒工作区
+ * 在对话开始时将 Skill 注册为沙盒会话的只读挂载
  */
 
 import { getAgentSkillsInfo } from "@/lib/db/agents";
@@ -23,18 +23,17 @@ export interface SkillLoadInfo {
  */
 export interface LoadSkillsResult {
   success: boolean;
-  loadedSkills: string[];    // 成功加载的 skillId 列表
-  skippedSkills: string[];   // 跳过的 skillId 列表（已是最新）
+  loadedSkills: string[];
+  skippedSkills: string[];
   errors: Array<{ skillId: string; error: string }>;
-  presetPrompt: string;      // 生成的预置提示词
+  presetPrompt: string;
 }
 
 /**
  * 获取 Agent 配置的 Skill 信息
- * 包含 fileHash 用于版本检测
+ * 包含 fileHash 用于服务端缓存版本隔离
  */
 export async function getAgentSkillInfos(agentId: string): Promise<SkillLoadInfo[]> {
-  // 获取 Agent 关联的 Skills（包含 fileHash）
   const skills = await getAgentSkillsInfo(agentId);
 
   return skills.map((skill) => ({
@@ -42,69 +41,29 @@ export async function getAgentSkillInfos(agentId: string): Promise<SkillLoadInfo
     name: skill.name,
     description: skill.description,
     storagePath: skill.storagePath,
-    // fileHash 来自数据库，用于检测 Skill 文件版本变化
     fileHash: skill.fileHash,
   }));
 }
 
 /**
- * 检查沙盒中的 Skill 是否存在
- * 简化版本检测：只要目录存在且有文件就跳过下载
- * 注意：fileHash 用于未来可能的精确版本检测
- */
-async function isSkillUpToDate(
-  sessionId: string,
-  userId: string,
-  skillId: string,
-  expectedHash: string | null
-): Promise<boolean> {
-  try {
-    const sandbox = getSandboxManager();
-
-    // 使用 test 命令检查目录是否存在且有文件
-    // 注意：nsjail rootfs 中没有 head 命令，/dev/null 是只读的
-    // 所以使用 test -d 检查目录，test -f 检查关键文件
-    const result = await sandbox.exec({
-      sessionId,
-      userId,
-      // 使用 test 命令检查关键文件 SKILL.md 是否存在
-      code: `test -d skills/${skillId} && test -f skills/${skillId}/SKILL.md && echo "exists"`,
-      language: "bash",
-    });
-
-    // 如果输出包含 "exists"，认为 Skill 已加载
-    return result.stdout.trim() === "exists";
-  } catch (error) {
-    console.error(`[Skill Loader] 检查 Skill ${skillId} 是否存在时发生异常:`, error);
-    return false;
-  }
-}
-
-/**
- * 将 Skill 目录下载并写入沙盒
+ * 下载 Skill 目录，用于提交给 sandbox-service 做只读挂载
  * storagePath 格式: skills/{userId}/{skillName}
  */
-async function downloadSkillDirectoryToSandbox(
-  sessionId: string,
-  userId: string,
+async function downloadSkillDirectoryForMount(
   skill: SkillLoadInfo
-): Promise<{ success: boolean; error?: string }> {
+): Promise<{ success: boolean; files?: Array<{ path: string; content: string }>; error?: string }> {
   try {
-    // 检查存储路径是否存在
     if (!skill.storagePath) {
       return { success: false, error: "Skill 存储路径不存在" };
     }
 
-    // 从 storagePath 提取 userId 和 skillName
-    // storagePath 格式: skills/{userId}/{skillName}
-    const pathParts = skill.storagePath.split('/');
+    const pathParts = skill.storagePath.split("/");
     if (pathParts.length < 3) {
       return { success: false, error: "Skill 存储路径格式无效" };
     }
+
     const storageUserId = pathParts[1];
     const skillName = pathParts[2];
-
-    // 使用 downloadSkillDirectory 下载整个目录
     const downloadResult = await downloadSkillDirectory(storageUserId, skillName);
 
     if (!downloadResult.success || !downloadResult.files) {
@@ -115,42 +74,12 @@ async function downloadSkillDirectoryToSandbox(
       return { success: false, error: "Skill 目录为空" };
     }
 
-    const sandbox = getSandboxManager();
-
-    // 创建 Skill 目录结构（包含子目录）
-    // 使用 -m 777 设置权限，确保后续 writeFile 可写入
-    // 注意：沙盒内进程以 nobody(65534) 身份运行，创建的目录需要 777 权限
-    // 这样宿主机上的 sandbox-service 才能修改这些目录
-    await sandbox.exec({
-      sessionId,
-      userId,
-      code: `mkdir -p -m 777 skills/${skill.id}`,
-      language: "bash",
-    });
-
-    // 遍历所有文件并写入沙盒
-    for (const file of downloadResult.files) {
-      const filePath = `skills/${skill.id}/${file.path}`;
-
-      try {
-        await sandbox.writeFile({
-          sessionId,
-          userId,
-          relativePath: filePath,
-          content: file.content,
-        });
-      } catch (writeError) {
-        console.error(`[Skill Loader] 文件写入失败: ${filePath}`, writeError);
-        return { success: false, error: `写入文件失败: ${file.path} - ${writeError instanceof Error ? writeError.message : String(writeError)}` };
-      }
-    }
-
-    return { success: true };
+    return { success: true, files: downloadResult.files };
   } catch (error) {
-    console.error(`[Skill Loader] 写入沙盒异常:`, error);
+    console.error("[Skill Loader] 下载 Skill 异常:", error);
     return {
       success: false,
-      error: error instanceof Error ? error.message : "写入沙盒失败",
+      error: error instanceof Error ? error.message : "下载 Skill 失败",
     };
   }
 }
@@ -206,33 +135,27 @@ export async function loadSkillsToSandbox(
   };
 
   try {
-    // 获取 Agent 配置的 Skills
     const skills = await getAgentSkillInfos(agentId);
 
     if (skills.length === 0) {
       return result;
     }
 
-    // 逐个加载 Skill
+    const skillsToMount: Array<{
+      id: string;
+      fileHash: string | null;
+      files: Array<{ path: string; content: string }>;
+    }> = [];
+
     for (const skill of skills) {
-      // 检查是否已是最新
-      const isUpToDate = await isSkillUpToDate(
-        sessionId,
-        userId,
-        skill.id,
-        skill.fileHash
-      );
+      const downloadResult = await downloadSkillDirectoryForMount(skill);
 
-      if (isUpToDate) {
-        result.skippedSkills.push(skill.id);
-        continue;
-      }
-
-      // 下载目录并写入沙盒
-      const downloadResult = await downloadSkillDirectoryToSandbox(sessionId, userId, skill);
-
-      if (downloadResult.success) {
-        result.loadedSkills.push(skill.id);
+      if (downloadResult.success && downloadResult.files) {
+        skillsToMount.push({
+          id: skill.id,
+          fileHash: skill.fileHash,
+          files: downloadResult.files,
+        });
       } else {
         result.errors.push({
           skillId: skill.id,
@@ -241,14 +164,22 @@ export async function loadSkillsToSandbox(
       }
     }
 
-    // 生成预置提示词（包含成功加载和跳过的 Skill）
+    if (skillsToMount.length > 0) {
+      const sandbox = getSandboxManager();
+      const mountedSkills = await sandbox.mountSkills({
+        sessionId,
+        userId,
+        skills: skillsToMount,
+      });
+      result.loadedSkills.push(...mountedSkills);
+    }
+
     const availableSkills = skills.filter(
-      (s) =>
-        result.loadedSkills.includes(s.id) || result.skippedSkills.includes(s.id)
+      (skill) =>
+        result.loadedSkills.includes(skill.id) || result.skippedSkills.includes(skill.id)
     );
     result.presetPrompt = generatePresetPrompt(availableSkills);
 
-    // 如果所有 Skill 都加载失败，标记为失败
     if (result.errors.length === skills.length) {
       result.success = false;
     }

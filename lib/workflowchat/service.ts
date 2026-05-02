@@ -29,6 +29,7 @@ import {
   getWfChatRunByWorkflowRunId,
   getWfChatRunsByConversationId,
   updateWfChatRun,
+  updateWfChatConversationTokens,
 } from './repository';
 import {
   WORKFLOWCHAT_REPLY_WORKFLOW_NAME,
@@ -68,6 +69,9 @@ function conversationToDTO(conv: WorkflowChatConversation): ConversationDTO {
     lastMessageAt: conv.last_message_at,
     createdAt: conv.created_at,
     updatedAt: conv.updated_at,
+    totalInputTokens: conv.total_input_tokens,
+    totalOutputTokens: conv.total_output_tokens,
+    totalTokens: conv.total_tokens,
   };
 }
 
@@ -617,5 +621,20 @@ export async function getActiveStreamRun(
     await compareAndSetActiveStreamId(conversationId, activeStreamId, null);
     return null;
   }
+}
+
+// ==================== Token 累计 ====================
+
+/**
+ * 累计更新会话的 token 统计
+ * 在 workflow run 完成后（post-finish 阶段）调用
+ * 将本次 token 累加到会话的累计 token 中
+ */
+export async function accumulateConversationTokens(
+  conversationId: string,
+  inputTokens: number,
+  outputTokens: number,
+): Promise<void> {
+  await updateWfChatConversationTokens(conversationId, inputTokens, outputTokens);
 }
 

@@ -49,8 +49,6 @@ next-env.d.ts
 
 public/uploads
 
-# 本地文档默认不提交；
-docs/
 
 .claude/
 
@@ -74,3 +72,5 @@ skillconfig.json
 
 /workplace
 .gitnexus
+
+/data

@@ -5,6 +5,7 @@
 
 import { useState, useEffect, useCallback } from "react";
 import { useAuth } from "./use-auth";
+import { authenticatedFetch } from "@/lib/utils/authenticated-fetch";
 
 // API 模型数据类型（与后端返回的数据一致）
 export interface ApiUserModel {
@@ -82,7 +83,7 @@ export interface UseUserModelsReturn {
  * ```
  */
 export function useUserModels(): UseUserModelsReturn {
-  const { isAuthenticated, user, getAuthHeader } = useAuth();
+  const { isAuthenticated, user } = useAuth();
 
   const [models, setModels] = useState<UserModel[]>([]);
   const [isLoading, setIsLoading] = useState(true);
@@ -94,11 +95,7 @@ export function useUserModels(): UseUserModelsReturn {
       setIsLoading(true);
       setError(null);
 
-      const response = await fetch("/api/user/models", {
-        headers: {
-          ...getAuthHeader(),
-        },
-      });
+      const response = await authenticatedFetch("/api/user/models");
       const data = await response.json();
 
       if (!response.ok || !data.success) {
@@ -112,7 +109,7 @@ export function useUserModels(): UseUserModelsReturn {
     } finally {
       setIsLoading(false);
     }
-  }, [getAuthHeader]);
+  }, []);
 
   // 初始加载
   useEffect(() => {
@@ -136,11 +133,10 @@ export function useUserModels(): UseUserModelsReturn {
           return false;
         }
 
-        const response = await fetch("/api/user/models", {
+        const response = await authenticatedFetch("/api/user/models", {
           method: "POST",
           headers: {
             "Content-Type": "application/json",
-            ...getAuthHeader(),
           },
           body: JSON.stringify(params),
         });
@@ -158,7 +154,7 @@ export function useUserModels(): UseUserModelsReturn {
         return false;
       }
     },
-    [isAuthenticated, user, fetchAuthModels, getAuthHeader]
+    [isAuthenticated, user, fetchAuthModels]
   );
 
   // 更新模型
@@ -172,11 +168,10 @@ export function useUserModels(): UseUserModelsReturn {
           return false;
         }
 
-        const response = await fetch(`/api/user/models/${id}`, {
+        const response = await authenticatedFetch(`/api/user/models/${id}`, {
           method: "PUT",
           headers: {
             "Content-Type": "application/json",
-            ...getAuthHeader(),
           },
           body: JSON.stringify(params),
         });
@@ -194,7 +189,7 @@ export function useUserModels(): UseUserModelsReturn {
         return false;
       }
     },
-    [isAuthenticated, fetchAuthModels, getAuthHeader]
+    [isAuthenticated, fetchAuthModels]
   );
 
   // 删除模型
@@ -208,11 +203,8 @@ export function useUserModels(): UseUserModelsReturn {
           return false;
         }
 
-        const response = await fetch(`/api/user/models/${id}`, {
+        const response = await authenticatedFetch(`/api/user/models/${id}`, {
           method: "DELETE",
-          headers: {
-            ...getAuthHeader(),
-          },
         });
 
         const data = await response.json();
@@ -228,7 +220,7 @@ export function useUserModels(): UseUserModelsReturn {
         return false;
       }
     },
-    [isAuthenticated, fetchAuthModels, getAuthHeader]
+    [isAuthenticated, fetchAuthModels]
   );
 
   // 设置默认模型
@@ -242,11 +234,8 @@ export function useUserModels(): UseUserModelsReturn {
           return false;
         }
 
-        const response = await fetch(`/api/user/models/${id}/default`, {
+        const response = await authenticatedFetch(`/api/user/models/${id}/default`, {
           method: "PATCH",
-          headers: {
-            ...getAuthHeader(),
-          },
         });
 
         const data = await response.json();
@@ -262,7 +251,7 @@ export function useUserModels(): UseUserModelsReturn {
         return false;
       }
     },
-    [isAuthenticated, fetchAuthModels, getAuthHeader]
+    [isAuthenticated, fetchAuthModels]
   );
 
   // 获取默认模型

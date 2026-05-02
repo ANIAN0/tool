@@ -4,7 +4,7 @@
  */
 
 import { useState, useCallback, useEffect, useRef } from "react";
-import { useAuth } from "./use-auth";
+import { authenticatedFetch } from "@/lib/utils/authenticated-fetch";
 import type { McpServer, CreateMcpServerParams, UpdateMcpServerParams, McpStatusResult } from "@/lib/schemas";
 
 // API响应类型
@@ -28,7 +28,6 @@ interface McpStatusResponse {
  * 提供获取服务器列表、创建、更新、删除等功能
  */
 export function useMcpServers() {
-  const { getAuthHeader } = useAuth();
   const [servers, setServers] = useState<McpServer[]>([]);
   const [isLoading, setIsLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -41,11 +40,7 @@ export function useMcpServers() {
     setError(null);
 
     try {
-      const response = await fetch("/api/mcp", {
-        headers: {
-          ...getAuthHeader(),
-        },
-      });
+      const response = await authenticatedFetch("/api/mcp");
 
       if (!response.ok) {
         const data = await response.json();
@@ -59,7 +54,7 @@ export function useMcpServers() {
     } finally {
       setIsLoading(false);
     }
-  }, [getAuthHeader]);
+  }, []);
 
   /**
    * 创建新的MCP服务器
@@ -69,11 +64,10 @@ export function useMcpServers() {
     setError(null);
 
     try {
-      const response = await fetch("/api/mcp", {
+      const response = await authenticatedFetch("/api/mcp", {
         method: "POST",
         headers: {
           "Content-Type": "application/json",
-          ...getAuthHeader(),
         },
         body: JSON.stringify(params),
       });
@@ -90,7 +84,7 @@ export function useMcpServers() {
       setError(err instanceof Error ? err.message : "未知错误");
       throw err;
     }
-  }, [getAuthHeader]);
+  }, []);
 
   /**
    * 更新MCP服务器
@@ -101,11 +95,10 @@ export function useMcpServers() {
     setError(null);
 
     try {
-      const response = await fetch(`/api/mcp/${id}`, {
+      const response = await authenticatedFetch(`/api/mcp/${id}`, {
         method: "PUT",
         headers: {
           "Content-Type": "application/json",
-          ...getAuthHeader(),
         },
         body: JSON.stringify(params),
       });
@@ -124,7 +117,7 @@ export function useMcpServers() {
       setError(err instanceof Error ? err.message : "未知错误");
       throw err;
     }
-  }, [getAuthHeader]);
+  }, []);
 
   /**
    * 删除MCP服务器
@@ -134,11 +127,8 @@ export function useMcpServers() {
     setError(null);
 
     try {
-      const response = await fetch(`/api/mcp/${id}`, {
+      const response = await authenticatedFetch(`/api/mcp/${id}`, {
         method: "DELETE",
-        headers: {
-          ...getAuthHeader(),
-        },
       });
 
       if (!response.ok) {
@@ -151,7 +141,7 @@ export function useMcpServers() {
       setError(err instanceof Error ? err.message : "未知错误");
       throw err;
     }
-  }, [getAuthHeader]);
+  }, []);
 
   /**
    * 更新单个服务器的状态（本地状态更新，不调用API）
@@ -195,7 +185,6 @@ export function useMcpServersPolling(
   servers: McpServer[],
   interval: number = 30000
 ) {
-  const { getAuthHeader } = useAuth();
   const [serverStatuses, setServerStatuses] = useState<Record<string, McpStatusResponse>>({});
   const [isPolling, setIsPolling] = useState(true);
   const pollingRef = useRef<NodeJS.Timeout | null>(null);
@@ -214,11 +203,7 @@ export function useMcpServersPolling(
    */
   const checkServerStatus = useCallback(async (serverId: string) => {
     try {
-      const response = await fetch(`/api/mcp/${serverId}/status`, {
-        headers: {
-          ...getAuthHeader(),
-        },
-      });
+      const response = await authenticatedFetch(`/api/mcp/${serverId}/status`);
 
       if (!response.ok) {
         const data = await response.json();
@@ -240,7 +225,7 @@ export function useMcpServersPolling(
         },
       }));
     }
-  }, [getAuthHeader]);
+  }, []);
 
   /**
    * 检查所有服务器状态
@@ -299,7 +284,6 @@ export function useMcpServersPolling(
  * @param serverId - 服务器ID
  */
 export function useMcpServer(serverId: string | null) {
-  const { getAuthHeader } = useAuth();
   const [server, setServer] = useState<McpServer | null>(null);
   const [isLoading, setIsLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -311,11 +295,7 @@ export function useMcpServer(serverId: string | null) {
     setError(null);
 
     try {
-      const response = await fetch(`/api/mcp/${serverId}`, {
-        headers: {
-          ...getAuthHeader(),
-        },
-      });
+      const response = await authenticatedFetch(`/api/mcp/${serverId}`);
 
       if (!response.ok) {
         const data = await response.json();
@@ -329,7 +309,7 @@ export function useMcpServer(serverId: string | null) {
     } finally {
       setIsLoading(false);
     }
-  }, [serverId, getAuthHeader]);
+  }, [serverId]);
 
   useEffect(() => {
     fetchServer();

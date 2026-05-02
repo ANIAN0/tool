@@ -172,6 +172,11 @@ npm run dev
 # 数据库（Turso）
 TURSO_DATABASE_URL=libsql://your-database.turso.io
 TURSO_AUTH_TOKEN=
+TURSO_DATABASE_MODE=cloud        # cloud 使用 Turso Cloud；local 使用本地 Turso 数据库
+TURSO_SYNC_DATABASE_PATH=data/turso-cloud.db
+TURSO_LOCAL_DATABASE_PATH=data/turso-local.db
+TURSO_LOCAL_SYNC_URL=            # 可选，本地 sync server 地址
+TURSO_SYNC_LONG_POLL_TIMEOUT_MS=0
 
 # JWT 认证
 JWT_SECRET=                    # 至少 32 字符

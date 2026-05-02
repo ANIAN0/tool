@@ -25,6 +25,9 @@ export interface ConversationDTO {
   lastMessageAt: number;
   createdAt: number;
   updatedAt: number;
+  totalInputTokens: number;
+  totalOutputTokens: number;
+  totalTokens: number;
 }
 
 /** 消息 DTO — 消息接口返回 */

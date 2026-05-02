@@ -27,7 +27,8 @@ import {
 import { MessageActions, type MessageMetadata } from "./message-actions";
 import { useAgentChatContext } from "./agent-chat-context";
 import { isToolPart, isStepStartPart, isCheckpointPart } from "@/lib/agent-chat/utils";
-import { MessageSquareIcon } from "lucide-react";
+import { MessageSquareIcon, AlertCircleIcon, RefreshCwIcon } from "lucide-react";
+import { Button } from "@/components/ui/button";
 
 /**
  * AgentChatConversation组件
@@ -179,6 +180,28 @@ export function AgentChatConversation() {
               title="开始对话"
               className="mt-20"
             />
+          )}
+
+          {/* 错误提示：显示错误信息和 Retry 按钮 */}
+          {state.error && (
+            <div className="flex items-center gap-3 p-4 mt-4 rounded-lg bg-destructive/10 border border-destructive/20 max-w-4xl mx-auto">
+              <AlertCircleIcon className="w-5 h-5 text-destructive" />
+              <div className="flex-1">
+                <p className="text-sm text-destructive font-medium">发送失败</p>
+                <p className="text-xs text-muted-foreground mt-1">
+                  {state.error.message || "请检查网络连接后重试"}
+                </p>
+              </div>
+              <Button
+                variant="outline"
+                size="sm"
+                onClick={() => actions.reload()}
+                className="flex items-center gap-2"
+              >
+                <RefreshCwIcon className="w-4 h-4" />
+                重试
+              </Button>
+            </div>
           )}
         </ConversationContent>
         <ConversationScrollButton />

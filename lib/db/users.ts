@@ -158,3 +158,19 @@ export async function updateUsername(
 
   return getUserById(id);
 }
+
+/**
+ * 删除用户
+ * @param id - 用户ID
+ * @returns 是否删除成功
+ */
+export async function deleteUser(id: string): Promise<boolean> {
+  const db = getDb();
+
+  const result = await db.execute({
+    sql: `DELETE FROM users WHERE id = ?`,
+    args: [id],
+  });
+
+  return result.rowsAffected > 0;
+}

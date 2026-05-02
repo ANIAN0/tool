@@ -1,7 +1,7 @@
 // lib/sandbox/session-manager.ts
 
 import { SANDBOX_CONFIG, isSandboxEnabled } from './config';
-import type { ExecResult, ExecParams, ReadFileParams, WriteFileParams } from './types';
+import type { ExecResult, ExecParams, ReadFileParams, SkillMountParams, WriteFileParams } from './types';
 
 /**
  * 沙盒会话管理器
@@ -130,6 +130,29 @@ export class SandboxSessionManager {
         content: params.content,
       }
     );
+  }
+
+  /**
+   * 注册会话级 Skill 只读挂载
+   * @param params Skill挂载参数
+   */
+  async mountSkills(params: SkillMountParams): Promise<string[]> {
+    // 检查沙盒是否启用
+    if (!isSandboxEnabled()) {
+      throw new Error('沙盒服务未启用');
+    }
+
+    // 只向服务端提交 Skill 源文件，服务端负责缓存并通过 nsjail 只读挂载
+    const result = await this.request<{ success: boolean; mountedSkills: string[] }>(
+      'POST',
+      `/api/v1/sessions/${params.sessionId}/skills`,
+      {
+        userId: params.userId,
+        skills: params.skills,
+      }
+    );
+
+    return result.mountedSkills;
   }
 
   /**

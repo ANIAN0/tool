@@ -4,7 +4,7 @@
  */
 
 import { useState, useEffect, useCallback } from "react";
-import { useAuth } from "./use-auth";
+import { authenticatedFetch } from "@/lib/utils/authenticated-fetch";
 import type {
   Agent,
   AgentWithTools,
@@ -113,9 +113,6 @@ export interface UseAgentsReturn {
  * ```
  */
 export function useAgents(): UseAgentsReturn {
-  // 获取认证状态
-  const { isAuthenticated, getAuthHeader } = useAuth();
-
   // 状态定义
   const [myAgents, setMyAgents] = useState<AgentWithTools[]>([]);
   const [publicAgents, setPublicAgents] = useState<PublicAgentWithCreator[]>([]);
@@ -131,12 +128,8 @@ export function useAgents(): UseAgentsReturn {
     setError(null);
 
     try {
-      // 调用 Agent 列表 API
-      const response = await fetch("/api/agents", {
-        headers: {
-          ...getAuthHeader(),
-        },
-      });
+      // 调用 Agent 列表 API（使用 authenticatedFetch 支持自动刷新）
+      const response = await authenticatedFetch("/api/agents");
 
       const data: AgentsListResponse = await response.json();
 
@@ -155,7 +148,7 @@ export function useAgents(): UseAgentsReturn {
     } finally {
       setIsLoading(false);
     }
-  }, [getAuthHeader]);
+  }, []);
 
   /**
    * 创建新 Agent
@@ -167,12 +160,11 @@ export function useAgents(): UseAgentsReturn {
       setError(null);
 
       try {
-        // 调用创建 API
-        const response = await fetch("/api/agents", {
+        // 调用创建 API（使用 authenticatedFetch 支持自动刷新）
+        const response = await authenticatedFetch("/api/agents", {
           method: "POST",
           headers: {
             "Content-Type": "application/json",
-            ...getAuthHeader(),
           },
           body: JSON.stringify(params),
         });
@@ -195,7 +187,7 @@ export function useAgents(): UseAgentsReturn {
         return null;
       }
     },
-    [getAuthHeader]
+    []
   );
 
   /**
@@ -209,12 +201,11 @@ export function useAgents(): UseAgentsReturn {
       setError(null);
 
       try {
-        // 调用更新 API
-        const response = await fetch(`/api/agents/${id}`, {
+        // 调用更新 API（使用 authenticatedFetch 支持自动刷新）
+        const response = await authenticatedFetch(`/api/agents/${id}`, {
           method: "PUT",
           headers: {
             "Content-Type": "application/json",
-            ...getAuthHeader(),
           },
           body: JSON.stringify(params),
         });
@@ -259,7 +250,7 @@ export function useAgents(): UseAgentsReturn {
         return false;
       }
     },
-    [getAuthHeader]
+    []
   );
 
   /**
@@ -272,12 +263,9 @@ export function useAgents(): UseAgentsReturn {
       setError(null);
 
       try {
-        // 调用删除 API
-        const response = await fetch(`/api/agents/${id}`, {
+        // 调用删除 API（使用 authenticatedFetch 支持自动刷新）
+        const response = await authenticatedFetch(`/api/agents/${id}`, {
           method: "DELETE",
-          headers: {
-            ...getAuthHeader(),
-          },
         });
 
         const data = await response.json();
@@ -300,7 +288,7 @@ export function useAgents(): UseAgentsReturn {
         return false;
       }
     },
-    [getAuthHeader]
+    []
   );
 
   /**
@@ -314,12 +302,11 @@ export function useAgents(): UseAgentsReturn {
       setError(null);
 
       try {
-        // 调用公开状态切换 API
-        const response = await fetch(`/api/agents/${id}/publish`, {
+        // 调用公开状态切换 API（使用 authenticatedFetch 支持自动刷新）
+        const response = await authenticatedFetch(`/api/agents/${id}/publish`, {
           method: "PATCH",
           headers: {
             "Content-Type": "application/json",
-            ...getAuthHeader(),
           },
           body: JSON.stringify({ isPublic }),
         });
@@ -363,7 +350,7 @@ export function useAgents(): UseAgentsReturn {
         return false;
       }
     },
-    [getAuthHeader]
+    []
   );
 
   /**

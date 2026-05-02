@@ -15,6 +15,7 @@ import { useState, useEffect, useCallback } from "react";
 import {
   Dialog,
   DialogContent,
+  DialogDescription,
   DialogHeader,
   DialogTitle,
   DialogFooter,
@@ -406,9 +407,14 @@ export function AgentForm({
             max={field.max}
             value={(formData.templateConfig[field.key] as number) ?? field.defaultValue}
             onChange={(e) => {
-              const value = parseInt(e.target.value, 10);
-              if (!isNaN(value)) {
-                handleConfigChange(field.key, value);
+              const rawValue = parseInt(e.target.value, 10);
+              if (!isNaN(rawValue)) {
+                // 校验边界：确保值在 min 和 max 范围内
+                const clampedValue = Math.max(
+                  field.min ?? 0,
+                  Math.min(rawValue, field.max ?? Infinity)
+                );
+                handleConfigChange(field.key, clampedValue);
               }
             }}
             className={errors[`config.${field.key}`] ? "border-destructive" : ""}
@@ -429,6 +435,9 @@ export function AgentForm({
           <DialogTitle>
             {agent ? "编辑 Agent" : "创建 Agent"}
           </DialogTitle>
+          <DialogDescription>
+            配置 Agent 的基本信息、模型、工具和技能。
+          </DialogDescription>
         </DialogHeader>
 
         {/* 使用 Tabs 组织表单内容，避免内容超出屏幕 */}
