@@ -8,7 +8,7 @@ const apiKeyAuth: AuthFn<Request> = async (req) => {
   const provided = req.headers.get("x-api-key");
   if (!provided) return null;
 
-  if (provided !== process.env.AGENT_API_KEY) {
+  if (provided !== process.env.NEXT_PUBLIC_AGENT_API_KEY) {
     throw new UnauthenticatedError({
       code: "invalid_api_key",
       message: "Bad X-API-Key.",

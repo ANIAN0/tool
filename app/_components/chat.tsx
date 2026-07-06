@@ -7,11 +7,20 @@ import type { SetupStatus } from "@/lib/setup";
 
 const API_KEY_HEADER = "X-API-Key";
 
+// `useEveAgent` captures `headers` in a `useRef` on the first render, so the
+// value MUST be available synchronously. Reading `process.env.NEXT_PUBLIC_*`
+// at module load is safe — Next.js inlines these at build time. Do not move
+// this into `useState` / `useEffect` or the first request will race without
+// the header and the eve channel will return 401.
+const AGENT_API_KEY = (process.env.NEXT_PUBLIC_AGENT_API_KEY ?? "").trim();
+const HEADERS: Readonly<Record<string, string>> = AGENT_API_KEY
+  ? { [API_KEY_HEADER]: AGENT_API_KEY }
+  : {};
+
 export function Chat({ setupStatus }: { readonly setupStatus: SetupStatus }) {
-  const headers = useApiKeyHeaders();
   const { data, send, stop, status, error, reset } = useEveAgent({
     reducer: defaultMessageReducer(),
-    headers,
+    headers: HEADERS,
   });
   const messages = data.messages;
   const [draft, setDraft] = useState("");
@@ -24,7 +33,7 @@ export function Chat({ setupStatus }: { readonly setupStatus: SetupStatus }) {
   }, [messages]);
 
   const isBusy = status === "streaming" || status === "submitted";
-  const disabled = !setupStatus.appReady || !headers[API_KEY_HEADER];
+  const disabled = !setupStatus.appReady || !AGENT_API_KEY;
 
   const handleSubmit = useCallback(
     async (text: string) => {
@@ -53,6 +62,21 @@ export function Chat({ setupStatus }: { readonly setupStatus: SetupStatus }) {
               <li key={name}>- {name}</li>
             ))}
           </ul>
+        </div>
+      </div>
+    );
+  }
+
+  if (!AGENT_API_KEY) {
+    return (
+      <div className="flex min-h-dvh items-center justify-center p-6">
+        <div className="max-w-md space-y-2 text-center">
+          <h1 className="text-2xl font-semibold">API key required</h1>
+          <p className="text-sm text-muted-foreground">
+            Set <span className="font-mono">NEXT_PUBLIC_AGENT_API_KEY</span> in
+            Vercel project settings and redeploy. The value must match the
+            eve service's <span className="font-mono">AGENT_API_KEY</span>.
+          </p>
         </div>
       </div>
     );
@@ -153,33 +177,4 @@ function MessageBubble({ message }: { readonly message: EveMessage }) {
       </div>
     </div>
   );
-}
-
-function useApiKeyHeaders(): Record<string, string> {
-  const [headers, setHeaders] = useState<Record<string, string>>({});
-
-  useEffect(() => {
-    void fetchApiKey().then((key) => {
-      if (key) setHeaders({ [API_KEY_HEADER]: key });
-    });
-  }, []);
-
-  return headers;
-}
-
-async function fetchApiKey(): Promise<string | null> {
-  try {
-    const stored = window.sessionStorage.getItem("eve-api-key");
-    if (stored) return stored;
-  } catch {}
-
-  const envKey = (process.env.NEXT_PUBLIC_AGENT_API_KEY ?? "").trim();
-  if (envKey) return envKey;
-
-  const input = window.prompt("Enter your AGENT_API_KEY");
-  if (!input) return null;
-  try {
-    window.sessionStorage.setItem("eve-api-key", input.trim());
-  } catch {}
-  return input.trim();
 }
