@@ -1,41 +1,36 @@
-# tool
+This is a [Next.js](https://nextjs.org) project bootstrapped with [`create-next-app`](https://nextjs.org/docs/app/api-reference/cli/create-next-app).
 
-基于 eve 框架的 AI 聊天工具，集成实时搜索能力。
+## Getting Started
 
-## 快速开始
+First, run the development server:
 
 ```bash
-# 1. 安装依赖
-npm install
-
-# 2. 配置环境变量
-cp .env.example .env
-# 编辑 .env 填入实际值
-
-# 3. 启动开发服务器
 npm run dev
+# or
+yarn dev
+# or
+pnpm dev
+# or
+bun dev
 ```
 
-打开 http://localhost:3000
+Open [http://localhost:3000](http://localhost:3000) with your browser to see the result.
 
-## 技术栈
+You can start editing the page by modifying `app/page.tsx`. The page auto-updates as you edit the file.
 
-- [eve](https://eve.dev) — AI agent 框架
-- [Next.js](https://nextjs.org) 16 — Web 框架
-- LongCat 2.0 — AI 模型 (OpenAI-compatible)
-- [anysearch](./agent/skills/anysearch) — 实时搜索
-- Tailwind CSS 4 + shadcn/ui
+This project uses [`next/font`](https://nextjs.org/docs/app/building-your-application/optimizing/fonts) to automatically optimize and load [Geist](https://vercel.com/font), a new font family for Vercel.
 
-## 部署
+## Learn More
 
-部署到 Vercel，参考 `vercel.json` 中的双 service 配置 (web + eve)。
+To learn more about Next.js, take a look at the following resources:
 
-## 项目结构
+- [Next.js Documentation](https://nextjs.org/docs) - learn about Next.js features and API.
+- [Learn Next.js](https://nextjs.org/learn) - an interactive Next.js tutorial.
 
-```
-agent/          — eve agent 定义 (模型、channel、skills)
-app/            — Next.js App Router
-components/     — React 组件 (chat UI, shadcn/ui)
-lib/            — 工具函数 (chat 逻辑, db, session)
-public/         — 静态资源
-```
+You can check out [the Next.js GitHub repository](https://github.com/vercel/next.js) - your feedback and contributions are welcome!
+
+## Deploy on Vercel
+
+The easiest way to deploy your Next.js app is to use the [Vercel Platform](https://vercel.com/new?utm_medium=default-template&filter=next.js&utm_source=create-next-app&utm_campaign=create-next-app-readme) from the creators of Next.js.
+
+Check out our [Next.js deployment documentation](https://nextjs.org/docs/app/building-your-application/deploying) for more details.

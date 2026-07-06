@@ -1,11 +1,7 @@
 import type { NextConfig } from "next";
-import { withEve } from "eve/next";
 
 const nextConfig: NextConfig = {
-  cacheComponents: true,
-  turbopack: {
-    root: process.cwd(),
-  },
+  /* config options here */
 };
 
-export default withEve(nextConfig);
+export default nextConfig;

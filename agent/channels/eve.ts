@@ -1,28 +1,15 @@
 import { eveChannel } from "eve/channels/eve";
-import { type AuthFn, UnauthenticatedError } from "eve/channels/auth";
-
-// Service-to-service auth. The X-API-Key header is injected server-side by
-// the Next.js middleware (middleware.ts) reading AGENT_API_KEY, so the
-// browser never sees the secret. Walk semantics: no header → null → 401.
-const apiKeyAuth: AuthFn<Request> = async (req) => {
-  const provided = req.headers.get("x-api-key");
-  if (!provided) return null;
-
-  if (provided !== process.env.AGENT_API_KEY) {
-    throw new UnauthenticatedError({
-      code: "invalid_api_key",
-      message: "Bad X-API-Key.",
-    });
-  }
-
-  return {
-    authenticator: "api-key",
-    principalId: "local-app",
-    principalType: "app",
-    attributes: { source: "local-frontend" },
-  };
-};
+import { localDev, placeholderAuth, vercelOidc } from "eve/channels/auth";
 
 export default eveChannel({
-  auth: [apiKeyAuth],
+  auth: [
+    // Lets the eve TUI and your Vercel deployments reach the deployed agent.
+    vercelOidc(),
+    // Open on localhost for `eve dev` and the REPL; ignored in production.
+    localDev(),
+    // This placeholder will not allow browser requests in production.
+    // Replace it with your app's auth provider, like Auth.js or Clerk,
+    // or use none() for a public demo.
+    placeholderAuth(),
+  ],
 });

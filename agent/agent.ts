@@ -9,7 +9,5 @@ const longcat = createOpenAICompatible({
 
 export default defineAgent({
   model: longcat(process.env.EVE_MODEL!),
-  // LongCat 2.0 is not in the AI Gateway model catalog, so we declare its
-  // context window manually to let eve compile the agent.
-  modelContextWindowTokens: 128000,
+  modelContextWindowTokens: 1000000,
 });
