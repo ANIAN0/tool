@@ -80,7 +80,7 @@ export function SessionChatPage({
   }, [chatId]);
 
   useEffect(() => {
-    if (!isProvisionalChat || !viewer || !setupStatus.appReady) {
+    if (!isProvisionalChat || !setupStatus.appReady) {
       return;
     }
 
@@ -188,70 +188,6 @@ export function SessionChatPage({
   }, [chatId]);
 
   useEffect(() => {
-    if (!viewer || !setupStatus.appReady || isProvisionalChat) {
-      return;
-    }
-
-    const abortController = new AbortController();
-    let cancelled = false;
-
-    void (async () => {
-      try {
-        const response = await fetch(`/api/chats/${encodeURIComponent(chatId)}`, {
-          signal: abortController.signal,
-        });
-
-        if (cancelled) {
-          return;
-        }
-
-        if (!response.ok) {
-          setClientError(
-            response.status === 404
-              ? "Chat not found."
-              : "Failed to load chat history.",
-          );
-          return;
-        }
-
-        const data = (await response.json()) as { readonly chat: ActiveChat | null };
-
-        if (cancelled) {
-          return;
-        }
-
-        setActiveChat(data.chat);
-        const nextPendingUserMessage = getRestorablePendingUserMessage(
-          data.chat?.pendingUserMessage ?? null,
-          settledPendingMessagesRef.current,
-        );
-
-        setPendingUserMessage(nextPendingUserMessage);
-
-        if (!nextPendingUserMessage) {
-          clearPendingChatMessage(chatId);
-        }
-        setClientError(null);
-      } catch (error) {
-        if (!cancelled && !abortController.signal.aborted) {
-          setClientError(
-            error instanceof Error ? error.message : "Failed to load chat history.",
-          );
-        }
-      }
-    })();
-
-    return () => {
-      cancelled = true;
-      abortController.abort();
-    };
-  }, [chatId, isProvisionalChat, setupStatus.appReady, viewer]);
-
-  useEffect(() => {
-    if (!viewer) {
-      return;
-    }
-
     const restoredDraft = window.sessionStorage.getItem("eve-chat-draft");
 
     if (restoredDraft) {
@@ -440,12 +376,8 @@ function getSessionComposerDisabledReason({
   readonly pendingUserMessage: string | null;
   readonly setupStatus: SetupStatus;
 }) {
-  if (!setupStatus.databaseConfigured) {
-    return "Connect Neon Postgres before chatting.";
-  }
-
-  if (!setupStatus.databaseSchemaReady) {
-    return "Run database migrations: vercel env run -e production -- pnpm db:migrate.";
+  if (setupStatus.missing.length) {
+    return `Missing: ${setupStatus.missing.join(", ")}.`;
   }
 
   if (controllerStatus.disabledReason) {
@@ -458,18 +390,6 @@ function getSessionComposerDisabledReason({
 
   if (isLoadingChat) {
     return "Chat history is still loading.";
-  }
-
-  if (!setupStatus.authReady) {
-    const missing = setupStatus.missing.length
-      ? ` Missing: ${setupStatus.missing.join(", ")}.`
-      : "";
-
-    return `Finish auth setup before chatting.${missing}`;
-  }
-
-  if (!setupStatus.rateLimitReady) {
-    return "Provision Upstash Redis before chatting.";
   }
 
   if (controllerStatus.isDisabled) {

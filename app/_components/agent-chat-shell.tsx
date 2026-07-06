@@ -17,12 +17,7 @@ import {
   CHAT_BOOTSTRAP_SYNC_EVENT,
   type ChatBootstrapSyncDetail,
 } from "@/app/_components/agent-chat-events";
-import {
-  ChatShellProvider,
-  type EnabledConnections,
-} from "@/app/_components/chat-shell-context";
-import { AuthDisplayLoggedOut } from "@/components/auth/auth-display";
-import { SignInModal } from "@/components/auth/sign-in-modal";
+import { ChatShellProvider } from "@/app/_components/chat-shell-context";
 import { ChatSidebar } from "@/components/chat/sidebar";
 import { Button } from "@/components/ui/button";
 import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip";
@@ -52,19 +47,10 @@ export function AgentChatShell({
   const [desktopSidebarOpen, setDesktopSidebarOpen] = useState(true);
   const [history, setHistory] = useState<ChatListItem[]>([...initialChats]);
   const [nextCursor, setNextCursor] = useState(initialNextCursor);
-  const [historyLoading, setHistoryLoading] = useState(true);
   const [loadingMore, setLoadingMore] = useState(false);
-  const [authDialogOpen, setAuthDialogOpen] = useState(false);
-  const [draftBeforeSignIn, setDraftBeforeSignIn] = useState("");
-  const [signInCallbackPath, setSignInCallbackPath] = useState("/");
   const [viewerState, setViewerState] = useState(viewer);
   const [setupStatusState, setSetupStatusState] = useState(setupStatus);
   const [activeChatId, setActiveChatId] = useState<string | null>(null);
-  const [enabledConnections, setEnabledConnections] = useState<EnabledConnections>({
-    linear: true,
-    notion: true,
-    sentry: true,
-  });
   const cursorRef = useRef(initialNextCursor);
   const activeChatIdRef = useRef(activeChatId);
   const setupReady = setupStatusState.appReady;
@@ -87,27 +73,11 @@ export function AgentChatShell({
     }
   }, []);
 
-  const requestSignIn = useCallback((draft?: string) => {
-    setDraftBeforeSignIn(draft?.trim() ?? "");
-    setSignInCallbackPath(window.location.pathname || "/");
-    setAuthDialogOpen(true);
-  }, []);
-
   const setDesktopSidebarOpenPersisted = useCallback((open: boolean) => {
     setDesktopSidebarOpen(open);
     setSidebarDocumentHint(open);
     document.cookie = `${SIDEBAR_COOKIE_NAME}=${serializeSidebarOpen(open)}; Path=/; Max-Age=${SIDEBAR_COOKIE_MAX_AGE}; SameSite=Lax`;
   }, []);
-
-  const setConnectionEnabled = useCallback(
-    (connection: keyof EnabledConnections, enabled: boolean) => {
-      setEnabledConnections((current) => ({
-        ...current,
-        [connection]: enabled,
-      }));
-    },
-    [],
-  );
 
   const touchChat = useCallback((chat: ChatListItem) => {
     setHistory((items) => {
@@ -167,41 +137,7 @@ export function AgentChatShell({
     [removeChat, startNewChat],
   );
 
-  const loadMoreChats = useCallback(async () => {
-    const cursor = cursorRef.current;
-
-    if (!cursor || loadingMore) {
-      return;
-    }
-
-    setLoadingMore(true);
-
-    try {
-      const response = await fetch(`/api/chats?cursor=${encodeURIComponent(cursor)}`);
-
-      if (!response.ok) {
-        return;
-      }
-
-      const data = (await response.json()) as {
-        readonly chats?: readonly ChatListItem[];
-        readonly nextCursor?: string | null;
-      };
-      const incoming = data.chats ?? [];
-
-      setHistory((items) => {
-        const existing = new Set(items.map((item) => item.id));
-        const fresh = incoming.filter((item) => !existing.has(item.id));
-
-        return [...items, ...fresh];
-      });
-      setNextCursor(data.nextCursor ?? null);
-    } catch {
-      // Ignore network hiccups; the observer/button can retry.
-    } finally {
-      setLoadingMore(false);
-    }
-  }, [loadingMore]);
+  const loadMoreChats = useCallback(async () => {}, []);
 
   const setBootstrapData = useCallback(
     ({
@@ -219,7 +155,6 @@ export function AgentChatShell({
       setViewerState(incomingViewer);
       setHistory((items) => (incomingViewer ? mergeChatHistory(chats, items) : []));
       setNextCursor(incomingNextCursor);
-      setHistoryLoading(false);
       cursorRef.current = incomingNextCursor;
     },
     [],
@@ -247,11 +182,8 @@ export function AgentChatShell({
     () => ({
       activeChatId,
       desktopSidebarOpen,
-      enabledConnections,
       removeChat,
-      requestSignIn,
       setActiveChatId,
-      setConnectionEnabled,
       setupStatus: setupStatusState,
       touchChat,
       updateChatTitle,
@@ -260,10 +192,7 @@ export function AgentChatShell({
     [
       activeChatId,
       desktopSidebarOpen,
-      enabledConnections,
       removeChat,
-      requestSignIn,
-      setConnectionEnabled,
       setupStatusState,
       touchChat,
       updateChatTitle,
@@ -276,31 +205,20 @@ export function AgentChatShell({
       activeChatId={activeChatId}
       chats={history}
       hasMoreChats={Boolean(nextCursor)}
-      isLoadingChats={historyLoading}
       isLoadingMore={loadingMore}
       onDeleteChat={handleDeleteChat}
       onLoadMoreChats={loadMoreChats}
       onNavigate={handleSidebarNavigate}
       onNewChat={startNewChat}
-      onSignIn={() => requestSignIn()}
       onToggleSidebar={() => setDesktopSidebarOpenPersisted(false)}
-      setupStatus={setupStatusState}
       viewer={viewerState}
     />
-  );
-  const loggedOutAuthActions = historyLoading ? (
-    <AuthDisplayLoggedOut>
-      <AuthTopActions onSignIn={() => requestSignIn()} />
-    </AuthDisplayLoggedOut>
-  ) : (
-    <AuthTopActions onSignIn={() => requestSignIn()} />
   );
   const topRightActions = (
     <div className="pointer-events-auto mt-1 flex min-w-0 items-center justify-end gap-1.5">
       <Suspense fallback={null}>
         <ChatRouteShareButton />
       </Suspense>
-      {viewerState ? null : loggedOutAuthActions}
     </div>
   );
 
@@ -366,30 +284,15 @@ export function AgentChatShell({
               chats={history}
               className="w-[84vw] max-w-80"
               hasMoreChats={Boolean(nextCursor)}
-              isLoadingChats={historyLoading}
               isLoadingMore={loadingMore}
               onDeleteChat={handleDeleteChat}
               onLoadMoreChats={loadMoreChats}
               onNavigate={handleSidebarNavigate}
               onNewChat={startNewChat}
-              onSignIn={() => requestSignIn()}
-              setupStatus={setupStatusState}
               viewer={viewerState}
             />
           </div>
         ) : null}
-
-        <SignInModal
-          callbackPath={signInCallbackPath}
-          disabled={!setupReady}
-          onBeforeSignIn={() => {
-            if (draftBeforeSignIn) {
-              window.sessionStorage.setItem("eve-chat-draft", draftBeforeSignIn);
-            }
-          }}
-          onOpenChange={setAuthDialogOpen}
-          open={authDialogOpen}
-        />
       </div>
     </ChatShellProvider>
   );
@@ -480,28 +383,6 @@ function ShareChatButton() {
       </TooltipTrigger>
       <TooltipContent side="bottom">{copied ? "Copied" : "Copy link"}</TooltipContent>
     </Tooltip>
-  );
-}
-
-function AuthTopActions({ onSignIn }: { readonly onSignIn: () => void }) {
-  return (
-    <div className="flex max-w-[calc(100vw-4rem)] items-center gap-1.5">
-      <Button
-        className="h-8 rounded-md border border-border bg-background/70 px-3 text-sm font-medium text-foreground shadow-sm hover:bg-muted/60"
-        onClick={onSignIn}
-        type="button"
-        variant="outline"
-      >
-        Log In
-      </Button>
-      <Button
-        className="h-8 rounded-md bg-foreground px-3 text-sm font-medium text-background hover:bg-foreground/90"
-        onClick={onSignIn}
-        type="button"
-      >
-        Sign Up
-      </Button>
-    </div>
   );
 }
 

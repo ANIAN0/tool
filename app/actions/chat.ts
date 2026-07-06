@@ -1,21 +1,28 @@
 "use server";
 
-// tool/ has no DB. The chat shell calls these to persist state; we just
-// no-op them. eve has its own session storage (server-side, keyed off the
-// API key) so we don't need a chat history table.
+import type { HandleMessageStreamEvent, SessionState } from "eve/client";
+import { assertChatMessageLength } from "@/lib/chat/limits";
+import { createFallbackTitle, DEFAULT_CHAT_TITLE } from "@/lib/chat/title";
+import { getServerViewer } from "@/lib/session";
+import { getSetupStatus } from "@/lib/setup";
 
 export async function createChatAction(
-  _input: { readonly chatId?: string; readonly pendingUserMessage?: string; readonly title?: string } = {},
+  input: { readonly pendingUserMessage?: string } = {},
 ): Promise<{ readonly id: string; readonly title: string; readonly updatedAt: string }> {
+  const viewer = await requireViewer();
+
+  if (input.pendingUserMessage) {
+    assertChatMessageLength(input.pendingUserMessage);
+  }
+
+  const pendingMessage = input.pendingUserMessage?.trim();
+  const title = pendingMessage ? createFallbackTitle(pendingMessage) : DEFAULT_CHAT_TITLE;
+
   return {
-    id: _input.chatId ?? crypto.randomUUID(),
-    title: _input.title ?? "New chat",
+    id: crypto.randomUUID(),
+    title,
     updatedAt: new Date().toISOString(),
   };
-}
-
-export async function deleteChatAction(_input: { readonly chatId: string } | string): Promise<void> {
-  return;
 }
 
 export async function checkSendLimitAction(
@@ -36,61 +43,60 @@ export async function checkSendLimitAction(
   };
 }
 
-export async function saveChatSnapshotAction(_input: {
-  readonly chatId: string;
-  readonly events: unknown;
-  readonly session: unknown;
-}): Promise<void> {
-  return;
-}
+export async function saveChatSnapshotAction(
+  _input: {
+    readonly chatId: string;
+    readonly events: readonly HandleMessageStreamEvent[];
+    readonly session: SessionState;
+  },
+): Promise<void> {}
 
-export async function saveChatSessionStateAction(_input: {
-  readonly chatId: string;
-  readonly session?: unknown;
-  readonly state?: unknown;
-}): Promise<void> {
-  return;
-}
+export async function saveChatSessionStateAction(
+  _input: {
+    readonly chatId: string;
+    readonly session: SessionState;
+  },
+): Promise<void> {}
 
-export async function markChatPendingMessageAction(_input: {
+export async function markChatPendingMessageAction(input: {
   readonly chatId: string;
   readonly message: string;
 }): Promise<{ readonly allowed: boolean; readonly id: string; readonly title: string; readonly updatedAt: string }> {
+  await requireViewer();
+
+  assertChatMessageLength(input.message);
+
   return {
     allowed: true,
-    id: _input.chatId,
-    title: "New chat",
+    id: input.chatId,
+    title: "",
     updatedAt: new Date().toISOString(),
   };
 }
 
-export async function clearChatPendingMessageAction(_input: { readonly chatId: string } | string): Promise<void> {
-  return;
-}
+export async function clearChatPendingMessageAction(
+  _input: { readonly chatId: string } | string,
+): Promise<void> {}
 
-export async function appendChatEventAction(_input: {
-  readonly chatId: string;
-  readonly event: unknown;
-  readonly eventIndex?: number;
-}): Promise<void> {
-  return;
-}
+export async function appendChatEventAction(
+  _input: {
+    readonly chatId: string;
+    readonly event: HandleMessageStreamEvent;
+    readonly eventIndex: number;
+  },
+): Promise<void> {}
 
-export async function skipChatAuthorizationAction(_input: {
-  readonly chatId: string;
-  readonly message?: string;
-  readonly events?: unknown;
-  readonly session?: unknown;
-}): Promise<{
-  readonly allowed: boolean;
-  readonly chat: { readonly id: string; readonly title: string; readonly updatedAt: string };
-  readonly eventCount: number;
-  readonly eventIndex: number;
-}> {
-  return {
-    allowed: true,
-    chat: { id: _input.chatId, title: "New chat", updatedAt: new Date().toISOString() },
-    eventCount: 0,
-    eventIndex: 0,
-  };
+export async function deleteChatAction(
+  _input: { readonly chatId: string } | string,
+): Promise<void> {}
+
+async function requireViewer() {
+  const setupStatus = await getSetupStatus();
+  const viewer = await getServerViewer(setupStatus);
+
+  if (!viewer) {
+    throw new Error("Viewer not available.");
+  }
+
+  return viewer;
 }

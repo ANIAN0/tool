@@ -1,12 +1,10 @@
 import {
   ArrowUpIcon,
-  HammerIcon,
   MenuIcon,
   PanelLeftIcon,
   PlusIcon,
 } from "lucide-react";
-import { TemplateFooterLinks } from "@/components/chat/template-footer-links";
-import { VercelIcon } from "@/components/icons";
+import { EveImageMark } from "@/app/_components/eve-image-mark";
 import { cn } from "@/lib/utils";
 
 const activeRowClass = "bg-muted/50 text-foreground";
@@ -26,7 +24,7 @@ export function AgentChatSkeleton({ mode }: { readonly mode: "chat" | "new" }) {
         <div className="flex flex-col gap-1 px-2 pt-2 pb-2">
           <div className="flex items-center justify-between">
             <div className="flex size-8 items-center justify-center rounded-md">
-              <VercelIcon className="size-3.5 text-foreground" />
+              <EveImageMark className="size-3.5 text-foreground" />
             </div>
             <div className="flex size-8 items-center justify-center rounded-md text-muted-foreground/55">
               <PanelLeftIcon className="size-4" />
@@ -73,9 +71,7 @@ export function AgentChatSkeleton({ mode }: { readonly mode: "chat" | "new" }) {
 
         <AgentChatContentSkeleton mode={mode} />
         {isNew ? (
-          <div className="shrink-0 pb-4 sm:pb-6">
-            <TemplateFooterLinks />
-          </div>
+          <div className="shrink-0 pb-4 sm:pb-6" />
         ) : null}
       </main>
     </div>
@@ -145,11 +141,7 @@ function StaticComposerFallback() {
         Ask anything...
       </div>
       <div className="flex min-h-9 items-center justify-between gap-2 px-3 pt-1 pb-2 sm:gap-3 sm:px-4">
-        <div className="-ml-2 flex min-w-0 flex-1 items-center gap-1.5 overflow-hidden">
-          <span className="inline-flex size-8 shrink-0 items-center justify-center rounded-md text-muted-foreground/80 dark:text-muted-foreground/50">
-            <HammerIcon className="size-4 shrink-0" />
-          </span>
-        </div>
+        <div className="-ml-2 flex min-w-0 flex-1 items-center gap-1.5 overflow-hidden" />
         <div className="flex shrink-0 items-center">
           <span className="inline-flex size-6 items-center justify-center rounded-md bg-foreground/55 text-background">
             <ArrowUpIcon className="size-3.5" />

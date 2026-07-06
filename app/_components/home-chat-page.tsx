@@ -9,7 +9,6 @@ import {
 } from "@/app/_components/agent-chat";
 import { useChatShell } from "@/app/_components/chat-shell-context";
 import { ChatComposer } from "@/components/chat/composer";
-import { TemplateFooterLinks } from "@/components/chat/template-footer-links";
 import { getChatMessageLengthError } from "@/lib/chat/limits";
 import {
   createProvisionalChatId,
@@ -25,7 +24,6 @@ const IDLE_CONTROLLER_STATUS: AgentChatControllerStatus = {
 
 export function HomeChatPage() {
   const {
-    requestSignIn,
     setActiveChatId,
     setupStatus,
     viewer,
@@ -52,10 +50,6 @@ export function HomeChatPage() {
   }, [pathname]);
 
   useEffect(() => {
-    if (!viewer) {
-      return;
-    }
-
     const restoredDraft = window.sessionStorage.getItem("eve-chat-draft");
 
     if (restoredDraft) {
@@ -93,11 +87,6 @@ export function HomeChatPage() {
         return;
       }
 
-      if (!viewer) {
-        requestSignIn(message);
-        return;
-      }
-
       submittingRef.current = true;
       setSubmitting(true);
       setDraft("");
@@ -117,13 +106,11 @@ export function HomeChatPage() {
       router.push(`/chat/${provisionalChatId}`, { scroll: false });
     },
     [
-      requestSignIn,
       router,
       setActiveChatId,
       setupReady,
       setupStatus,
       submitting,
-      viewer,
     ],
   );
 
@@ -172,7 +159,6 @@ export function HomeChatPage() {
             />
           </div>
         </div>
-        <TemplateFooterLinks />
       </div>
     </div>
   );
@@ -185,24 +171,8 @@ function getHomeComposerDisabledReason({
   readonly setupStatus: SetupStatus;
   readonly submitting: boolean;
 }) {
-  if (!setupStatus.databaseConfigured) {
-    return "Connect Neon Postgres before chatting.";
-  }
-
-  if (!setupStatus.databaseSchemaReady) {
-    return "Run database migrations: vercel env run -e production -- pnpm db:migrate.";
-  }
-
-  if (!setupStatus.authReady) {
-    const missing = setupStatus.missing.length
-      ? ` Missing: ${setupStatus.missing.join(", ")}.`
-      : "";
-
-    return `Finish auth setup before chatting.${missing}`;
-  }
-
-  if (!setupStatus.rateLimitReady) {
-    return "Provision Upstash Redis before chatting.";
+  if (setupStatus.missing.length) {
+    return `Missing: ${setupStatus.missing.join(", ")}.`;
   }
 
   if (submitting) {

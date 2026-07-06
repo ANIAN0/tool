@@ -1,14 +1,14 @@
 import { eveChannel } from "eve/channels/eve";
 import { type AuthFn, UnauthenticatedError } from "eve/channels/auth";
 
-// Service-to-service auth for the local frontend → Vercel agent.
-// Frontend sends `X-API-Key: <secret>` on every request.
-// Walk semantics: no header → return null → walk ends → 401.
+// Service-to-service auth. The X-API-Key header is injected server-side by
+// the Next.js middleware (middleware.ts) reading AGENT_API_KEY, so the
+// browser never sees the secret. Walk semantics: no header → null → 401.
 const apiKeyAuth: AuthFn<Request> = async (req) => {
   const provided = req.headers.get("x-api-key");
   if (!provided) return null;
 
-  if (provided !== process.env.NEXT_PUBLIC_AGENT_API_KEY) {
+  if (provided !== process.env.AGENT_API_KEY) {
     throw new UnauthenticatedError({
       code: "invalid_api_key",
       message: "Bad X-API-Key.",

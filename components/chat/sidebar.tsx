@@ -1,7 +1,6 @@
 "use client";
 
 import {
-  ArrowRightIcon,
   EllipsisIcon,
   PanelLeftIcon,
   PlusIcon,
@@ -9,12 +8,7 @@ import {
 } from "lucide-react";
 import Link from "next/link";
 import { useEffect, useRef } from "react";
-import {
-  AuthDisplayLoggedIn,
-  AuthDisplayLoggedOut,
-} from "@/components/auth/auth-display";
-import { UserMenu } from "@/components/auth/user-menu";
-import { VercelIcon } from "@/components/icons";
+import { EveImageMark } from "@/app/_components/eve-image-mark";
 import { Button } from "@/components/ui/button";
 import {
   DropdownMenu,
@@ -22,7 +16,7 @@ import {
   DropdownMenuItem,
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
-import type { ChatListItem, SetupStatus, Viewer } from "@/lib/chat/types";
+import type { ChatListItem, Viewer } from "@/lib/chat/types";
 import { cn } from "@/lib/utils";
 
 const activeRowClass = "bg-muted/50 text-foreground hover:bg-muted/60";
@@ -33,33 +27,26 @@ export function ChatSidebar({
   className,
   chats,
   hasMoreChats = false,
-  isLoadingChats = false,
   isLoadingMore = false,
   onDeleteChat,
   onLoadMoreChats,
   onNavigate,
   onNewChat,
-  onSignIn,
   onToggleSidebar,
-  setupStatus,
   viewer,
 }: {
   readonly activeChatId: string | null;
   readonly className?: string;
   readonly chats: readonly ChatListItem[];
   readonly hasMoreChats?: boolean;
-  readonly isLoadingChats?: boolean;
   readonly isLoadingMore?: boolean;
   readonly onDeleteChat: (chatId: string) => void | Promise<void>;
   readonly onLoadMoreChats?: () => void | Promise<void>;
   readonly onNavigate?: (chatId?: string | null) => void;
   readonly onNewChat: () => void;
-  readonly onSignIn?: () => void;
   readonly onToggleSidebar?: () => void;
-  readonly setupStatus: SetupStatus;
   readonly viewer: Viewer | null;
 }) {
-  const authDisabled = !setupStatus.appReady;
   const newSessionActive = activeChatId === null;
   const sentinelRef = useRef<HTMLDivElement | null>(null);
 
@@ -102,7 +89,7 @@ export function ChatSidebar({
             }}
             type="button"
           >
-            <VercelIcon className="size-3.5 text-foreground" />
+            <EveImageMark className="size-3.5 text-foreground" />
           </button>
           {onToggleSidebar ? (
             <Button
@@ -204,54 +191,12 @@ export function ChatSidebar({
 
       <div className="border-t border-border px-2 py-3">
         {viewer ? (
-          <UserMenu viewer={viewer} />
-        ) : isLoadingChats ? (
-          <>
-            <AuthDisplayLoggedIn>
-              <div className="h-8 rounded-md bg-muted/25" />
-            </AuthDisplayLoggedIn>
-            <AuthDisplayLoggedOut>
-              <SidebarSignInButton
-                authDisabled={false}
-                onNavigate={onNavigate}
-                onSignIn={onSignIn}
-              />
-            </AuthDisplayLoggedOut>
-          </>
-        ) : (
-          <SidebarSignInButton
-            authDisabled={authDisabled}
-            onNavigate={onNavigate}
-            onSignIn={onSignIn}
-          />
-        )}
+          <div className="flex h-8 items-center px-2 text-sm text-muted-foreground">
+            {viewer.name}
+          </div>
+        ) : null}
       </div>
     </aside>
-  );
-}
-
-function SidebarSignInButton({
-  authDisabled,
-  onNavigate,
-  onSignIn,
-}: {
-  readonly authDisabled: boolean;
-  readonly onNavigate?: (chatId?: string | null) => void;
-  readonly onSignIn?: () => void;
-}) {
-  return (
-    <button
-      className="flex h-8 w-full items-center justify-between rounded-md px-2 text-sm text-muted-foreground transition-colors hover:bg-muted/50 hover:text-foreground disabled:cursor-not-allowed disabled:opacity-50"
-      disabled={authDisabled}
-      onClick={() => {
-        onSignIn?.();
-        onNavigate?.();
-      }}
-      type="button"
-    >
-      <span className="min-w-0">Sign in</span>
-      <ArrowRightIcon className="size-3.5" />
-    </button>
   );
 }
 
