@@ -17,6 +17,13 @@
 /.next/
 /out/
 
+# eve build artifacts
+/.eve/
+/.output/
+/.nitro/
+/dist
+/.workflow-data/
+
 # production
 /build
 
