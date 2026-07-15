@@ -1,6 +1,7 @@
 import { LangfuseSpanProcessor } from "@langfuse/otel";
 import { registerOTel } from "@vercel/otel";
 import { defineInstrumentation } from "eve/instrumentation";
+import { EveLangfuseSessionSpanProcessor } from "./langfuse-session-span-processor";
 
 const registrationMarker = Symbol.for("my-tool.langfuse-otel-registered");
 
@@ -28,6 +29,7 @@ function registerLangfuse(agentName: string): void {
   registerOTel({
     serviceName: `my-tool-${agentName}`,
     spanProcessors: [
+      new EveLangfuseSessionSpanProcessor(),
       new LangfuseSpanProcessor({
         // Vercel functions can freeze immediately after a streamed response.
         // Immediate export avoids losing the final model and tool spans.
@@ -58,7 +60,6 @@ export function createLangfuseInstrumentation(agentName: string) {
         return {
           runtimeContext: {
             "langfuse.trace.name": "agent-chat",
-            "langfuse.session.id": ctx.session.id,
             ...(userId ? { "langfuse.user.id": userId } : {}),
             "langfuse.trace.tags": [`agent:${agentName}`, `channel:${ctx.channel.kind}`],
             "langfuse.trace.metadata.agent_id": agentName,

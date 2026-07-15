@@ -11,6 +11,7 @@
   "dependencies": {
     "@ai-sdk/openai-compatible": "^3.0.10",
     "@langfuse/otel": "^5.9.1",
+    "@opentelemetry/sdk-trace-base": "^2.9.0",
     "@radix-ui/react-use-controllable-state": "1.2.3",
     "@shikijs/core": "4.3.1",
     "@shikijs/engine-javascript": "4.3.1",

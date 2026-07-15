@@ -30,16 +30,16 @@ Single runtime — Bash. The CLI requires `bash` 3.2+, `jq`, and `curl`, all ava
 
 ## Invocation
 
-The skill is seeded into the sandbox at `/workspace/skills/anysearch`. Build commands as:
+The skill is seeded into the sandbox at `$HOME/.agents/skills/anysearch`. If `$HOME` is unavailable, eve falls back to `/workspace/skills/anysearch`. Build commands against the primary runtime path as:
 
 ```bash
-bash /workspace/skills/anysearch/scripts/anysearch_cli.sh <command> [options]
+bash "$HOME/.agents/skills/anysearch/scripts/anysearch_cli.sh" <command> [options]
 ```
 
 The `doc` command is local-only and makes no network requests — use it for recovery:
 
 ```bash
-bash /workspace/skills/anysearch/scripts/anysearch_cli.sh doc
+bash "$HOME/.agents/skills/anysearch/scripts/anysearch_cli.sh" doc
 ```
 
 ## Command Cheat Sheet
@@ -47,23 +47,23 @@ bash /workspace/skills/anysearch/scripts/anysearch_cli.sh doc
 ```bash
 # Search. Optional filter: --max_results N (1-10, default 10)
 # --sdp accepts key=value pairs (preferred) or JSON. Aliases: --sub_domain_params, -p
-bash /workspace/skills/anysearch/scripts/anysearch_cli.sh search "query" --max_results 5
-bash /workspace/skills/anysearch/scripts/anysearch_cli.sh search "AAPL" --domain finance --sub_domain finance.quote --sdp type=stock,symbol=AAPL,cn_code=
-bash /workspace/skills/anysearch/scripts/anysearch_cli.sh search "latest trends" --domain finance --sub_domain finance.market --sdp region=US,timeframe=2025Q1
+bash "$HOME/.agents/skills/anysearch/scripts/anysearch_cli.sh" search "query" --max_results 5
+bash "$HOME/.agents/skills/anysearch/scripts/anysearch_cli.sh" search "AAPL" --domain finance --sub_domain finance.quote --sdp type=stock,symbol=AAPL,cn_code=
+bash "$HOME/.agents/skills/anysearch/scripts/anysearch_cli.sh" search "latest trends" --domain finance --sub_domain finance.market --sdp region=US,timeframe=2025Q1
 
 # Discover sub-domains. Required before any vertical search.
-bash /workspace/skills/anysearch/scripts/anysearch_cli.sh get_sub_domains --domain finance
-bash /workspace/skills/anysearch/scripts/anysearch_cli.sh get_sub_domains --domains finance,health
+bash "$HOME/.agents/skills/anysearch/scripts/anysearch_cli.sh" get_sub_domains --domain finance
+bash "$HOME/.agents/skills/anysearch/scripts/anysearch_cli.sh" get_sub_domains --domains finance,health
 
 # Batch search — shared params apply to all queries (per-query fields override).
-bash /workspace/skills/anysearch/scripts/anysearch_cli.sh batch_search --query "AAPL" --query "MSFT" --domain finance --sub_domain finance.quote --sdp type=stock,symbol=AAPL,cn_code=
-bash /workspace/skills/anysearch/scripts/anysearch_cli.sh batch_search --queries '[{"query":"AAPL","sub_domain_params":"type=stock,symbol=AAPL,cn_code="},{"query":"MSFT","sub_domain_params":"type=stock,symbol=MSFT,cn_code="}]' --domain finance --sub_domain finance.quote
+bash "$HOME/.agents/skills/anysearch/scripts/anysearch_cli.sh" batch_search --query "AAPL" --query "MSFT" --domain finance --sub_domain finance.quote --sdp type=stock,symbol=AAPL,cn_code=
+bash "$HOME/.agents/skills/anysearch/scripts/anysearch_cli.sh" batch_search --queries '[{"query":"AAPL","sub_domain_params":"type=stock,symbol=AAPL,cn_code="},{"query":"MSFT","sub_domain_params":"type=stock,symbol=MSFT,cn_code="}]' --domain finance --sub_domain finance.quote
 # Hybrid (mixed domains): omit shared params, specify per-query
-bash /workspace/skills/anysearch/scripts/anysearch_cli.sh batch_search --queries '[{"query":"quantum computing"},{"query":"QBTS","domain":"finance","sub_domain":"finance.quote","sub_domain_params":"type=stock,symbol=QBTS,cn_code="}]'
+bash "$HOME/.agents/skills/anysearch/scripts/anysearch_cli.sh" batch_search --queries '[{"query":"quantum computing"},{"query":"QBTS","domain":"finance","sub_domain":"finance.quote","sub_domain_params":"type=stock,symbol=QBTS,cn_code="}]'
 
 # Extract. Output is already Markdown. Supported args are only the URL positional argument or --url/-u.
-bash /workspace/skills/anysearch/scripts/anysearch_cli.sh extract "https://example.com/page"
-bash /workspace/skills/anysearch/scripts/anysearch_cli.sh extract --url "https://example.com/page"
+bash "$HOME/.agents/skills/anysearch/scripts/anysearch_cli.sh" extract "https://example.com/page"
+bash "$HOME/.agents/skills/anysearch/scripts/anysearch_cli.sh" extract --url "https://example.com/page"
 ```
 
 ### Social Media Source Workflow
@@ -71,8 +71,8 @@ bash /workspace/skills/anysearch/scripts/anysearch_cli.sh extract --url "https:/
 For public social-media research, treat `social_media` as a vertical domain:
 
 ```bash
-bash /workspace/skills/anysearch/scripts/anysearch_cli.sh get_sub_domains --domain social_media
-bash /workspace/skills/anysearch/scripts/anysearch_cli.sh search "product launch response on X and Reddit" --domain social_media --sub_domain <returned-sub-domain> --max_results 5
+bash "$HOME/.agents/skills/anysearch/scripts/anysearch_cli.sh" get_sub_domains --domain social_media
+bash "$HOME/.agents/skills/anysearch/scripts/anysearch_cli.sh" search "product launch response on X and Reddit" --domain social_media --sub_domain <returned-sub-domain> --max_results 5
 ```
 
 Use AnySearch for public discovery, cross-source context, and page extraction. If the user needs account-scoped X/Twitter evidence such as exact tweets, tweet replies, profile lookup, follower export, media URLs, monitors, webhooks, or approved post/reply workflows, hand off to a dedicated authenticated tool after user approval.
