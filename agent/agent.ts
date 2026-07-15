@@ -1,13 +1,4 @@
-import { createOpenAICompatible } from "@ai-sdk/openai-compatible";
-import { defineAgent } from "eve";
+import { createLongcatAgent } from "../agent-core/agent-definition";
 
-const longcat = createOpenAICompatible({
-  name: "longcat",
-  baseURL: process.env.OPENAI_BASE_URL!,
-  apiKey: process.env.OPENAI_API_KEY!,
-});
-
-export default defineAgent({
-  model: longcat(process.env.EVE_MODEL!),
-  modelContextWindowTokens: 1000000,
-});
+// research 是保留 AnySearch Skill 的联网研究 Agent。
+export default createLongcatAgent("research");
